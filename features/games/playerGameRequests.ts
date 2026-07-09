@@ -12,7 +12,6 @@ import {
   setDoc,
   updateDoc,
   where,
-  Timestamp,
 } from 'firebase/firestore';
 
 import { getAppSessionRequestHeaders } from '@/features/auth/appSession';
@@ -60,9 +59,9 @@ export type PlayerGameRequest = {
   status: PlayerGameRequestStatus;
   createdBy?: string;
   coadminUid?: string;
-  createdAt?: Timestamp | null;
-  completedAt?: Timestamp | null;
-  pokedAt?: Timestamp | null;
+  createdAt?: Date | null;
+  completedAt?: Date | null;
+  pokedAt?: Date | null;
   pokeMessage?: string | null;
   /**
    * When true, the player's `coin` was already reduced when the request was
@@ -91,7 +90,7 @@ export type CreatePlayerGameRequestResult = {
 type PlayerGameRedeemLimitReset = {
   playerUid: string;
   gameName: string;
-  resetAt?: Timestamp | null;
+  resetAt?: Date | null;
   resetByUid?: string | null;
   coadminUid?: string | null;
 };
@@ -129,8 +128,24 @@ function getRedeemLimitResetDocId(playerUid: string, gameName: string) {
   )}`;
 }
 
-function getTimestampMs(value?: Timestamp | null) {
-  return value?.toMillis?.() || 0;
+function getTimestampMs(value?: unknown) {
+  if (!value) {
+    return 0;
+  }
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+  const maybe = value as { toMillis?: () => number; toDate?: () => Date; seconds?: number };
+  if (typeof maybe.toMillis === 'function') {
+    return maybe.toMillis();
+  }
+  if (typeof maybe.toDate === 'function') {
+    return maybe.toDate().getTime();
+  }
+  if (typeof maybe.seconds === 'number') {
+    return maybe.seconds * 1000;
+  }
+  return 0;
 }
 
 async function fetchRedeemLimitResetForPlayerGame(
@@ -238,15 +253,13 @@ function sortByNewest(requests: PlayerGameRequest[]) {
 export function sortPlayerGameRequestsByNewest(requests: PlayerGameRequest[]) {
   return [...requests].sort((left, right) => {
     const leftTime =
-      left.pokedAt?.toMillis?.() ||
-      left.completedAt?.toMillis?.() ||
-      left.createdAt?.toMillis?.() ||
-      0;
+      getTimestampMs(left.pokedAt) ||
+      getTimestampMs(left.completedAt) ||
+      getTimestampMs(left.createdAt);
     const rightTime =
-      right.pokedAt?.toMillis?.() ||
-      right.completedAt?.toMillis?.() ||
-      right.createdAt?.toMillis?.() ||
-      0;
+      getTimestampMs(right.pokedAt) ||
+      getTimestampMs(right.completedAt) ||
+      getTimestampMs(right.createdAt);
 
     return rightTime - leftTime;
   });
@@ -350,7 +363,7 @@ async function fetchRolling24hRedeemUsageForPlayerGame(
     where('playerUid', '==', cleanPlayerUid),
     where('type', '==', 'redeem'),
     where('gameName', '==', cleanGameName),
-    where('createdAt', '>=', Timestamp.fromMillis(sinceMillis))
+    where('createdAt', '>=', new Date(sinceMillis))
   );
   const snapshot = await getDocs(redeemQuery);
   let total = 0;
@@ -359,7 +372,7 @@ async function fetchRolling24hRedeemUsageForPlayerGame(
     const data = docSnap.data() as {
       status?: string;
       amount?: number;
-      createdAt?: Timestamp | null;
+      createdAt?: Date | null;
     };
     const status = String(data.status || '').toLowerCase();
     if (status === 'dismissed' || status === 'failed') {
@@ -445,7 +458,7 @@ export async function resetPlayerGameRedeemLimitForCoadmin(
     {
       playerUid: cleanPlayerUid,
       gameName: cleanGameName,
-      resetAt: Timestamp.now(),
+      resetAt: new Date(),
       resetByUid: currentUser.uid,
       coadminUid,
     } satisfies PlayerGameRedeemLimitReset
@@ -589,7 +602,7 @@ export async function createPlayerGameRequest(values: {
     status: 'pending',
     createdBy: getCachedSessionUser()?.coadminUid || undefined,
     coadminUid: getCachedSessionUser()?.coadminUid || undefined,
-    createdAt: Timestamp.now(),
+    createdAt: new Date(),
     completedAt: null,
     pokedAt: null,
     pokeMessage: null,

@@ -9,32 +9,6 @@ function disabledFirestoreError(operation: string): never {
   throw new Error('Firestore runtime is disabled. Use PostgreSQL APIs.');
 }
 
-export class Timestamp {
-  readonly seconds: number;
-  readonly nanoseconds: number;
-
-  constructor(seconds: number, nanoseconds: number) {
-    this.seconds = seconds;
-    this.nanoseconds = nanoseconds;
-  }
-
-  static now() {
-    return Timestamp.fromDate(new Date());
-  }
-
-  static fromDate(date: Date) {
-    return new Timestamp(Math.floor(date.getTime() / 1000), (date.getTime() % 1000) * 1_000_000);
-  }
-
-  toDate() {
-    return new Date(this.seconds * 1000 + Math.floor(this.nanoseconds / 1_000_000));
-  }
-
-  toMillis() {
-    return this.toDate().getTime();
-  }
-}
-
 export function collection(...args: unknown[]) {
   return { type: 'collection', args };
 }

@@ -1,4 +1,3 @@
-import { Timestamp } from 'firebase-admin/firestore';
 import { NextResponse } from 'next/server';
 
 import { adminDb } from '@/lib/firebase/admin';
@@ -110,8 +109,8 @@ export async function POST(request: Request) {
         throw new Error('already_claimed_or_not_pending');
       }
 
-      const now = Timestamp.now();
-      const expiresAt = Timestamp.fromMillis(now.toMillis() + TASK_DURATION_MS);
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + TASK_DURATION_MS);
       transaction.update(taskRef, {
         status: 'in_progress',
         assignedHandlerUid: caller.uid,
@@ -123,7 +122,7 @@ export async function POST(request: Request) {
         expiresAt,
       });
 
-      return { expiresAtMs: expiresAt.toMillis(), taskScope };
+      return { expiresAtMs: expiresAt.getTime(), taskScope };
     });
 
     console.info('[CASHOUT_TASK_CLAIM] success', {

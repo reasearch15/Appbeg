@@ -1,5 +1,4 @@
 import {
-  Timestamp,
   getDocs,
   limit,
   writeBatch,
@@ -68,9 +67,29 @@ export type CarerCashoutRequest = {
   status: 'pending' | 'completed' | 'declined';
   completedAmountNpr?: number | null;
   remainingAmountNpr?: number | null;
-  createdAt?: Timestamp | null;
-  completedAt?: Timestamp | null;
+  createdAt?: Date | null;
+  completedAt?: Date | null;
 };
+
+function getDateMs(value: unknown) {
+  if (!value) {
+    return 0;
+  }
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+  const maybe = value as { toMillis?: () => number; toDate?: () => Date; seconds?: number };
+  if (typeof maybe.toMillis === 'function') {
+    return maybe.toMillis();
+  }
+  if (typeof maybe.toDate === 'function') {
+    return maybe.toDate().getTime();
+  }
+  if (typeof maybe.seconds === 'number') {
+    return maybe.seconds * 1000;
+  }
+  return 0;
+}
 
 export async function saveCarerPaymentDetails(values: {
   paymentQrUrl: string;
@@ -205,8 +224,8 @@ export function listenPendingCashoutsByCoadmin(
           ...(docSnap.data() as Omit<CarerCashoutRequest, 'id'>),
         }))
         .sort((a, b) => {
-          const aTime = a.createdAt?.toMillis?.() || 0;
-          const bTime = b.createdAt?.toMillis?.() || 0;
+          const aTime = getDateMs(a.createdAt);
+          const bTime = getDateMs(b.createdAt);
           return bTime - aTime;
         });
       onChange(items);
@@ -252,12 +271,12 @@ export function listenCarerCashoutsByCarerUid(
         }))
         .sort((a, b) => {
           const aTime = Math.max(
-            a.completedAt?.toMillis?.() || 0,
-            a.createdAt?.toMillis?.() || 0
+            getDateMs(a.completedAt),
+            getDateMs(a.createdAt)
           );
           const bTime = Math.max(
-            b.completedAt?.toMillis?.() || 0,
-            b.createdAt?.toMillis?.() || 0
+            getDateMs(b.completedAt),
+            getDateMs(b.createdAt)
           );
           return bTime - aTime;
         });

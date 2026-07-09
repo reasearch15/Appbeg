@@ -1,7 +1,5 @@
 'use client';
 
-import { Timestamp } from 'firebase/firestore';
-
 import type { CarerCashoutRequest } from '@/features/cashouts/carerCashouts';
 import { getSqlApiReadHeaders } from '@/lib/client/sqlApiHeaders';
 import { assertClientFirestoreDisabled } from '@/lib/client/clientFirestoreGuard';
@@ -9,12 +7,12 @@ import { logClientFirestoreSkipped } from '@/lib/client/sqlReadMode';
 
 const POLL_MS = 10_000;
 
-function isoToTimestamp(iso: string | null | undefined): Timestamp | null {
+function isoToTimestamp(iso: string | null | undefined): Date | null {
   if (!iso) {
     return null;
   }
   const ms = Date.parse(iso);
-  return Number.isFinite(ms) ? Timestamp.fromMillis(ms) : null;
+  return Number.isFinite(ms) ? new Date(ms) : null;
 }
 
 function mapCachedCashout(row: Record<string, unknown>): CarerCashoutRequest {

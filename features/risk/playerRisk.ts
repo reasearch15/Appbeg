@@ -1,5 +1,4 @@
 import {
-  Timestamp,
   addDoc,
   collection,
   doc,
@@ -179,17 +178,17 @@ export type TransferRequest = {
   status: TransferRequestStatus;
   requestedByUid: string;
   requestedByUsername: string;
-  requestedAt?: Timestamp | null;
+  requestedAt?: Date | null;
   approvedByUid?: string | null;
   approvedByUsername?: string | null;
-  approvedAt?: Timestamp | null;
+  approvedAt?: Date | null;
   rejectedByUid?: string | null;
   rejectedByUsername?: string | null;
-  rejectedAt?: Timestamp | null;
+  rejectedAt?: Date | null;
   rejectionReason?: string | null;
   autoApproved?: boolean;
   reviewed?: boolean;
-  processedAt?: Timestamp | null;
+  processedAt?: Date | null;
 };
 
 type FinancialEvent = {
@@ -197,12 +196,12 @@ type FinancialEvent = {
   coadminUid: string;
   amountNpr: number;
   type: FinancialEventType;
-  createdAt?: Timestamp | null;
+  createdAt?: Date | null;
 };
 
 type HistoricalSourceRow = {
   amountNpr: number;
-  createdAt?: Timestamp | null;
+  createdAt?: Date | null;
   type: FinancialEventType;
 };
 
@@ -228,13 +227,13 @@ export type PlayerRiskSnapshot = {
   riskScore: number;
   riskLevel: RiskLevel;
   alerts: string[];
-  reviewedAt?: Timestamp | null;
+  reviewedAt?: Date | null;
   reviewedByUid?: string | null;
   reviewedByUsername?: string | null;
-  bonusBlockedUntil?: Timestamp | null;
-  transferBlockedUntil?: Timestamp | null;
-  lastActivityAt?: Timestamp | null;
-  updatedAt?: Timestamp | null;
+  bonusBlockedUntil?: Date | null;
+  transferBlockedUntil?: Date | null;
+  lastActivityAt?: Date | null;
+  updatedAt?: Date | null;
 };
 
 type ActorIdentity = {
@@ -251,8 +250,24 @@ const BONUS_AFTER_TRANSFER_WINDOW_MS = 24 * 60 * 60 * 1000;
 const LOW_DEPOSIT_WITHDRAWAL_RATIO = 1.4;
 const TEMP_BLOCK_DURATION_MS = 12 * 60 * 60 * 1000;
 
-function toMs(value?: Timestamp | null) {
-  return value?.toMillis?.() || 0;
+function toMs(value?: unknown) {
+  if (!value) {
+    return 0;
+  }
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+  const maybe = value as { toMillis?: () => number; toDate?: () => Date; seconds?: number };
+  if (typeof maybe.toMillis === 'function') {
+    return maybe.toMillis();
+  }
+  if (typeof maybe.toDate === 'function') {
+    return maybe.toDate().getTime();
+  }
+  if (typeof maybe.seconds === 'number') {
+    return maybe.seconds * 1000;
+  }
+  return 0;
 }
 
 function getStartMs(windowMs: number) {
@@ -431,7 +446,7 @@ async function loadHistoricalPlayerEvents(playerUid: string) {
   ]);
 
   const cashoutRows: HistoricalSourceRow[] = cashoutSnap.docs.map((docSnap) => {
-    const value = docSnap.data() as { amountNpr?: number; completedAt?: Timestamp | null };
+    const value = docSnap.data() as { amountNpr?: number; completedAt?: Date | null };
     return {
       amountNpr: Number(value.amountNpr || 0),
       createdAt: value.completedAt || null,
@@ -440,7 +455,7 @@ async function loadHistoricalPlayerEvents(playerUid: string) {
   });
 
   const transferRows: HistoricalSourceRow[] = transferSnap.docs.map((docSnap) => {
-    const value = docSnap.data() as { amountNpr?: number; approvedAt?: Timestamp | null };
+    const value = docSnap.data() as { amountNpr?: number; approvedAt?: Date | null };
     return {
       amountNpr: Number(value.amountNpr || 0),
       createdAt: value.approvedAt || null,
@@ -452,7 +467,7 @@ async function loadHistoricalPlayerEvents(playerUid: string) {
     const value = docSnap.data() as {
       type?: string;
       amount?: number;
-      completedAt?: Timestamp | null;
+      completedAt?: Date | null;
       bonusPercentage?: number;
       baseAmount?: number;
     };
@@ -527,8 +542,8 @@ export async function computeAndStorePlayerRiskSnapshot(playerUid: string) {
     username?: string;
     coadminUid?: string | null;
     createdBy?: string | null;
-    bonusBlockedUntil?: Timestamp | null;
-    transferBlockedUntil?: Timestamp | null;
+    bonusBlockedUntil?: Date | null;
+    transferBlockedUntil?: Date | null;
   };
   const coadminUid = String(playerData.coadminUid || playerData.createdBy || '').trim();
   const [financialEvents, historicalEvents] = await Promise.all([
@@ -925,7 +940,7 @@ export async function markRiskReviewed(playerUid: string) {
 }
 
 export async function setPlayerBonusBlock(playerUid: string, shouldBlock: boolean) {
-  const until = shouldBlock ? Timestamp.fromMillis(Date.now() + TEMP_BLOCK_DURATION_MS) : null;
+  const until = shouldBlock ? new Date(Date.now() + TEMP_BLOCK_DURATION_MS) : null;
   await setDoc(doc(db, 'users', playerUid), { bonusBlockedUntil: until }, { merge: true });
   await setDoc(doc(db, 'playerRiskSnapshots', playerUid), { bonusBlockedUntil: until }, { merge: true });
 
@@ -939,7 +954,7 @@ export async function setPlayerBonusBlock(playerUid: string, shouldBlock: boolea
 }
 
 export async function setPlayerTransferBlock(playerUid: string, shouldBlock: boolean) {
-  const until = shouldBlock ? Timestamp.fromMillis(Date.now() + TEMP_BLOCK_DURATION_MS) : null;
+  const until = shouldBlock ? new Date(Date.now() + TEMP_BLOCK_DURATION_MS) : null;
   await setDoc(doc(db, 'users', playerUid), { transferBlockedUntil: until }, { merge: true });
   await setDoc(doc(db, 'playerRiskSnapshots', playerUid), { transferBlockedUntil: until }, { merge: true });
 

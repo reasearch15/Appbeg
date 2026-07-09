@@ -6,7 +6,6 @@ import {
   documentId,
   onSnapshot,
   query,
-  Timestamp,
   where,
 } from 'firebase/firestore';
 
@@ -297,8 +296,7 @@ export function usePresenceOnlineMap(
                 next[id] = null;
                 continue;
               }
-              const ls = docSnap.data().lastSeenAt as Timestamp | undefined;
-              next[id] = ls?.toMillis() ?? null;
+              next[id] = toDateMs(docSnap.data().lastSeenAt);
             }
             return next;
           });
@@ -321,4 +319,24 @@ export function usePresenceOnlineMap(
     }
     return out;
   }, [uniqueSorted, lastSeenMsByUid, tick]);
+}
+
+function toDateMs(value: unknown): number | null {
+  if (!value) {
+    return null;
+  }
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+  const maybe = value as { toMillis?: () => number; toDate?: () => Date; seconds?: number };
+  if (typeof maybe.toMillis === 'function') {
+    return maybe.toMillis();
+  }
+  if (typeof maybe.toDate === 'function') {
+    return maybe.toDate().getTime();
+  }
+  if (typeof maybe.seconds === 'number') {
+    return maybe.seconds * 1000;
+  }
+  return null;
 }

@@ -11,7 +11,6 @@ import {
   serverTimestamp,
   setDoc,
   where,
-  Timestamp,
 } from 'firebase/firestore';
 
 import { auth, db } from '@/lib/firebase/client';
@@ -62,14 +61,14 @@ export type BonusEvent = {
   createdByRole: 'staff' | 'coadmin' | 'admin' | 'system';
   creator_role?: 'staff' | 'coadmin' | 'admin' | 'system';
   status?: 'active' | 'inactive';
-  startDate?: Timestamp | null;
-  endDate?: Timestamp | null;
-  start_date?: Timestamp | null;
-  end_date?: Timestamp | null;
-  createdAt?: Timestamp | null;
-  created_at?: Timestamp | null;
-  updatedAt?: Timestamp | null;
-  updated_at?: Timestamp | null;
+  startDate?: Date | string | null;
+  endDate?: Date | string | null;
+  start_date?: Date | string | null;
+  end_date?: Date | string | null;
+  createdAt?: Date | string | null;
+  created_at?: Date | string | null;
+  updatedAt?: Date | string | null;
+  updated_at?: Date | string | null;
 };
 
 function toBonusEvent(docId: string, value: Omit<BonusEvent, 'id'>): BonusEvent {
@@ -93,16 +92,30 @@ function toBonusEvent(docId: string, value: Omit<BonusEvent, 'id'>): BonusEvent 
     amountNpr,
     amount: (value as { amount?: number }).amount ?? amountNpr,
     createdAt:
-      (value as { createdAt?: Timestamp | null; created_at?: Timestamp | null }).createdAt ??
-      (value as { createdAt?: Timestamp | null; created_at?: Timestamp | null }).created_at ??
+      (value as { createdAt?: Date | string | null; created_at?: Date | string | null }).createdAt ??
+      (value as { createdAt?: Date | string | null; created_at?: Date | string | null }).created_at ??
       null,
   };
 }
 
+function toDateMs(value: unknown): number {
+  if (!value) return 0;
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+  const maybe = value as { toMillis?: () => number; toDate?: () => Date; seconds?: number };
+  if (typeof maybe.toMillis === 'function') return maybe.toMillis();
+  if (typeof maybe.toDate === 'function') return maybe.toDate().getTime();
+  if (typeof maybe.seconds === 'number') return maybe.seconds * 1000;
+  return 0;
+}
+
 function sortByNewest(list: BonusEvent[]) {
   return [...list].sort((left, right) => {
-    const leftTime = left.createdAt?.toMillis?.() || 0;
-    const rightTime = right.createdAt?.toMillis?.() || 0;
+    const leftTime = toDateMs(left.createdAt);
+    const rightTime = toDateMs(right.createdAt);
     return rightTime - leftTime;
   });
 }
@@ -202,13 +215,8 @@ export function getStaffBonusEventsForPlayerDisplay(events: BonusEvent[]) {
   return getBonusEventsForPlayerDisplay(events);
 }
 
-function normalizeDateMs(value: Timestamp | string | null | undefined): number {
-  if (!value) return 0;
-  if (typeof value === 'string') {
-    const parsed = Date.parse(value);
-    return Number.isNaN(parsed) ? 0 : parsed;
-  }
-  return value?.toMillis?.() || 0;
+function normalizeDateMs(value: unknown): number {
+  return toDateMs(value);
 }
 
 function normalizeStartDate(event: BonusEvent): number {
@@ -535,8 +543,8 @@ export async function createBonusEvent(values: {
     throw new Error('Duplicate active bonus event already exists.');
   }
 
-  const now = Timestamp.now();
-  const end = Timestamp.fromMillis(now.toMillis() + 7 * 24 * 60 * 60 * 1000);
+  const now = new Date();
+  const end = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
   const baseDoc = {
     coadminUid,
     bonusName,
@@ -624,8 +632,8 @@ export async function ensureCoadminActiveBonusEventsFilled(options?: {
       ? coadminGameNames[randomInt(0, coadminGameNames.length - 1)]
       : 'Bonus Table';
 
-  const now = Timestamp.now();
-  const end = Timestamp.fromMillis(now.toMillis() + 7 * 24 * 60 * 60 * 1000);
+  const now = new Date();
+  const end = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
   const missing = MAX_ACTIVE_BONUS_EVENTS - activeEvents.length;
   let autoCreatedCount = 0;
   let attempts = 0;
@@ -752,8 +760,8 @@ function mapApiBonusEvent(event: Record<string, unknown>): BonusEvent {
     bonus_percentage: bonusPercentage,
     amountNpr,
     amount: amountNpr,
-    createdAt: (event.createdAt as Timestamp | null | undefined) ?? null,
-    created_at: (event.created_at as Timestamp | null | undefined) ?? null,
+    createdAt: (event.createdAt as Date | string | null | undefined) ?? null,
+    created_at: (event.created_at as Date | string | null | undefined) ?? null,
   } as BonusEvent;
 }
 

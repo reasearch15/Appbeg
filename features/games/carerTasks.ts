@@ -1,7 +1,6 @@
 import {
   addDoc,
   arrayUnion,
-  Timestamp,
   collection,
   deleteDoc,
   doc,
@@ -99,16 +98,16 @@ export type CarerTask = {
   assignedCarer?: string | null;
   assignedCarerUsername?: string | null;
   claimedStatus?: string | null;
-  claimedAt?: Timestamp | null;
+  claimedAt?: Date | null;
   claimedByUid?: string | null;
   claimedByUsername?: string | null;
-  lastHeartbeatAt?: Timestamp | null;
-  startedAt?: Timestamp | null;
-  expiresAt?: Timestamp | null;
-  completedAt?: Timestamp | null;
-  createdAt?: Timestamp | null;
+  lastHeartbeatAt?: Date | null;
+  startedAt?: Date | null;
+  expiresAt?: Date | null;
+  completedAt?: Date | null;
+  createdAt?: Date | null;
   isPoked?: boolean;
-  pokedAt?: Timestamp | null;
+  pokedAt?: Date | null;
   pokeMessage?: string | null;
   completedByCarerUid?: string | null;
   completedByCarerUsername?: string | null;
@@ -121,11 +120,11 @@ export type CarerTask = {
     | 'retry_requested'
     | null;
   automationJobId?: string | null;
-  automationUpdatedAt?: Timestamp | null;
+  automationUpdatedAt?: Date | null;
   automationError?: string | null;
-  resetToPendingAt?: Timestamp | null;
-  returnedToPendingAt?: Timestamp | null;
-  pendingSince?: Timestamp | null;
+  resetToPendingAt?: Date | null;
+  returnedToPendingAt?: Date | null;
+  pendingSince?: Date | null;
   currentUsername?: string | null;
   gameAccountUsername?: string | null;
   loginUrl?: string | null;
@@ -303,7 +302,7 @@ export type CarerEscalationAlert = {
   createdByCarerUid: string;
   createdByCarerUsername: string;
   dismissedByUids?: string[];
-  createdAt?: Timestamp | null;
+  createdAt?: Date | null;
 };
 
 export type CarerRechargeRedeemTotals = {
@@ -359,8 +358,8 @@ function getTimestampMs(value: unknown) {
   if (!value) {
     return 0;
   }
-  if (value instanceof Timestamp) {
-    return value.toMillis();
+  if (value instanceof Date) {
+    return value.getTime();
   }
   if (
     typeof value === 'object' &&
@@ -2260,9 +2259,9 @@ export async function releaseExpiredCarerTasks(coadminUid: string) {
       taskId?: string;
       status?: string;
       attempts?: number;
-      startedAt?: Timestamp | null;
-      updatedAt?: Timestamp | null;
-      createdAt?: Timestamp | null;
+      startedAt?: Date | null;
+      updatedAt?: Date | null;
+      createdAt?: Date | null;
     };
     const taskId = String(data.taskId || '').trim();
     if (!taskId) {
@@ -2573,7 +2572,7 @@ export async function startCarerTask(taskId: string) {
       }
     }
 
-    const now = Timestamp.now();
+    const now = new Date();
 
     transaction.update(taskRef, {
       status: 'in_progress',
@@ -3104,12 +3103,12 @@ export async function sendCarerCashboxInquiryAlert(values: {
 
 const CARER_ESCALATION_ALERT_LIVE_LIMIT = 24;
 
-function isoToEscalationTimestamp(iso: string | null | undefined): Timestamp | null {
+function isoToEscalationDate(iso: string | null | undefined): Date | null {
   if (!iso) {
     return null;
   }
   const ms = Date.parse(iso);
-  return Number.isFinite(ms) ? Timestamp.fromMillis(ms) : null;
+  return Number.isFinite(ms) ? new Date(ms) : null;
 }
 
 export function listenToCarerEscalationAlertsByCoadmin(
@@ -3166,7 +3165,7 @@ export function listenToCarerEscalationAlertsByCoadmin(
                 message: String(alert.message || ''),
                 createdByCarerUid: String(alert.createdByCarerUid || ''),
                 createdByCarerUsername: String(alert.createdByCarerUsername || ''),
-                createdAt: isoToEscalationTimestamp(alert.createdAt),
+                createdAt: isoToEscalationDate(alert.createdAt),
               })
             )
             .filter(
@@ -3237,8 +3236,8 @@ export function listenToCarerEscalationAlertsByCoadmin(
               : !alert.dismissedByUids.includes(currentUid)
         )
         .sort((a, b) => {
-          const aTime = a.createdAt?.toMillis?.() || 0;
-          const bTime = b.createdAt?.toMillis?.() || 0;
+          const aTime = getTimestampMs(a.createdAt);
+          const bTime = getTimestampMs(b.createdAt);
           return bTime - aTime;
         });
 
@@ -3296,8 +3295,8 @@ export async function listenToCarerEscalationAlerts(
               : !alert.dismissedByUids.includes(currentUid)
         )
         .sort((a, b) => {
-          const aTime = a.createdAt?.toMillis?.() || 0;
-          const bTime = b.createdAt?.toMillis?.() || 0;
+          const aTime = getTimestampMs(a.createdAt);
+          const bTime = getTimestampMs(b.createdAt);
           return bTime - aTime;
         });
 
@@ -3527,7 +3526,7 @@ export function listenCarerRechargeRedeemTotalsByCoadmin(
     });
   }
 
-  const windowStart = Timestamp.fromMillis(Date.now() - CARER_TOTALS_WINDOW_MS);
+  const windowStart = new Date(Date.now() - CARER_TOTALS_WINDOW_MS);
   const rechargeQuery = query(
     collection(db, 'carerTasks'),
     where('coadminUid', '==', coadminUid),

@@ -1,4 +1,4 @@
-import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
 import { NextResponse } from 'next/server';
 
 import { adminDb } from '@/lib/firebase/admin';
@@ -152,7 +152,7 @@ export async function POST(request: Request) {
       minPercent: body?.minPercent,
       maxPercent: body?.maxPercent,
     });
-    const now = Timestamp.now();
+    const now = new Date();
 
     // Save config first (fast path), then run slow updates.
     const settingsRef = adminDb.collection('coadminBonusSettings').doc(callerUid);
@@ -193,7 +193,7 @@ export async function POST(request: Request) {
         settingsRef,
         {
           rangeUpdateLeaseId: nextLeaseId,
-          rangeUpdateLeaseExpiresAt: Timestamp.fromMillis(nowMs + LEASE_MS),
+          rangeUpdateLeaseExpiresAt: new Date(nowMs + LEASE_MS),
           rangeUpdateStartedAt: now,
         },
         { merge: true }

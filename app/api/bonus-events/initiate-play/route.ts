@@ -232,7 +232,7 @@ export async function POST(request: Request) {
         coin?: number;
         coadminUid?: string | null;
         createdBy?: string | null;
-        bonusBlockedUntil?: FirebaseFirestore.Timestamp | null;
+        bonusBlockedUntil?: Date | { toMillis?: () => number } | null;
       };
       if (String(player.role || '').toLowerCase() !== 'player') {
         throw new Error('Only players can start bonus event play.');
@@ -242,7 +242,11 @@ export async function POST(request: Request) {
       if (!playerCoadminUid) {
         throw new Error('Player coadmin scope not found.');
       }
-      if ((player.bonusBlockedUntil?.toMillis?.() || 0) > Date.now()) {
+      const bonusBlockedUntilMs =
+        player.bonusBlockedUntil instanceof Date
+          ? player.bonusBlockedUntil.getTime()
+          : player.bonusBlockedUntil?.toMillis?.() || 0;
+      if (bonusBlockedUntilMs > Date.now()) {
         throw new Error('Bonus play is temporarily blocked for this account.');
       }
 

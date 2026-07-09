@@ -1,5 +1,3 @@
-import { Timestamp } from 'firebase/firestore';
-
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const AUTOMATION_JOB_TTL_DAYS = 14;
@@ -8,7 +6,7 @@ export const CHAT_MESSAGE_TTL_DAYS = 90;
 export const COMPLETED_PLAYER_GAME_REQUEST_TTL_DAYS = 90;
 
 export function ttlFromNow(days: number) {
-  return Timestamp.fromMillis(Date.now() + days * DAY_MS);
+  return new Date(Date.now() + days * DAY_MS);
 }
 
 export function automationJobTtl() {

@@ -1,6 +1,5 @@
 import {
   arrayUnion,
-  Timestamp,
   collection,
   doc,
   getDoc,
@@ -57,10 +56,10 @@ export type PlayerCashoutTask = {
   status: PlayerCashoutTaskStatus;
   assignedHandlerUid?: string | null;
   assignedHandlerUsername?: string | null;
-  startedAt?: Timestamp | null;
-  expiresAt?: Timestamp | null;
-  createdAt?: Timestamp | null;
-  completedAt?: Timestamp | null;
+  startedAt?: Date | null;
+  expiresAt?: Date | null;
+  createdAt?: Date | null;
+  completedAt?: Date | null;
 };
 
 const CASHOUT_ACTIVE_LISTENER_LIMIT = 100;
@@ -95,7 +94,7 @@ async function fetchRolling24hCashoutUsageNprForPlayer(playerUid: string): Promi
   const q = query(
     collection(db, 'playerCashoutTasks'),
     where('playerUid', '==', playerUid),
-    where('createdAt', '>=', Timestamp.fromMillis(sinceMillis))
+    where('createdAt', '>=', new Date(sinceMillis))
   );
   const snapshot = await getDocs(q);
   let total = 0;
@@ -147,14 +146,14 @@ async function fetchLatestCompletedRechargeAmountForPlayer(playerUid: string): P
       .map((docSnap) => {
         const data = docSnap.data() as {
           amount?: number;
-          completedAt?: Timestamp | null;
-          createdAt?: Timestamp | null;
+          completedAt?: Date | null;
+          createdAt?: Date | null;
         };
         return {
           amount: Math.max(0, Math.round(Number(data.amount || 0))),
           sortMs: Math.max(
-            data.completedAt?.toMillis?.() || 0,
-            data.createdAt?.toMillis?.() || 0
+            getSnapshotMs(data.completedAt),
+            getSnapshotMs(data.createdAt)
           ),
         };
       })
@@ -168,8 +167,24 @@ function toTask(docId: string, value: Omit<PlayerCashoutTask, 'id'>): PlayerCash
   return { id: docId, ...value };
 }
 
-function getSnapshotMs(value?: Timestamp | null) {
-  return value?.toMillis?.() || 0;
+function getSnapshotMs(value?: unknown) {
+  if (!value) {
+    return 0;
+  }
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+  const maybe = value as { toMillis?: () => number; toDate?: () => Date; seconds?: number };
+  if (typeof maybe.toMillis === 'function') {
+    return maybe.toMillis();
+  }
+  if (typeof maybe.toDate === 'function') {
+    return maybe.toDate().getTime();
+  }
+  if (typeof maybe.seconds === 'number') {
+    return maybe.seconds * 1000;
+  }
+  return 0;
 }
 
 export function getPlayerCashoutPaymentDisplay(task: PlayerCashoutTask) {
@@ -247,7 +262,7 @@ export function getEffectivePlayerCashoutTaskStatus(task: PlayerCashoutTask) {
   if (
     task.status === 'in_progress' &&
     task.expiresAt &&
-    task.expiresAt.toMillis() <= Date.now()
+    getSnapshotMs(task.expiresAt) <= Date.now()
   ) {
     return 'pending' as const;
   }
@@ -260,7 +275,7 @@ export function getPlayerCashoutTaskCountdown(task: PlayerCashoutTask) {
     return 0;
   }
 
-  return Math.max(0, task.expiresAt.toMillis() - Date.now());
+  return Math.max(0, getSnapshotMs(task.expiresAt) - Date.now());
 }
 
 /**

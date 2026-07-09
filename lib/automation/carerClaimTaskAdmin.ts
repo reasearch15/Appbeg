@@ -3,7 +3,7 @@
  * Mirrors client `claimTaskAndCreateJob` for the local agent auto-tick API.
  */
 
-import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
 import { createHash } from 'node:crypto';
 
 import { adminDb } from '@/lib/firebase/admin';
@@ -28,7 +28,7 @@ import { readPlayerGameLoginForClaimFromSql } from '@/lib/sql/playerGameLoginsCa
 const AUTOMATION_JOB_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 
 function automationJobTtlAdmin() {
-  return Timestamp.fromMillis(Date.now() + AUTOMATION_JOB_TTL_MS);
+  return new Date(Date.now() + AUTOMATION_JOB_TTL_MS);
 }
 
 const STALE_TASK_CLAIM_TIMEOUT_MS = 5 * 60 * 1000;

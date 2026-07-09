@@ -4782,7 +4782,9 @@ export default function CarerPage() {
                     <p className="text-sm font-semibold text-white">{risk.playerUsername}</p>
                     <p className="text-xs text-rose-100/70">
                       {risk.alerts[0] || 'Risk pattern detected'} · Last:{' '}
-                      {risk.lastActivityAt?.toDate?.().toLocaleString?.() || 'N/A'}
+                      {getTimestampMs(risk.lastActivityAt)
+                        ? new Date(getTimestampMs(risk.lastActivityAt)).toLocaleString()
+                        : 'N/A'}
                     </p>
                   </div>
                   <span

@@ -1,7 +1,5 @@
 'use client';
 
-import { Timestamp } from 'firebase/firestore';
-
 import type { FirestoreChatMessage } from '@/features/messages/chatMessages';
 import { fetchChatApi } from '@/lib/client/chatLogoutDiagnostics';
 import { getLocalAppSessionId } from '@/features/auth/appSession';
@@ -46,7 +44,7 @@ function isoToTimestamp(iso: string | null | undefined) {
     return null;
   }
   const ms = Date.parse(iso);
-  return Number.isFinite(ms) ? Timestamp.fromMillis(ms) : null;
+  return Number.isFinite(ms) ? new Date(ms) : null;
 }
 
 function mapCachedMessage(row: Record<string, unknown>): FirestoreChatMessage {

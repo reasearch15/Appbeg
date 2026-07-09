@@ -1,4 +1,4 @@
-import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
 import { NextResponse } from 'next/server';
 
 import { adminDb } from '@/lib/firebase/admin';
@@ -56,7 +56,7 @@ type EnsureLeaseResult =
   | {
       status: 'acquired';
       leaseId: string;
-      now: Timestamp;
+      now: Date;
       lastEnsuredAtMs: number;
       lastEnsuredStateHash: string;
       lastActiveCount: number;
@@ -222,8 +222,8 @@ async function acquireEnsureCapacityLease(caller: {
 }) : Promise<EnsureLeaseResult> {
   const userRef = adminDb.collection('users').doc(caller.coadminUid);
   const leaseId = crypto.randomUUID();
-  const now = Timestamp.now();
-  const nowMs = now.toMillis();
+  const now = new Date();
+  const nowMs = now.getTime();
 
   return adminDb.runTransaction(async (transaction) => {
     const userSnap = await transaction.get(userRef);
@@ -269,7 +269,7 @@ async function acquireEnsureCapacityLease(caller: {
 
     transaction.update(userRef, {
       bonusEnsureCapacityLeaseId: leaseId,
-      bonusEnsureCapacityLeaseExpiresAt: Timestamp.fromMillis(nowMs + BONUS_ENSURE_LEASE_MS),
+      bonusEnsureCapacityLeaseExpiresAt: new Date(nowMs + BONUS_ENSURE_LEASE_MS),
       bonusEnsureCapacityLeaseStartedAt: now,
     });
 
@@ -292,7 +292,7 @@ async function releaseEnsureCapacityLease(values: {
   ensuredStateHash?: string;
 }) {
   const userRef = adminDb.collection('users').doc(values.coadminUid);
-  const releaseTime = Timestamp.now();
+  const releaseTime = new Date();
 
   await adminDb.runTransaction(async (transaction) => {
     const userSnap = await transaction.get(userRef);
@@ -536,7 +536,7 @@ export async function POST(request: Request) {
       lease.lastEnsuredStateHash &&
       lease.lastEnsuredStateHash === activeStateHash &&
       lease.lastEnsuredAtMs > 0 &&
-      lease.now.toMillis() - lease.lastEnsuredAtMs < BONUS_ENSURE_STATE_CACHE_MS &&
+      lease.now.getTime() - lease.lastEnsuredAtMs < BONUS_ENSURE_STATE_CACHE_MS &&
       !(activeDocs.length === 0 && missingCapacity > 0)
     ) {
       shouldMarkEnsured = true;
@@ -612,8 +612,8 @@ export async function POST(request: Request) {
       )
     );
 
-    const now = Timestamp.now();
-    const end = Timestamp.fromMillis(now.toMillis() + 7 * 24 * 60 * 60 * 1000);
+    const now = new Date();
+    const end = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     const missing = MAX_ACTIVE_BONUS_EVENTS - activeDocs.length;
     let autoCreatedCount = 0;
     let attempts = 0;

@@ -1,4 +1,4 @@
-import { collection, onSnapshot, query, where, type Timestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 
 import { assertClientFirestoreDisabled } from '@/lib/client/clientFirestoreGuard';
 
@@ -9,8 +9,8 @@ export type ReferredPlayer = {
   uid: string;
   username: string;
   status?: string;
-  createdAt?: Timestamp | null;
-  referralCreatedAt?: Timestamp | null;
+  createdAt?: Date | null;
+  referralCreatedAt?: Date | null;
   referralBonusCoins?: number;
 };
 
@@ -61,8 +61,8 @@ export function listenReferredPlayersByReferrer(
             username?: string;
             role?: string;
             status?: string;
-            createdAt?: Timestamp | null;
-            referralCreatedAt?: Timestamp | null;
+            createdAt?: Date | null;
+            referralCreatedAt?: Date | null;
             referralBonusCoins?: number;
           };
           return {

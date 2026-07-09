@@ -1,7 +1,5 @@
 'use client';
 
-import { Timestamp } from 'firebase/firestore';
-
 import type { PlayerCashoutTask } from '@/features/cashouts/playerCashoutTasks';
 import { getLocalAppSessionId } from '@/features/auth/appSession';
 import { getLocalPlayerSessionId } from '@/features/auth/playerSession';
@@ -86,12 +84,12 @@ function logScopeListAfterEvent(scope: CashoutScope, count: number, reason: stri
   console.info('[CASHOUT_UI_REFETCHED]', base);
 }
 
-function isoToTimestamp(iso: string | null | undefined): Timestamp | null {
+function isoToTimestamp(iso: string | null | undefined): Date | null {
   if (!iso) {
     return null;
   }
   const ms = Date.parse(iso);
-  return Number.isFinite(ms) ? Timestamp.fromMillis(ms) : null;
+  return Number.isFinite(ms) ? new Date(ms) : null;
 }
 
 function mapCachedTask(row: Record<string, unknown>): PlayerCashoutTask {

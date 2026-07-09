@@ -150,10 +150,38 @@ function getStaffMobileViewportServerSnapshot() {
 
 function sortByNewest<T extends { createdAt?: any }>(list: T[]) {
   return [...list].sort((a: any, b: any) => {
-    const aTime = a.createdAt?.toDate?.()?.getTime?.() || a.createdAt?.getTime?.() || 0;
-    const bTime = b.createdAt?.toDate?.()?.getTime?.() || b.createdAt?.getTime?.() || 0;
+    const aTime = getDateMs(a.createdAt);
+    const bTime = getDateMs(b.createdAt);
     return bTime - aTime;
   });
+}
+
+function getDateMs(value: unknown) {
+  if (!value) {
+    return 0;
+  }
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+  const maybe = value as { toMillis?: () => number; toDate?: () => Date; getTime?: () => number; seconds?: number };
+  if (typeof maybe.toMillis === 'function') {
+    return maybe.toMillis();
+  }
+  if (typeof maybe.toDate === 'function') {
+    return maybe.toDate().getTime();
+  }
+  if (typeof maybe.getTime === 'function') {
+    return maybe.getTime();
+  }
+  if (typeof maybe.seconds === 'number') {
+    return maybe.seconds * 1000;
+  }
+  return 0;
+}
+
+function formatDateTime(value: unknown, fallback = 'N/A') {
+  const ms = getDateMs(value);
+  return ms ? new Date(ms).toLocaleString() : fallback;
 }
 
 function formatNpr(value: number) {
@@ -1763,7 +1791,7 @@ export default function StaffPage() {
               <p>debugClaimedByUid: {pendingCashoutTasks[0].assignedHandlerUid || '—'}</p>
               <p>
                 debugClaimedAt:{' '}
-                {pendingCashoutTasks[0].startedAt?.toDate?.().toISOString?.() || '—'}
+                {formatDateTime(pendingCashoutTasks[0].startedAt, '—')}
               </p>
             </>
           ) : (
@@ -1886,7 +1914,7 @@ export default function StaffPage() {
                   </p>
                   {renderPlayerCashoutPayment(task)}
                   <p className="mt-1 text-xs text-emerald-100/70">
-                    Completed: {task.completedAt?.toDate?.().toLocaleString?.() || 'Done'}
+                    Completed: {formatDateTime(task.completedAt, 'Done')}
                   </p>
                   <p className="mt-1 text-xs text-emerald-100/70">
                     Handler: {task.assignedHandlerUsername || currentUserUid || 'Unknown'}
@@ -2033,7 +2061,7 @@ export default function StaffPage() {
                           <p className="text-sm font-semibold text-white">{playerRisk.playerUsername}</p>
                           <p className="text-xs text-rose-100/70">
                             {playerRisk.alerts[0] || 'Risk pattern detected'} · Last:{' '}
-                            {playerRisk.lastActivityAt?.toDate?.().toLocaleString?.() || 'N/A'}
+                            {formatDateTime(playerRisk.lastActivityAt)}
                           </p>
                         </div>
                         <div

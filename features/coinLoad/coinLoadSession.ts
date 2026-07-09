@@ -9,7 +9,6 @@ import {
   onSnapshot,
   query,
   serverTimestamp,
-  Timestamp,
   updateDoc,
   where,
 } from 'firebase/firestore';
@@ -38,8 +37,8 @@ export type CoinLoadSession = {
   playerUid: string;
   coadminUid: string;
   paymentPhotoUrl: string;
-  createdAt: Timestamp;
-  expiresAt: Timestamp;
+  createdAt: Date;
+  expiresAt: Date;
 };
 
 export type PaymentDetailPhoto = {
@@ -162,7 +161,7 @@ function randomItem<T>(items: T[]): T {
 
 function isoToTimestamp(iso: string) {
   const ms = Date.parse(iso);
-  return Number.isFinite(ms) ? Timestamp.fromMillis(ms) : Timestamp.fromMillis(Date.now());
+  return new Date(Number.isFinite(ms) ? ms : Date.now());
 }
 
 function mapSqlSession(row: {
@@ -402,7 +401,7 @@ export async function createCoinLoadSession(coadminUid: string): Promise<CoinLoa
   }
   const paymentPhotoUrl = randomItem(photos).imageUrl;
   const now = Date.now();
-  const expiresAt = Timestamp.fromMillis(now + DURATION_MS);
+  const expiresAt = new Date(now + DURATION_MS);
 
   await clearPlayerCoinLoadDocs(playerUid);
 
@@ -419,7 +418,7 @@ export async function createCoinLoadSession(coadminUid: string): Promise<CoinLoa
     playerUid,
     coadminUid,
     paymentPhotoUrl,
-    createdAt: Timestamp.fromMillis(now),
+    createdAt: new Date(now),
     expiresAt,
   };
 }
@@ -528,8 +527,8 @@ export function listenCoinLoadSession(
         playerUid: d.playerUid as string,
         coadminUid: d.coadminUid as string,
         paymentPhotoUrl: d.paymentPhotoUrl as string,
-        createdAt: d.createdAt as Timestamp,
-        expiresAt: d.expiresAt as Timestamp,
+        createdAt: d.createdAt instanceof Date ? d.createdAt : new Date(),
+        expiresAt: d.expiresAt instanceof Date ? d.expiresAt : new Date(),
       });
     },
     (err) => onError?.(err as Error)
@@ -537,8 +536,5 @@ export function listenCoinLoadSession(
 }
 
 export function getSessionExpiresAtMs(session: CoinLoadSession): number {
-  if (session.expiresAt && typeof session.expiresAt.toMillis === 'function') {
-    return session.expiresAt.toMillis();
-  }
-  return 0;
+  return session.expiresAt instanceof Date ? session.expiresAt.getTime() : 0;
 }

@@ -330,9 +330,12 @@ function formatUsdFromNprDisplay(value: number) {
   return formatUsdDisplay(Number(value || 0));
 }
 
-function formatDateTime(value?: { toDate?: () => Date } | string | null) {
+function formatDateTime(value?: Date | { toDate?: () => Date } | string | null) {
   if (!value) {
     return '—';
+  }
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? 'â€”' : value.toLocaleString();
   }
   if (typeof value === 'string') {
     const parsed = new Date(value);
@@ -360,15 +363,21 @@ function trendBadge(today: number, yesterday: number) {
   return `same ${today} vs ${yesterday}`;
 }
 
-function toMillis(value?: { toDate?: () => Date; toMillis?: () => number } | null) {
+function toMillis(value?: Date | { toDate?: () => Date; toMillis?: () => number; seconds?: number } | null) {
   if (!value) {
     return 0;
+  }
+  if (value instanceof Date) {
+    return value.getTime();
   }
   if (typeof value.toMillis === 'function') {
     return value.toMillis();
   }
   if (typeof value.toDate === 'function') {
     return value.toDate().getTime();
+  }
+  if (typeof value.seconds === 'number') {
+    return value.seconds * 1000;
   }
   return 0;
 }
@@ -869,7 +878,7 @@ export default function CoadminPage() {
       })
       .sort(
         (a, b) =>
-          (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0)
+          toMillis(b.createdAt || null) - toMillis(a.createdAt || null)
       );
   }, [
     selectedStaff,
@@ -4583,7 +4592,7 @@ export default function CoadminPage() {
                         </p>
                         {renderPlayerCashoutPayment(task)}
                         <p className="mt-1 text-xs text-emerald-100/70">
-                          Completed: {task.completedAt?.toDate?.().toLocaleString?.() || 'Done'}
+                          Completed: {formatDateTime(task.completedAt || null) || 'Done'}
                         </p>
                         <p className="mt-1 text-xs text-emerald-100/70">
                           Handler: {task.assignedHandlerUsername || 'Unknown'}
@@ -4762,7 +4771,7 @@ export default function CoadminPage() {
                       <p className="mt-1 text-sm text-violet-100/85">{event.description}</p>
                       <p className="mt-1 text-xs text-violet-100/70">
                         Bonus: {event.bonusPercentage}% | Created:{' '}
-                        {event.createdAt?.toDate?.().toLocaleString?.() || 'Now'}
+                        {formatDateTime(event.createdAt || null) || 'Now'}
                       </p>
                     </div>
                   ))}

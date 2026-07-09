@@ -104,8 +104,11 @@ function scrollMessageListToBottom(
   bottomEl?.scrollIntoView({ behavior, block: 'end' });
 }
 
-function toTime(value: { toMillis?: () => number } | null | undefined) {
-  const ms = value?.toMillis?.() ?? 0;
+function toTime(value: Date | { toMillis?: () => number; toDate?: () => Date; seconds?: number } | null | undefined) {
+  const ms =
+    value instanceof Date
+      ? value.getTime()
+      : value?.toMillis?.() ?? value?.toDate?.()?.getTime?.() ?? (value?.seconds ? value.seconds * 1000 : 0);
   if (!ms) return '';
   return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
@@ -113,10 +116,7 @@ function toTime(value: { toMillis?: () => number } | null | undefined) {
 function timestampLikeFromIso(value: string | null | undefined) {
   const date = value ? new Date(value) : new Date();
   const ms = Number.isNaN(date.getTime()) ? Date.now() : date.getTime();
-  return {
-    toMillis: () => ms,
-    toDate: () => new Date(ms),
-  };
+  return new Date(ms);
 }
 
 function createIdempotencyKey() {
@@ -508,7 +508,7 @@ export default function PlayerChatPage() {
           text: message.text,
           deletedForAll: message.deletedForEveryone,
           deletedForUsers: message.deletedFor,
-          createdAt: message.createdAt?.toDate?.()?.toISOString?.() || null,
+          createdAt: message.createdAt?.toISOString?.() || null,
         })),
       });
       console.info('[CHAT_DELETE_UI_REFRESH]', {

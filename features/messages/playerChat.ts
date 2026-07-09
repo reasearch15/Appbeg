@@ -16,7 +16,6 @@ import {
   runTransaction,
   serverTimestamp,
   setDoc,
-  Timestamp,
   updateDoc,
   where,
   writeBatch,
@@ -66,7 +65,7 @@ export type PlayerChatMessage = {
   imageUrl?: string;
   imagePublicId?: string;
   type: 'text' | 'image';
-  createdAt?: Timestamp;
+  createdAt?: Date;
   replyToMessageId?: string;
   replyToText?: string;
   deletedForEveryone?: boolean;
@@ -88,7 +87,7 @@ export type PlayerChatListItem = {
   conversationId: string;
   otherUid: string;
   lastMessage: string;
-  lastMessageAt?: Timestamp;
+  lastMessageAt?: Date;
   unreadCount: number;
   muted: boolean;
 };
@@ -266,14 +265,15 @@ export async function fetchPlayerChatBootstrap(search = '') {
 type ConversationDoc = {
   participants?: string[];
   lastMessage?: string;
-  lastMessageAt?: Timestamp;
+  lastMessageAt?: Date;
   unreadCounts?: Record<string, number>;
   mutedBy?: string[];
-  updatedAt?: Timestamp;
+  updatedAt?: Date;
 };
 
 function toMillis(value: unknown) {
   if (!value || typeof value !== 'object') return 0;
+  if (value instanceof Date) return value.getTime();
   const maybe = value as { toMillis?: () => number; toDate?: () => Date; seconds?: number };
   if (typeof maybe.toMillis === 'function') return maybe.toMillis();
   if (typeof maybe.toDate === 'function') return maybe.toDate().getTime();
@@ -320,7 +320,7 @@ function mapSqlDirectMessage(message: {
   imageUrl?: string;
   imagePublicId?: string;
   type?: 'text' | 'image';
-  createdAt?: Timestamp | null;
+  createdAt?: Date | null;
   deletedForEveryone?: boolean;
   deletedFor?: string[];
 }): PlayerChatMessage {
@@ -845,8 +845,8 @@ export function listenDirectTyping(
       onNext(false);
       return;
     }
-    const typingAt = snap.data().typingAtByUid?.[otherUid] as Timestamp | undefined;
-    const isTyping = !!typingAt && Date.now() - typingAt.toMillis() < 5000;
+    const typingAt = snap.data().typingAtByUid?.[otherUid];
+    const isTyping = !!typingAt && Date.now() - toMillis(typingAt) < 5000;
     onNext(isTyping);
   });
 }
@@ -902,7 +902,7 @@ export function listenDirectChatList(onNext: (rows: PlayerChatListItem[]) => voi
         conversationId: d.id,
         otherUid,
         lastMessage: String(data.lastMessage || ''),
-        lastMessageAt: data.lastMessageAt as Timestamp | undefined,
+        lastMessageAt: data.lastMessageAt as Date | undefined,
         unreadCount: Number(data.unreadCounts?.[selfUid] || 0),
         muted: Array.isArray(data.mutedBy) ? data.mutedBy.includes(selfUid) : false,
       };

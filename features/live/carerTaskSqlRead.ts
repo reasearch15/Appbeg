@@ -1,5 +1,3 @@
-import { Timestamp } from 'firebase/firestore';
-
 import {
   type CarerTask,
   type CarerTaskStatus,
@@ -229,7 +227,7 @@ function enrichPayloadForSseEvent(
   return enriched;
 }
 
-function isoToTimestamp(iso: string | null | undefined): Timestamp | null {
+function isoToTimestamp(iso: string | null | undefined): Date | null {
   if (!iso) {
     return null;
   }
@@ -237,7 +235,27 @@ function isoToTimestamp(iso: string | null | undefined): Timestamp | null {
   if (!Number.isFinite(ms)) {
     return null;
   }
-  return Timestamp.fromMillis(ms);
+  return new Date(ms);
+}
+
+function toDateMs(value: unknown) {
+  if (!value) {
+    return 0;
+  }
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+  const maybe = value as { toMillis?: () => number; toDate?: () => Date; seconds?: number };
+  if (typeof maybe.toMillis === 'function') {
+    return maybe.toMillis();
+  }
+  if (typeof maybe.toDate === 'function') {
+    return maybe.toDate().getTime();
+  }
+  if (typeof maybe.seconds === 'number') {
+    return maybe.seconds * 1000;
+  }
+  return 0;
 }
 
 function normalizeCarerTaskStatus(status: unknown): CarerTaskStatus {
@@ -302,13 +320,11 @@ function mapSnapshotRowToCarerTask(row: SqlSnapshotTask, fallbackCoadminUid: str
 function sortTasksByNewest(tasks: CarerTask[]) {
   return [...tasks].sort((left, right) => {
     const leftTime =
-      (left.completedAt as Timestamp | null | undefined)?.toMillis?.() ||
-      (left.createdAt as Timestamp | null | undefined)?.toMillis?.() ||
-      0;
+      toDateMs(left.completedAt) ||
+      toDateMs(left.createdAt);
     const rightTime =
-      (right.completedAt as Timestamp | null | undefined)?.toMillis?.() ||
-      (right.createdAt as Timestamp | null | undefined)?.toMillis?.() ||
-      0;
+      toDateMs(right.completedAt) ||
+      toDateMs(right.createdAt);
     return rightTime - leftTime;
   });
 }

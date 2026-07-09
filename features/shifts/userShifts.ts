@@ -7,7 +7,6 @@ import {
   onSnapshot,
   query,
   serverTimestamp,
-  Timestamp,
   updateDoc,
   where,
 } from 'firebase/firestore';
@@ -30,9 +29,9 @@ export type ShiftSession = {
   userUid: string;
   userRole: ShiftRole;
   userUsername: string;
-  loginAt?: Timestamp | null;
-  logoutAt?: Timestamp | null;
-  lastSeenAt?: Timestamp | null;
+  loginAt?: Date | null;
+  logoutAt?: Date | null;
+  lastSeenAt?: Date | null;
   isActive: boolean;
 };
 
@@ -155,12 +154,12 @@ export async function endShiftSession(sessionId: string) {
   });
 }
 
-function isoToTimestamp(iso: string | null | undefined): Timestamp | null {
+function isoToDate(iso: string | null | undefined): Date | null {
   if (!iso) {
     return null;
   }
   const ms = Date.parse(iso);
-  return Number.isFinite(ms) ? Timestamp.fromMillis(ms) : null;
+  return Number.isFinite(ms) ? new Date(ms) : null;
 }
 
 export function listenShiftSessionsByCoadmin(
@@ -207,9 +206,9 @@ export function listenShiftSessionsByCoadmin(
               userUid: session.userUid,
               userRole: session.userRole,
               userUsername: session.userUsername,
-              loginAt: isoToTimestamp(session.loginAt),
-              logoutAt: isoToTimestamp(session.logoutAt),
-              lastSeenAt: isoToTimestamp(session.lastSeenAt),
+              loginAt: isoToDate(session.loginAt),
+              logoutAt: isoToDate(session.logoutAt),
+              lastSeenAt: isoToDate(session.lastSeenAt),
               isActive: session.isActive,
             }))
           );
@@ -267,11 +266,11 @@ export function calculateWorkedHoursLast24h(
   const windowStart = nowMs - 24 * 60 * 60 * 1000;
   let totalMs = 0;
   for (const session of sessions) {
-    const login = session.loginAt?.toMillis?.() || 0;
+    const login = toDateMs(session.loginAt);
     if (!login) {
       continue;
     }
-    const logout = session.logoutAt?.toMillis?.() || nowMs;
+    const logout = toDateMs(session.logoutAt) || nowMs;
     const start = Math.max(login, windowStart);
     const end = Math.min(logout, nowMs);
     if (end > start) {
@@ -279,6 +278,26 @@ export function calculateWorkedHoursLast24h(
     }
   }
   return totalMs / (1000 * 60 * 60);
+}
+
+function toDateMs(value: unknown) {
+  if (!value) {
+    return 0;
+  }
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+  const maybe = value as { toMillis?: () => number; toDate?: () => Date; seconds?: number };
+  if (typeof maybe.toMillis === 'function') {
+    return maybe.toMillis();
+  }
+  if (typeof maybe.toDate === 'function') {
+    return maybe.toDate().getTime();
+  }
+  if (typeof maybe.seconds === 'number') {
+    return maybe.seconds * 1000;
+  }
+  return 0;
 }
 
 export async function cutWorkerReward(values: {

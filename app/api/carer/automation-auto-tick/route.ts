@@ -1,4 +1,4 @@
-import { FieldValue, Timestamp, type DocumentReference } from 'firebase-admin/firestore';
+import { FieldValue, type DocumentReference } from 'firebase-admin/firestore';
 import { NextResponse } from 'next/server';
 
 import { adminDb } from '@/lib/firebase/admin';
@@ -475,7 +475,7 @@ async function acquireAutomationAutoTickLeaseFirestore(
       }
       tx.update(stateRef, {
         tickLeaseHolderId: instanceId,
-        tickLeaseExpiresAt: Timestamp.fromMillis(now + LEASE_TTL_MS),
+        tickLeaseExpiresAt: new Date(now + LEASE_TTL_MS),
         automationTickLastAt: FieldValue.serverTimestamp(),
       });
     });

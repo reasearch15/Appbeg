@@ -1,5 +1,3 @@
-import { Timestamp } from 'firebase/firestore';
-
 import { getLocalAppSessionId } from '@/features/auth/appSession';
 import { getLocalPlayerSessionId } from '@/features/auth/playerSession';
 import {
@@ -447,7 +445,7 @@ function playerFreeplayLiveChannel(playerUid: string) {
   return `player:${cleanText(playerUid)}:freeplay`;
 }
 
-function isoToTimestamp(iso: string | null | undefined): Timestamp | null {
+function isoToTimestamp(iso: string | null | undefined): Date | null {
   if (!iso) {
     return null;
   }
@@ -455,7 +453,7 @@ function isoToTimestamp(iso: string | null | undefined): Timestamp | null {
   if (!Number.isFinite(ms)) {
     return null;
   }
-  return Timestamp.fromMillis(ms);
+  return new Date(ms);
 }
 
 function normalizeRequestStatus(status: unknown): PlayerGameRequestStatus {
