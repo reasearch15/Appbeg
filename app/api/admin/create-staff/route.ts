@@ -25,6 +25,7 @@ import {
   logAuthorityFirestoreFallbackBlocked,
   logAuthoritySqlWrite,
 } from '@/lib/server/authoritySqlWrite';
+import { createCoadminPlayerAccount } from '@/lib/server/coadminPlayerCreation';
 import { completeCanonicalPlayerCreation } from '@/lib/server/canonicalPlayerCreation';
 import { scheduleAutoClaimPendingTaskOnCreate } from '@/lib/sql/authorityAutoClaim';
 import { lookupReferrerByCodeFromSql } from '@/lib/sql/authorityReferralCodes';
@@ -346,6 +347,36 @@ export async function POST(request: Request) {
         validatedReferrerUid = referrerDoc.id;
         validatedReferrerUsername = String(referrerDoc.data().username || 'Player');
       }
+    }
+
+    if (role === 'player' && authoritySql) {
+      const result = await createCoadminPlayerAccount({
+        username,
+        password,
+        ownerCoadminUid,
+        createdByStaffId,
+        referralCodeInput: referralCodeInput || null,
+        actorUid: auth.user.uid,
+        actorRole: auth.user.role,
+      });
+      result.createdTaskIds.forEach((taskId) => {
+        console.info('[CREATE_PLAYER_TASK] task created id=%s authority=sql', taskId);
+      });
+      logAuthoritySqlWrite('/api/admin/create-staff', {
+        role: 'player',
+        uid: result.uid,
+        referralApplied: result.referralApplied,
+        taskCount: result.createdTaskIds.length,
+      });
+      return NextResponse.json({
+        success: true,
+        uid: result.uid,
+        message: `${role} created.`,
+        referralApplied: result.referralApplied,
+        referralBonusCoins: result.referralBonusCoins,
+        referredByUid: result.referredByUid,
+        referredByUsername: result.referredByUsername,
+      });
     }
 
     const email = makeHiddenEmail(username);
