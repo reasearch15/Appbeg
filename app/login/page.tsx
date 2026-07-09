@@ -2,28 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { onAuthStateChanged } from 'firebase/auth';
-import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import {
-  collection,
-  doc,
-  type QueryDocumentSnapshot,
-  type DocumentData,
-  getDoc,
-  getDocs,
-  query,
-  where,
-} from 'firebase/firestore';
-
-import { auth, db } from '@/lib/firebase/client';
 import { isValidRole } from '@/lib/auth/roles';
-import { bootstrapAppSessionAfterFirebaseLogin, getLocalAppSessionId } from '@/features/auth/appSession';
+import { getLocalAppSessionId } from '@/features/auth/appSession';
 import { dashboardPathForRole, logLoginRoleRedirect } from '@/lib/client/loginRoleRedirect';
-import { migrateCredentialsAfterFirebaseLogin } from '@/features/auth/credentialsMigrate';
 import {
   clearPlayerSessionBeforeLogin,
   getLocalPlayerSessionId,
-  isPlayerSessionReady,
 } from '@/features/auth/playerSession';
 import { PLAYER_SESSION_REPLACED_USER_MESSAGE } from '@/lib/client/playerStaleSession';
 import { attemptSqlLogin, isSqlLoginFirstEnabled } from '@/features/auth/sqlLogin';
@@ -43,13 +27,7 @@ import {
 } from '@/lib/client/sqlPublicFlags';
 
 function canUseLegacyFirebaseLoginFallback() {
-  return (
-    !isSqlLoginFirstEnabled() &&
-    !isClientSqlReadMode() &&
-    isPublicLegacyFirebaseFallbackEnabled() &&
-    !isPublicFirebaseRuntimeDisabled() &&
-    Boolean(db)
-  );
+  return false;
 }
 
 export default function LoginPage() {
@@ -105,21 +83,14 @@ export default function LoginPage() {
       }
 
       try {
-        const adminQuery = query(
-          collection(db, 'users'),
-          where('role', '==', 'admin')
-        );
-
-        const snapshot = await getDocs(adminQuery);
-        const exists = !snapshot.empty;
         console.info('[LOGIN_ADMIN_STATUS_CHECK]', {
           sqlMode: isSqlLoginFirstEnabled() || isClientSqlReadMode(),
-          skippedFirebase: false,
+          skippedFirebase: true,
           source: 'login_page_mount',
           ok: true,
-          reason: exists ? 'admin_user_present' : 'no_admin_user',
+          reason: 'firebase_runtime_removed',
         });
-        setAdminExists(exists);
+        setAdminExists(true);
       } catch (err) {
         console.error(err);
         console.info('[LOGIN_ADMIN_STATUS_CHECK]', {
@@ -170,54 +141,11 @@ export default function LoginPage() {
       }
     })();
 
-    if (!canUseLegacyFirebaseLoginFallback()) {
-      return;
-    }
-
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (loginInProgressRef.current) {
-        return;
-      }
-
-      if (!user) {
-        return;
-      }
-
-      try {
-        const userSnap = await getDoc(doc(db, 'users', user.uid));
-        if (!userSnap.exists()) {
-          return;
-        }
-
-        const role = (userSnap.data() as { role?: string }).role;
-        if (role && isValidRole(role)) {
-          if (role === 'player' && !isPlayerSessionReady()) {
-            console.info('[PLAYER_LOGIN_SESSION] login-page redirect blocked', {
-              uid: user.uid,
-              reason: 'missing_local_session_id',
-            });
-            await signOut(auth);
-            return;
-          }
-          const to = dashboardPathForRole(role);
-          logLoginRoleRedirect({
-            uid: user.uid,
-            role,
-            from: '/login',
-            to,
-            reason: 'existing_authenticated_user',
-          });
-          router.replace(to);
-        }
-      } catch {
-        // ignore; user can still use the form
-      }
-    });
-
-    return () => unsubscribe();
+    return undefined;
   }, [router]);
 
   async function findLoginUserDoc(cleanUsername: string) {
+    void cleanUsername;
     if (!canUseLegacyFirebaseLoginFallback()) {
       console.info('[LOGIN_FIREBASE_FALLBACK_SUPPRESSED]', {
         reason: 'legacy_firestore_lookup_blocked',
@@ -226,23 +154,6 @@ export default function LoginPage() {
       });
       return null;
     }
-
-    const candidates = Array.from(
-      new Set([cleanUsername, cleanUsername.toLowerCase()].filter(Boolean))
-    );
-
-    for (const candidate of candidates) {
-      const userQuery = query(
-        collection(db, 'users'),
-        where('username', '==', candidate)
-      );
-      const userSnapshot = await getDocs(userQuery);
-      if (!userSnapshot.empty) {
-        return userSnapshot.docs[0] as QueryDocumentSnapshot<DocumentData>;
-      }
-    }
-
-    return null;
   }
 
   function readLoginProgressContext(cleanUsername: string) {
@@ -254,6 +165,7 @@ export default function LoginPage() {
   }
 
   async function performFirebaseLogin(cleanUsername: string) {
+    void cleanUsername;
     if (!canUseLegacyFirebaseLoginFallback()) {
       console.info('[LOGIN_FIREBASE_FALLBACK_SUPPRESSED]', {
         reason: 'perform_firebase_login_blocked',
@@ -262,83 +174,6 @@ export default function LoginPage() {
       });
       throw new Error('Firebase fallback is disabled.');
     }
-
-    const progress = readLoginProgressContext(cleanUsername);
-
-    setLoginUiProgressStep('verifying_password', {
-      ...progress,
-      reason: 'firebase_lookup_user',
-    });
-
-    const userDoc = await findLoginUserDoc(cleanUsername);
-    if (!userDoc) {
-      throw new Error('User not found.');
-    }
-
-    const userData = userDoc.data();
-
-    const userRole = String(userData.role || '');
-    const isActive = userData.status === 'active';
-    const isBlockedPlayer = userData.status === 'disabled' && userRole === 'player';
-    if (!isActive && !isBlockedPlayer) {
-      throw new Error('Account is not active.');
-    }
-
-    const hiddenEmail = userData.email;
-
-    setLoginUiProgressStep('verifying_password', {
-      ...progress,
-      role: userRole,
-      reason: 'firebase_sign_in',
-    });
-
-    const credential = await signInWithEmailAndPassword(auth, hiddenEmail, password);
-
-    await migrateCredentialsAfterFirebaseLogin(password);
-
-    const role = userData.role;
-
-    if (!isValidRole(role)) {
-      throw new Error('Invalid role.');
-    }
-
-    setLoginUiProgressStep('creating_secure_session', {
-      ...progress,
-      role,
-      reason: 'firebase_bootstrap',
-    });
-
-    const bootstrapped = await bootstrapAppSessionAfterFirebaseLogin({
-      roleHint: role,
-    });
-    if (!bootstrapped?.sessionId) {
-      throw new Error('Failed to establish app session.');
-    }
-
-    if (role === 'player') {
-      rememberPlayerLoginCredentials(cleanUsername, password);
-      console.info('[PLAYER_LOGIN_SESSION] player login allowed after unified bootstrap', {
-        uid: credential.user.uid,
-        canonicalSessionId: bootstrapped?.playerSessionId || bootstrapped?.canonicalSessionId || null,
-        appSessionId: bootstrapped?.sessionId || null,
-        reason: 'unified_bootstrap_saved',
-      });
-    }
-
-    const to = dashboardPathForRole(role);
-    logLoginRoleRedirect({
-      uid: credential.user.uid,
-      role,
-      from: '/login',
-      to,
-      reason: 'firebase_login_success',
-    });
-    setLoginUiProgressStep('loading_dashboard', {
-      ...progress,
-      role,
-      reason: 'firebase_login_success',
-    });
-    router.replace(to);
   }
 
   async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
@@ -383,7 +218,7 @@ export default function LoginPage() {
     let loginSucceeded = false;
 
     try {
-      if (isSqlLoginFirstEnabled()) {
+      if (true) {
         console.info('[LOGIN_SQL_ONLY_MODE]', {
           sqlLoginFirst: true,
           sqlReadMode: isClientSqlReadMode(),

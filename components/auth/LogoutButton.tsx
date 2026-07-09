@@ -2,10 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { signOut } from 'firebase/auth';
 
 import { revokeAppSessionOnLogout } from '@/features/auth/appSession';
-import { auth } from '@/lib/firebase/client';
 
 type LogoutButtonProps = {
   /** Classes for the trigger control (default: full-width sidebar style). */
@@ -31,9 +29,6 @@ export default function LogoutButton({
     setLoading(true);
     try {
       await revokeAppSessionOnLogout();
-      if (auth.currentUser) {
-        await signOut(auth);
-      }
       setOpen(false);
       router.replace('/login');
     } catch {

@@ -1,34 +1,15 @@
 'use client';
 
-import { auth } from '@/lib/firebase/client';
 import { isValidRole, type UserRole } from '@/lib/auth/roles';
-import {
-  getOrCreatePlayerDeviceId,
-  storePlayerLoginSessionPair,
-} from '@/features/auth/playerSession';
 import {
   clearCachedSessionUser,
   getCachedSessionUser,
   getSessionUserOnce,
-  seedSessionUserCache,
 } from '@/features/auth/sessionUser';
 
 export const APP_SESSION_ID_KEY = 'appbeg:appSessionId';
 export const APP_SESSION_EXPIRES_AT_KEY = 'appbeg:appSessionExpiresAt';
 export const IMPERSONATOR_SESSION_ID_KEY = 'appbeg:impersonatorSessionId';
-
-type BootstrapResponse = {
-  sessionId?: string;
-  playerSessionId?: string;
-  canonicalSessionId?: string;
-  uid?: string;
-  role?: string;
-  coadminUid?: string | null;
-  username?: string | null;
-  status?: string | null;
-  expiresAt?: string;
-  error?: string;
-};
 
 export function getLocalAppSessionId() {
   if (typeof window === 'undefined') {
@@ -87,8 +68,6 @@ export async function getCurrentAppSessionUser(): Promise<AppSessionUser | null>
   return mapCachedAppSessionUser(user);
 }
 
-let ensureAppSessionPromise: Promise<string | null> | null = null;
-
 function clearExpiredAppSessionLocal() {
   if (typeof window === 'undefined') {
     return;
@@ -110,20 +89,7 @@ export async function ensureAppSessionBootstrapped(): Promise<string | null> {
     return existing;
   }
 
-  const currentUser = auth.currentUser;
-  if (!currentUser) {
-    return null;
-  }
-
-  if (!ensureAppSessionPromise) {
-    ensureAppSessionPromise = bootstrapAppSessionAfterFirebaseLogin()
-      .then((result) => result?.sessionId || getLocalAppSessionId() || null)
-      .finally(() => {
-        ensureAppSessionPromise = null;
-      });
-  }
-
-  return ensureAppSessionPromise;
+  return null;
 }
 
 export function clearAppSessionLocal() {
@@ -169,75 +135,11 @@ export async function bootstrapAppSessionAfterFirebaseLogin(input?: {
   roleHint?: string;
   playerSessionId?: string;
 }) {
-  const currentUser = auth.currentUser;
-  if (!currentUser) {
-    return null;
-  }
-
-  const token = await currentUser.getIdToken();
-  const roleHint = String(input?.roleHint || '').trim() || undefined;
-  const playerSessionId = String(input?.playerSessionId || '').trim() || undefined;
-  const deviceId = getOrCreatePlayerDeviceId() || undefined;
-
-  const response = await fetch('/api/auth/session/bootstrap', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      deviceId,
-      playerSessionId,
-      roleHint,
-    }),
+  void input;
+  console.info('[SQL_AUTH_BOOTSTRAP] skipped', {
+    reason: 'firebase_runtime_removed',
   });
-
-  const payload = (await response.json()) as BootstrapResponse;
-  if (!response.ok || !payload.sessionId) {
-    console.info('[SQL_AUTH_BOOTSTRAP] client_failed', {
-      status: response.status,
-      error: payload.error || 'bootstrap_failed',
-    });
-    return null;
-  }
-
-  const canonicalSessionId = String(
-    payload.canonicalSessionId || payload.playerSessionId || ''
-  ).trim();
-  if (payload.role === 'player' && canonicalSessionId) {
-    storePlayerLoginSessionPair({
-      appSessionId: payload.sessionId,
-      appSessionExpiresAt: String(payload.expiresAt || ''),
-      playerSessionId: canonicalSessionId,
-      phase: 'firebase_bootstrap',
-      reason: 'bootstrap_ok',
-    });
-  } else {
-    storeAppSessionLocal(payload.sessionId, String(payload.expiresAt || ''));
-  }
-  if (payload.uid && payload.role && isValidRole(payload.role)) {
-    seedSessionUserCache(
-      {
-        uid: payload.uid,
-        role: payload.role,
-        coadminUid: payload.coadminUid ?? null,
-        username: payload.username ?? null,
-        status: payload.status ?? null,
-        expiresAt: payload.expiresAt ?? null,
-      },
-      'bootstrap'
-    );
-  }
-  console.info('[SQL_AUTH_BOOTSTRAP] client_ok', {
-    uid: payload.uid || null,
-    role: payload.role || null,
-    sessionId: payload.sessionId,
-    appSessionId: payload.sessionId,
-    playerSessionId: canonicalSessionId || null,
-    canonicalSessionId: canonicalSessionId || null,
-    expiresAt: payload.expiresAt || null,
-  });
-  return payload;
+  return null;
 }
 
 export async function revokeAppSessionOnLogout(reason = 'logout') {

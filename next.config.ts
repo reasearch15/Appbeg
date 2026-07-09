@@ -20,11 +20,29 @@ const publicSqlPlayerLogin =
   cleanFlag(process.env.NEXT_PUBLIC_SQL_PLAYER_LOGIN) ||
   (sqlOnlyMode ? '1' : '');
 
+const firebaseRuntimeAliases = {
+  'firebase/app': './lib/firebase/runtimeDisabledApp.ts',
+  'firebase/auth': './lib/firebase/runtimeDisabledAuth.ts',
+  'firebase/firestore': './lib/firebase/runtimeDisabledFirestore.ts',
+  'firebase/storage': './lib/firebase/runtimeDisabledStorage.ts',
+};
+
 const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_SQL_LOGIN_FIRST: publicSqlLoginFirst,
     NEXT_PUBLIC_SQL_PLAYER_LOGIN: publicSqlPlayerLogin,
     NEXT_PUBLIC_SQL_READ_MODE: publicSqlReadMode,
+  },
+  turbopack: {
+    resolveAlias: firebaseRuntimeAliases,
+  },
+  webpack(config) {
+    config.resolve = config.resolve || {};
+    config.resolve.alias = {
+      ...(config.resolve.alias || {}),
+      ...firebaseRuntimeAliases,
+    };
+    return config;
   },
   async headers() {
     const playerStaticImageCache = [

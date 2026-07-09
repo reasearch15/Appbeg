@@ -2,9 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { signOut } from 'firebase/auth';
-
-import { auth } from '@/lib/firebase/client';
+import { getLocalAppSessionId, revokeAppSessionOnLogout } from '@/features/auth/appSession';
 
 /** No pointer/keyboard/scroll activity for this long → sign out. */
 const IDLE_LOGOUT_MS = 5 * 60 * 1000;
@@ -65,7 +63,7 @@ export default function IdleLogoutSync() {
       if (signingOut.current) {
         return;
       }
-      if (!auth.currentUser) {
+      if (!getLocalAppSessionId()) {
         return;
       }
       if (Date.now() - lastActivityAt.current < IDLE_LOGOUT_MS) {
@@ -73,9 +71,9 @@ export default function IdleLogoutSync() {
       }
       signingOut.current = true;
       try {
-        await signOut(auth);
+        await revokeAppSessionOnLogout('idle_timeout');
       } catch {
-        // still navigate to login; auth listener may have signed out
+        // still navigate to login; session cleanup is best effort
       }
       router.replace('/login');
     }, CHECK_EVERY_MS);

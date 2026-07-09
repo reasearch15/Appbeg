@@ -1,7 +1,5 @@
 'use client';
 
-import { onAuthStateChanged } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useEffect } from 'react';
 
 import { getSqlApiReadHeaders } from '@/lib/client/sqlApiHeaders';
@@ -11,7 +9,6 @@ import {
   isPlayerSessionStale,
   registerPlayerRuntimeStopper,
 } from '@/lib/client/playerStaleSession';
-import { auth, db } from '@/lib/firebase/client';
 
 const HEARTBEAT_MS = 90_000;
 const LEADER_LOCK_KEY = 'user-presence-heartbeat-lock';
@@ -96,10 +93,7 @@ export default function UserPresenceSync() {
           })();
           return;
         }
-        const ref = doc(db, 'userPresence', uid);
-        setDoc(ref, { lastSeenAt: serverTimestamp() }, { merge: true }).catch(
-          () => undefined
-        );
+        logClientFirestoreSkipped('user_presence_heartbeat', { uid });
       };
       const claimLeadership = () => {
         const now = Date.now();
@@ -190,29 +184,20 @@ export default function UserPresenceSync() {
     };
 
     let cancelled = false;
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user?.uid) {
-        startHeartbeat(user.uid);
+    void (async () => {
+      const cached = getCachedSessionUser();
+      const sessionUser =
+        cached?.uid ? cached : await getSessionUserOnce().catch(() => null);
+      if (!cancelled && sessionUser?.uid) {
+        startHeartbeat(sessionUser.uid);
       }
-    });
-
-    if (isClientSqlReadMode()) {
-      void (async () => {
-        const cached = getCachedSessionUser();
-        const sessionUser =
-          cached?.uid ? cached : await getSessionUserOnce().catch(() => null);
-        if (!cancelled && sessionUser?.uid) {
-          startHeartbeat(sessionUser.uid);
-        }
-      })();
-    }
+    })();
 
     return () => {
       cancelled = true;
       for (const c of cleanups) {
         c();
       }
-      unsubscribe();
     };
   }, []);
 
