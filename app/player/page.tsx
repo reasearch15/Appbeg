@@ -1492,7 +1492,15 @@ export default function PlayerPage() {
     const shouldResumeTheme = resumeThemeAfterGiftRef.current;
     resumeThemeAfterGiftRef.current = false;
 
-    if (shouldResumeTheme && !showActiveTableSplashRef.current) {
+    if (showActiveTableSplashRef.current) {
+      const tableAudio = activeTableSoundRef.current;
+      if (tableAudio?.paused) {
+        void tableAudio.play().catch(() => undefined);
+      }
+      return;
+    }
+
+    if (shouldResumeTheme) {
       resumeBackgroundMusicRef.current?.();
     }
   }, []);
@@ -1527,26 +1535,12 @@ export default function PlayerPage() {
     };
   }, [finishGiftSound]);
 
-  const playTableOpenSound = useCallback(() => {
-    const audio = activeTableSoundRef.current;
-    if (audio && !audio.paused) {
-      audio.pause();
-    }
-    playSoundEffect(activeTableSoundRef, '/play.mp3', 0.4);
-  }, [playSoundEffect]);
-
   function hasActiveTableSplashHistoryState() {
     const state = window.history.state as Record<string, unknown> | null;
     return Boolean(state?.[ACTIVE_TABLE_SPLASH_HISTORY_KEY]);
   }
 
   const openActiveTableSplash = useCallback(() => {
-    if (!showActiveTableSplashRef.current && !activeTableHistoryOpenRef.current) {
-      resumeThemeAfterTableRef.current = Boolean(
-        musicEnabledRef.current && audioRef.current && !audioRef.current.paused
-      );
-    }
-    playTableOpenSound();
     showActiveTableSplashRef.current = true;
     if (!activeTableHistoryOpenRef.current) {
       window.history.pushState(
@@ -1560,15 +1554,9 @@ export default function PlayerPage() {
     }
     setIsPlayAmountEditable(false);
     setShowActiveTableSplash(true);
-  }, [playTableOpenSound]);
+  }, []);
 
   function closeActiveTableSplash(options?: { fromPopState?: boolean }) {
-    const wasOpen = showActiveTableSplashRef.current || activeTableHistoryOpenRef.current;
-    const tableAudio = activeTableSoundRef.current;
-    if (tableAudio) {
-      tableAudio.pause();
-      tableAudio.currentTime = 0;
-    }
     showActiveTableSplashRef.current = false;
     setShowActiveTableSplash(false);
     if (!options?.fromPopState && hasActiveTableSplashHistoryState()) {
@@ -1580,10 +1568,6 @@ export default function PlayerPage() {
       });
       window.history.back();
     }
-    if (wasOpen && resumeThemeAfterTableRef.current) {
-      resumeBackgroundMusicRef.current?.();
-    }
-    resumeThemeAfterTableRef.current = false;
   }
 
   function nudgeActiveTableForKeyboard() {
@@ -1679,6 +1663,48 @@ export default function PlayerPage() {
 
   useEffect(() => {
     showActiveTableSplashRef.current = showActiveTableSplash;
+  }, [showActiveTableSplash]);
+
+  useEffect(() => {
+    if (!showActiveTableSplash) {
+      return undefined;
+    }
+
+    const themeAudio = audioRef.current;
+    resumeThemeAfterTableRef.current = Boolean(
+      musicEnabledRef.current && themeAudio && !themeAudio.paused
+    );
+    themeAudio?.pause();
+
+    const tableAudio = activeTableSoundRef.current ?? new Audio('/play.mp3');
+    if (!activeTableSoundRef.current) {
+      tableAudio.preload = 'auto';
+      activeTableSoundRef.current = tableAudio;
+    }
+    tableAudio.loop = true;
+    tableAudio.volume = 0.4;
+    if (tableAudio.paused || tableAudio.ended) {
+      try {
+        tableAudio.currentTime = 0;
+      } catch {
+        // Ignore seek errors before media is ready.
+      }
+      void tableAudio.play().catch(() => undefined);
+    }
+
+    return () => {
+      tableAudio.pause();
+      try {
+        tableAudio.currentTime = 0;
+      } catch {
+        // Ignore seek errors while tearing down.
+      }
+      const shouldResumeTheme = resumeThemeAfterTableRef.current;
+      resumeThemeAfterTableRef.current = false;
+      if (shouldResumeTheme) {
+        resumeBackgroundMusicRef.current?.();
+      }
+    };
   }, [showActiveTableSplash]);
 
   const clearPlayerHelpHintHideTimeout = useCallback(() => {
@@ -2696,7 +2722,8 @@ export default function PlayerPage() {
       !audio ||
       !musicControllerMountedRef.current ||
       !musicEnabledRef.current ||
-      !pageVisibleRef.current
+      !pageVisibleRef.current ||
+      showActiveTableSplashRef.current
     ) {
       return false;
     }
