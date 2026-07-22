@@ -984,12 +984,11 @@ export function attachPlayerRequestSqlReadListener(
         latestOutboxId: lastEventId,
         durationMs: Date.now() - startedAt,
       });
-      playerDebugLog(
-        '[PLAYER_REQUESTS_SQL_READ] refetch_done reason=%s count=%s durationMs=%s',
+      playerDebugLog('[PLAYER_REQUESTS_SQL_READ] refetch_done', {
         reason,
-        requestsById.size,
-        Date.now() - startedAt
-      );
+        count: requestsById.size,
+        durationMs: Date.now() - startedAt,
+      });
       emitRequests();
       if (reason === 'bootstrap') {
         options?.onSnapshotBootstrap?.({ latestOutboxId: lastEventId });
