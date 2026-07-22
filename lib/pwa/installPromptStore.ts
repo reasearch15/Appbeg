@@ -1,5 +1,6 @@
 'use client';
 
+import { playerDebugLog } from '@/lib/client/playerDebugLogs';
 export type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
@@ -27,7 +28,7 @@ let deferredPrompt: BeforeInstallPromptEvent | null = null;
 let isInstalled = false;
 
 function pwaLog(message: string, data?: Record<string, unknown>) {
-  console.info(`[PWA] ${message}`, data || {});
+  playerDebugLog(`[PWA] ${message}`, data || {});
 }
 
 function syncFromWindow() {

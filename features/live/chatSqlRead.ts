@@ -372,7 +372,7 @@ function attachChatSqlPoll(input: {
 
   const closeEventSource = () => {
     if (eventSource) {
-      playerLiveOpsLog('[CHAT_LIVE_UNSUBSCRIBE]', {
+      playerDebugLog('[CHAT_LIVE_UNSUBSCRIBE]', {
         pollName,
         selfUid: input.selfUid,
         subscriptionInstanceId,
@@ -406,7 +406,7 @@ function attachChatSqlPoll(input: {
     const url = `/api/live/stream?${params.toString()}`;
     const source = new EventSource(url);
     eventSource = source;
-    playerLiveOpsLog('[CHAT_LIVE_SUBSCRIBE]', {
+    playerDebugLog('[CHAT_LIVE_SUBSCRIBE]', {
       pollName,
       selfUid: input.selfUid,
       subscriptionInstanceId,

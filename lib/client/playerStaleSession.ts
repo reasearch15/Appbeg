@@ -1,6 +1,7 @@
 'use client';
 
 import { APP_SESSION_ID_KEY } from '@/features/auth/appSession';
+import { playerDebugLog, playerRuntimeWarn } from '@/lib/client/playerDebugLogs';
 import { PLAYER_SESSION_ID_KEY } from '@/features/auth/playerSession';
 import { clearCachedSessionUser } from '@/features/auth/sessionUser';
 
@@ -68,7 +69,7 @@ export function logPlayerStaleSessionStop(values: {
   reason: string;
   stopped: boolean;
 }) {
-  console.info('[PLAYER_STALE_SESSION_STOP]', values);
+  playerRuntimeWarn('[PLAYER_STALE_SESSION_STOP]', values);
 }
 
 export function logPlayerStaleResponseIgnored(values: {
@@ -78,7 +79,7 @@ export function logPlayerStaleResponseIgnored(values: {
   status?: string | number | null;
   reason: string;
 }) {
-  console.info('[PLAYER_STALE_RESPONSE_IGNORED]', values);
+  playerDebugLog('[PLAYER_STALE_RESPONSE_IGNORED]', values);
 }
 
 export function registerPlayerRuntimeStopper(stop: () => void) {
@@ -101,7 +102,7 @@ export function resetPlayerStaleSessionState(reason = 'session_reset') {
   staleMarked = false;
   staleReason = null;
   redirectScheduled = false;
-  console.info('[PLAYER_STALE_SESSION_RESET]', { reason, route: currentRoute() });
+  playerDebugLog('[PLAYER_STALE_SESSION_RESET]', { reason, route: currentRoute() });
 }
 
 export function stopAllPlayerRuntimePolls(pollName: string, reason: string) {
@@ -158,7 +159,7 @@ export function markPlayerSessionStale(
 
   if (options?.skipRedirect || redirectScheduled || !isCurrentPlayerRoute()) {
     if (!options?.skipRedirect && !isCurrentPlayerRoute()) {
-      console.info('[PLAYER_SESSION_STATUS] unauthorizedStopPolling', {
+      playerRuntimeWarn('[PLAYER_SESSION_STATUS] unauthorizedStopPolling', {
         route: currentRoute(),
         reason,
         redirectSkipped: true,

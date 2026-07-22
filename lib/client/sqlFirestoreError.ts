@@ -1,5 +1,6 @@
 'use client';
 
+import { playerDebugLog } from '@/lib/client/playerDebugLogs';
 import {
   isPlayerSessionStale,
   isStalePlayerSessionError,
@@ -25,7 +26,7 @@ export function logClientFirestoreBlockedSuppressed(values: {
   route?: string;
   message: string;
 }) {
-  console.info('[CLIENT_FIRESTORE_BLOCKED_SUPPRESSED]', {
+  playerDebugLog('[CLIENT_FIRESTORE_BLOCKED_SUPPRESSED]', {
     feature: values.feature,
     route:
       values.route ??

@@ -1,5 +1,6 @@
 'use client';
 
+import { playerDebugLog } from '@/lib/client/playerDebugLogs';
 import { isClientSqlReadMode } from '@/lib/client/sqlReadMode';
 
 export function logSqlClientMigration(values: {
@@ -10,7 +11,7 @@ export function logSqlClientMigration(values: {
   fallbackUsed?: boolean;
   error?: string;
 }) {
-  console.info('[SQL_CLIENT_MIGRATION]', {
+  playerDebugLog('[SQL_CLIENT_MIGRATION]', {
     feature: values.feature,
     oldFirebaseOperation: values.oldFirebaseOperation,
     newSqlRoute: values.newSqlRoute,
@@ -27,7 +28,7 @@ export function logClientFirebaseRuntimeRemoved(values: {
   operation: string;
   replacement: string;
 }) {
-  console.info('[CLIENT_FIREBASE_RUNTIME_REMOVED]', values);
+  playerDebugLog('[CLIENT_FIREBASE_RUNTIME_REMOVED]', values);
 }
 
 export function isSqlClientMigrationMode() {

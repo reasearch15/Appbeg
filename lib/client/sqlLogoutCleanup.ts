@@ -1,5 +1,6 @@
 'use client';
 
+import { playerDebugLog } from '@/lib/client/playerDebugLogs';
 import {
   APP_SESSION_EXPIRES_AT_KEY,
   APP_SESSION_ID_KEY,
@@ -30,7 +31,7 @@ export async function revokeRemoteAppSession(sessionId: string, reason = 'logout
     });
     return response.ok;
   } catch (error) {
-    console.info('[SQL_AUTH_BOOTSTRAP] logout_revoke_failed', {
+    playerDebugLog('[SQL_AUTH_BOOTSTRAP] logout_revoke_failed', {
       sessionId,
       error: error instanceof Error ? error.message : String(error),
     });
@@ -70,7 +71,7 @@ export function clearSqlClientAuthState(reason: string) {
   resetPlayerStaleSessionState(reason);
   failLoginUiProgress(`logout:${reason}`);
 
-  console.info('[SQL_LOGOUT_CLIENT_CLEANUP]', {
+  playerDebugLog('[SQL_LOGOUT_CLIENT_CLEANUP]', {
     route,
     uid: cached?.uid ?? null,
     role: cached?.role ?? null,

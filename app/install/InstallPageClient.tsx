@@ -1,5 +1,6 @@
 'use client';
 
+import { playerDebugLog } from '@/lib/client/playerDebugLogs';
 import { onAuthStateChanged } from 'firebase/auth';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -95,9 +96,9 @@ export default function InstallPageClient() {
     try {
       setPromptBusy(true);
       setMessage('');
-      console.info('[PWA] install clicked', { source: 'install_page' });
+      playerDebugLog('[PWA] install clicked', { source: 'install_page' });
       await snapshot.deferredPrompt.prompt();
-      console.info('[PWA] prompt called', { source: 'install_page' });
+      playerDebugLog('[PWA] prompt called', { source: 'install_page' });
       const choice = await snapshot.deferredPrompt.userChoice;
 
       if (choice.outcome === 'accepted') {
@@ -108,7 +109,7 @@ export default function InstallPageClient() {
         setMessage('You can continue in browser.');
       }
     } catch (error) {
-      console.info('[PWA] prompt blocked', {
+      playerDebugLog('[PWA] prompt blocked', {
         source: 'install_page',
         error: error instanceof Error ? error.message : String(error),
       });

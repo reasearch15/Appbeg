@@ -1,5 +1,6 @@
 'use client';
 
+import { playerDebugLog } from '@/lib/client/playerDebugLogs';
 type AuthHealthState = {
   uid: string | null;
   playerSessionId: string | null;
@@ -35,7 +36,7 @@ function updateState(input: Partial<AuthHealthState> & { source: string }) {
   if (input.statusOkAt !== undefined) {
     state.statusOkAt = input.statusOkAt;
   }
-  console.info('[AUTH_HEALTH_STATE_UPDATED]', {
+  playerDebugLog('[AUTH_HEALTH_STATE_UPDATED]', {
     source: input.source,
     uid: state.uid,
     hasPlayerSessionId: Boolean(state.playerSessionId),
@@ -62,7 +63,7 @@ export function recordSessionMeAuthHealth(input: {
     playerSessionId,
     sessionMeOkAt: Date.now(),
   });
-  console.info('[AUTH_POLL_CONSOLIDATED]', {
+  playerDebugLog('[AUTH_POLL_CONSOLIDATED]', {
     source: 'session_me',
     uid,
     playerSessionIdPrefix: playerSessionId.slice(0, 8),
@@ -84,7 +85,7 @@ export function recordPlayerSessionStatusHealth(input: {
     playerSessionId,
     statusOkAt: Date.now(),
   });
-  console.info('[AUTH_POLL_CONSOLIDATED]', {
+  playerDebugLog('[AUTH_POLL_CONSOLIDATED]', {
     source: 'player_session_status',
     uid: uid || state.uid,
     playerSessionIdPrefix: playerSessionId.slice(0, 8),
@@ -100,7 +101,7 @@ export function shouldSkipPlayerSessionStatusForRecentSessionMe(playerSessionId:
     state.sessionMeOkAt > 0 &&
     ageMs <= RECENT_SESSION_ME_MS;
   if (shouldSkip) {
-    console.info('[AUTH_STATUS_SKIPPED_RECENT_SESSION_ME]', {
+    playerDebugLog('[AUTH_STATUS_SKIPPED_RECENT_SESSION_ME]', {
       playerSessionIdPrefix: cleanSessionId.slice(0, 8),
       ageMs,
     });
@@ -125,7 +126,7 @@ export function shouldReuseSessionMeForRecentStatus(input: {
     statusAgeMs <= RECENT_STATUS_MS &&
     input.cachedPayloadAgeMs <= SESSION_ME_CACHE_REUSE_MS;
   if (shouldSkip) {
-    console.info('[SESSION_ME_SKIPPED_RECENT_STATUS]', {
+    playerDebugLog('[SESSION_ME_SKIPPED_RECENT_STATUS]', {
       uid,
       playerSessionIdPrefix: playerSessionId.slice(0, 8),
       statusAgeMs,

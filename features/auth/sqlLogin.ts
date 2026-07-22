@@ -1,5 +1,6 @@
 'use client';
 
+import { playerDebugLog, playerRuntimeWarn } from '@/lib/client/playerDebugLogs';
 import { storeAppSessionLocal } from '@/features/auth/appSession';
 import {
   clearPlayerSessionBeforeLogin,
@@ -64,7 +65,7 @@ export async function attemptSqlLogin(input: {
   }
 
   try {
-    console.info('[LOGIN_CLIENT_DIAG_ATTEMPT_SQL]', {
+    playerDebugLog('[LOGIN_CLIENT_DIAG_ATTEMPT_SQL]', {
       callingApi: true,
       usernameNormalized: username,
       sqlLoginFirst: isPublicSqlLoginFirstEnabled(),
@@ -99,7 +100,7 @@ export async function attemptSqlLogin(input: {
       firestoreMirrorOk?: boolean;
     };
 
-    console.info('[LOGIN_CLIENT_DIAG_SQL_RESPONSE]', {
+    playerDebugLog('[LOGIN_CLIENT_DIAG_SQL_RESPONSE]', {
       ok: response.ok,
       status: response.status,
       success: payload.ok === true,
@@ -108,12 +109,12 @@ export async function attemptSqlLogin(input: {
 
     if (payload.ok && payload.uid && payload.role) {
       if (payload.bootstrapExpected) {
-        console.info('[SQL_AUTH_LOGIN] client_bootstrap_expected', {
+        playerDebugLog('[SQL_AUTH_LOGIN] client_bootstrap_expected', {
           uid: payload.uid,
           role: payload.role,
           sqlPlayerLoginEnabled: isSqlPlayerLoginEnabled(),
         });
-        console.info('[LOGIN_SQL_DECISION]', {
+        playerDebugLog('[LOGIN_SQL_DECISION]', {
           uid: payload.uid,
           role: payload.role,
           authenticated: true,
@@ -179,7 +180,7 @@ export async function attemptSqlLogin(input: {
         },
         'sql_login'
       );
-      console.info('[SQL_AUTH_LOGIN] client_ok', {
+      playerDebugLog('[SQL_AUTH_LOGIN] client_ok', {
         uid: payload.uid,
         role: payload.role,
         sessionId: payload.sessionId,
@@ -213,7 +214,7 @@ export async function attemptSqlLogin(input: {
       reason === 'server_unavailable' ||
       reason === 'player_session_not_sql_ready';
 
-    console.info('[SQL_AUTH_LOGIN] client_failed', {
+    playerRuntimeWarn('[SQL_AUTH_LOGIN] client_failed', {
       reason,
       fallbackToFirebase,
       status: response.status,
@@ -225,7 +226,7 @@ export async function attemptSqlLogin(input: {
       fallbackToFirebase,
     };
   } catch (error) {
-    console.info('[LOGIN_CLIENT_DIAG_THROW_AFTER_API]', {
+    playerDebugLog('[LOGIN_CLIENT_DIAG_THROW_AFTER_API]', {
       reason: error instanceof Error ? error.message : String(error || 'network_error'),
     });
     console.warn('[SQL_AUTH_LOGIN] client_failed', {

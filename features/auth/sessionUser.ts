@@ -188,7 +188,7 @@ async function fetchSessionMePayloadFromApi(): Promise<SessionMePayload | null> 
 
     if (!response.ok || !payload.ok) {
       const meReason = payload.reason || `http_${response.status}`;
-      console.info('[APP_SESSION_ME_CLIENT_STATE]', {
+      playerDebugLog('[APP_SESSION_ME_CLIENT_STATE]', {
         route: typeof window !== 'undefined' ? window.location.pathname || '' : '',
         hasAppSessionId: Boolean(sessionId),
         appSessionIdPrefix: sessionId ? sessionId.slice(0, 8) : null,
@@ -206,7 +206,7 @@ async function fetchSessionMePayloadFromApi(): Promise<SessionMePayload | null> 
         payload.reason === 'uid_mismatch'
       ) {
         if (protectChatAppSession && payload.reason === 'invalid_or_expired') {
-          console.info('[APP_SESSION_ME_CLIENT_STATE]', {
+          playerDebugLog('[APP_SESSION_ME_CLIENT_STATE]', {
             route: typeof window !== 'undefined' ? window.location.pathname || '' : '',
             hasAppSessionId: Boolean(sessionId),
             appSessionIdPrefix: sessionId ? sessionId.slice(0, 8) : null,
@@ -272,7 +272,7 @@ export async function getSessionMeOnce(options?: {
   }
 
   if (!options?.force && cachedSessionMePayload && Date.now() - cachedSessionMeAt <= maxAgeMs) {
-    console.info('[SESSION_ME_POLLER_REUSED]', {
+    playerDebugLog('[SESSION_ME_POLLER_REUSED]', {
       source: 'cached_payload',
       ageMs: Date.now() - cachedSessionMeAt,
       subscriberCount: sessionMeSubscribers.size,
@@ -293,7 +293,7 @@ export async function getSessionMeOnce(options?: {
       cachedPayloadAgeMs: Date.now() - cachedSessionMeAt,
     })
   ) {
-    console.info('[SESSION_ME_POLLER_REUSED]', {
+    playerDebugLog('[SESSION_ME_POLLER_REUSED]', {
       source: 'recent_player_session_status',
       ageMs: Date.now() - cachedSessionMeAt,
       subscriberCount: sessionMeSubscribers.size,
@@ -302,7 +302,7 @@ export async function getSessionMeOnce(options?: {
   }
 
   if (sessionMeInflightPromise) {
-    console.info('[SESSION_ME_POLLER_REUSED]', {
+    playerDebugLog('[SESSION_ME_POLLER_REUSED]', {
       source: 'inflight_fetch',
       subscriberCount: sessionMeSubscribers.size,
     });
@@ -349,7 +349,7 @@ function stopSessionMePoller(reason: string) {
     sessionMePollTimer = null;
   }
   if (sessionMePollerActive) {
-    console.info('[SESSION_ME_POLLER_REMOVED]', {
+    playerDebugLog('[SESSION_ME_POLLER_REMOVED]', {
       reason,
       subscriberCount: sessionMeSubscribers.size,
       pollerCount: 0,
@@ -435,7 +435,7 @@ export function subscribeSessionMe(
     onChange,
     onError: options?.onError,
   });
-  console.info('[SESSION_ME_SUBSCRIBER]', {
+  playerDebugLog('[SESSION_ME_SUBSCRIBER]', {
     action: 'added',
     id,
     label,
@@ -447,7 +447,7 @@ export function subscribeSessionMe(
 
   return () => {
     sessionMeSubscribers.delete(id);
-    console.info('[SESSION_ME_SUBSCRIBER]', {
+    playerDebugLog('[SESSION_ME_SUBSCRIBER]', {
       action: 'removed',
       id,
       label,
@@ -467,7 +467,7 @@ export function getCachedSessionUser(): SessionUser | null {
     return null;
   }
 
-  console.info('[SESSION_USER_CACHE] hit', {
+  playerDebugLog('[SESSION_USER_CACHE] hit', {
     uid: cachedUser.uid,
     role: cachedUser.role,
   });
@@ -479,7 +479,7 @@ export type SessionUserCacheSeedReason = 'sql_login' | 'bootstrap' | 'manual';
 export function seedSessionUserCache(user: SessionUser, reason: SessionUserCacheSeedReason) {
   const sessionId = readLocalAppSessionId();
   if (!sessionId) {
-    console.info('[SESSION_USER_CACHE] seed_skipped', {
+    playerDebugLog('[SESSION_USER_CACHE] seed_skipped', {
       reason,
       detail: 'missing_local_app_session_id',
       uid: user.uid,
@@ -490,7 +490,7 @@ export function seedSessionUserCache(user: SessionUser, reason: SessionUserCache
 
   cachedUser = user;
   cachedSessionId = sessionId;
-  console.info('[SESSION_USER_CACHE] seeded', {
+  playerDebugLog('[SESSION_USER_CACHE] seeded', {
     reason,
     uid: user.uid,
     role: user.role,
@@ -511,7 +511,7 @@ export function clearCachedSessionUser(reason: string) {
   cachedSessionMePayload = null;
   cachedSessionMeAt = 0;
   sessionMeInflightPromise = null;
-  console.info('[SESSION_USER_CACHE] clear', { reason });
+  playerDebugLog('[SESSION_USER_CACHE] clear', { reason });
 }
 
 export function getSessionUserOnce(): Promise<SessionUser | null> {
@@ -524,7 +524,7 @@ export function getSessionUserOnce(): Promise<SessionUser | null> {
   }
 
   if (cachedUser && cachedSessionId === sessionId) {
-    console.info('[SESSION_USER_CACHE] hit', {
+    playerDebugLog('[SESSION_USER_CACHE] hit', {
       uid: cachedUser.uid,
       role: cachedUser.role,
     });
@@ -536,11 +536,11 @@ export function getSessionUserOnce(): Promise<SessionUser | null> {
   }
 
   if (inflightPromise) {
-    console.info('[SESSION_USER_CACHE] inflight');
+    playerDebugLog('[SESSION_USER_CACHE] inflight');
     return inflightPromise;
   }
 
-  console.info('[SESSION_USER_CACHE] miss', { reason: 'fetch_required' });
+  playerDebugLog('[SESSION_USER_CACHE] miss', { reason: 'fetch_required' });
   inflightPromise = fetchSessionUserFromApi().finally(() => {
     inflightPromise = null;
   });

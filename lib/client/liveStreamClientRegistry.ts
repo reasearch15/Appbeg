@@ -1,3 +1,5 @@
+import { playerDebugLog, playerLiveOpsLog } from '@/lib/client/playerDebugLogs';
+
 export type LiveStreamClientType = 'carer_tasks' | 'carer_jobs';
 
 type LiveStreamRegistryEntry = {
@@ -37,7 +39,7 @@ export function registerLiveStreamClientOwner(input: {
     if (existing.instanceId === input.instanceId) {
       return 'duplicate_same_instance';
     }
-    console.info('[DUPLICATE_STREAM_DETECTED]', {
+    playerLiveOpsLog('[DUPLICATE_STREAM_DETECTED]', {
       streamType: input.streamType,
       existingInstanceId: existing.instanceId,
       newInstanceId: input.instanceId,
@@ -73,7 +75,7 @@ export function logLiveStreamClientConnect(input: {
   reason: string;
   streamKey: string;
 }) {
-  console.info('[LIVE_STREAM_CLIENT_CONNECT]', {
+  playerDebugLog('[LIVE_STREAM_CLIENT_CONNECT]', {
     streamType: input.streamType,
     instanceId: input.instanceId,
     reason: input.reason,
@@ -93,7 +95,7 @@ export function releaseLiveStreamClientOwner(input: {
   }
   activeByStreamKey.delete(input.streamKey);
   releasedAtByStreamKey.set(input.streamKey, Date.now());
-  console.info('[LIVE_STREAM_CLIENT_DISCONNECT]', {
+  playerLiveOpsLog('[LIVE_STREAM_CLIENT_DISCONNECT]', {
     streamType: input.streamType,
     instanceId: input.instanceId,
     reason: input.reason,
@@ -107,7 +109,7 @@ export function logLiveStreamClientDisconnect(input: {
   instanceId: string;
   reason: string;
 }) {
-  console.info('[LIVE_STREAM_CLIENT_DISCONNECT]', {
+  playerLiveOpsLog('[LIVE_STREAM_CLIENT_DISCONNECT]', {
     streamType: input.streamType,
     instanceId: input.instanceId,
     reason: input.reason,
@@ -122,7 +124,7 @@ export function logLiveStreamClientReconnect(input: {
   streamKey?: string;
   extra?: Record<string, unknown>;
 }) {
-  console.info('[LIVE_STREAM_CLIENT_RECONNECT]', {
+  playerLiveOpsLog('[LIVE_STREAM_CLIENT_RECONNECT]', {
     streamType: input.streamType,
     instanceId: input.instanceId,
     reason: input.reason,

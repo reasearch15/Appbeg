@@ -15,6 +15,7 @@ import { getAppSessionRequestHeaders, getLocalAppSessionId, APP_SESSION_EXPIRES_
 import { isSqlPlayerLoginEnabled } from '@/features/auth/sqlPlayerLoginFlags';
 import { clearCachedSessionUser, getCachedSessionUser, getSessionUserOnce } from '@/features/auth/sessionUser';
 import { logPlayerFetchBlockedRole } from '@/lib/client/playerFetchGuard';
+import { playerDebugLog, playerRuntimeWarn } from '@/lib/client/playerDebugLogs';
 import {
   consumePlayerSessionClientContinuation,
   isClientNavigationReload,
@@ -150,7 +151,7 @@ function readPlayerSessionEndActor() {
 }
 
 export function logPlayerSessionEndCaller(values: PlayerSessionEndCallerLog) {
-  console.info('[PLAYER_SESSION_END_CALLER]', values);
+  playerDebugLog('[PLAYER_SESSION_END_CALLER]', values);
 }
 
 function logPlayerSessionEndClient(values: PlayerSessionEndClientContext) {
@@ -172,7 +173,7 @@ function logPlayerSessionEndClient(values: PlayerSessionEndClientContext) {
     willSend: values.willSendEnd === true,
   };
   logPlayerSessionEndCaller(callerLog);
-  console.info('[PLAYER_SESSION_END_CLIENT]', values);
+  playerDebugLog('[PLAYER_SESSION_END_CLIENT]', values);
 }
 
 function shouldDedupPlayerSessionEnd(sessionId: string, reason: string) {
@@ -229,7 +230,7 @@ export function logPlayerSessionClientState(values: {
   appSessionId?: string | null;
   reason: string;
 }) {
-  console.info('[PLAYER_SESSION_CLIENT_STATE]', {
+  playerDebugLog('[PLAYER_SESSION_CLIENT_STATE]', {
     phase: values.phase,
     oldPlayerSessionId: values.oldPlayerSessionId ?? null,
     newPlayerSessionId: values.newPlayerSessionId ?? null,
@@ -348,7 +349,7 @@ export function logPlayerSessionReadyState(values: {
   loading?: boolean;
 }) {
   const context = readPlayerSessionReadyContext();
-  console.info('[PLAYER_SESSION_READY_STATE]', {
+  playerDebugLog('[PLAYER_SESSION_READY_STATE]', {
     route: context.route,
     uid: context.uid,
     role: context.role,
@@ -370,7 +371,7 @@ function logPlayerSessionWait(values: {
   playerSessionExists: boolean;
 }) {
   const durationMs = Date.now() - values.startedAt;
-  console.info('[PLAYER_SESSION_WAIT]', {
+  playerDebugLog('[PLAYER_SESSION_WAIT]', {
     startedAt: values.startedAt,
     appSessionExists: values.appSessionExists,
     playerSessionExists: values.playerSessionExists,
@@ -387,7 +388,7 @@ export function logPlayerSessionStorageWrite(values: {
   keysWritten: string[];
   role: string | null;
 }) {
-  console.info('[PLAYER_SESSION_STORAGE_WRITE]', values);
+  playerDebugLog('[PLAYER_SESSION_STORAGE_WRITE]', values);
 }
 
 function logPlayerSessionStorageHydrate(values: {
@@ -401,7 +402,7 @@ function logPlayerSessionStorageHydrate(values: {
   afterExpected: string | null;
   reason: string;
 }) {
-  console.info('[PLAYER_SESSION_STORAGE_HYDRATE]', values);
+  playerDebugLog('[PLAYER_SESSION_STORAGE_HYDRATE]', values);
 }
 
 /**
@@ -541,7 +542,7 @@ async function recoverPlayerSessionIdFromSessionMe(source: string) {
     statusOk: boolean;
     reason: string;
   }) => {
-    console.info('[PLAYER_SESSION_RECOVER_FROM_SESSION_ME]', {
+    playerDebugLog('[PLAYER_SESSION_RECOVER_FROM_SESSION_ME]', {
       hadLocalPlayerSessionId,
       sessionMePlayerSessionIdPrefix: values.sessionMePlayerSessionIdPrefix ?? null,
       wroteStorage: values.wroteStorage,
@@ -891,7 +892,7 @@ export function discardStalePlayerSessionIdForRole(role: string, reason = 'non_p
     window.localStorage.removeItem(PLAYER_SESSION_ID_KEY);
   }
   invalidatePlayerSessionVerifyCache(reason);
-  console.info('[PLAYER_SESSION_LOCAL] discarded_stale_id', {
+  playerDebugLog('[PLAYER_SESSION_LOCAL] discarded_stale_id', {
     reason,
     role: normalizedRole,
     sessionIdPrefix: existing.slice(0, 8),
@@ -919,7 +920,7 @@ export function storeLocalPlayerSessionId(sessionId: string) {
 
 export function invalidatePlayerSessionVerifyCache(reason = 'manual') {
   playerSessionVerifyCache = null;
-  console.info('[PLAYER_SESSION_VERIFY_CACHE]', {
+  playerDebugLog('[PLAYER_SESSION_VERIFY_CACHE]', {
     hit: false,
     reason,
   });
@@ -1013,7 +1014,7 @@ export function clearPlayerBrowserState() {
     reason: 'clearing_local_session',
     trigger: 'clearPlayerBrowserState',
   });
-  console.info('[SESSION_GUARD] clearing local session');
+  playerDebugLog('[SESSION_GUARD] clearing local session');
   const deviceId = window.localStorage.getItem(PLAYER_DEVICE_ID_KEY);
   window.localStorage.clear();
   window.sessionStorage.clear();
@@ -1050,7 +1051,7 @@ export function startPlayerSessionStatusPolling(
     return () => {};
   }
   if (!isCurrentPlayerRoute()) {
-    console.info('[PLAYER_SESSION_STATUS] skippedNonPlayerRoute', {
+    playerDebugLog('[PLAYER_SESSION_STATUS] skippedNonPlayerRoute', {
       pathname: window.location.pathname || null,
       hasPlayerSessionId: true,
       source: 'startPlayerSessionStatusPolling',
@@ -1059,7 +1060,7 @@ export function startPlayerSessionStatusPolling(
   }
   const cachedUser = getCachedSessionUser();
   if (cachedUser?.role && cachedUser.role !== 'player') {
-    console.info('[PLAYER_SESSION_STATUS] skippedNonPlayerRole', {
+    playerDebugLog('[PLAYER_SESSION_STATUS] skippedNonPlayerRole', {
       role: cachedUser.role,
       uid: cachedUser.uid || null,
       hasPlayerSessionId: true,
@@ -1068,7 +1069,7 @@ export function startPlayerSessionStatusPolling(
     return () => {};
   }
 
-  console.info('[PLAYER_SESSION_POLL]', {
+  playerDebugLog('[PLAYER_SESSION_POLL]', {
     started: true,
     sessionId,
     intervalMs,
@@ -1104,7 +1105,7 @@ export function startPlayerSessionStatusPolling(
       return;
     }
     if (!isCurrentPlayerRoute()) {
-      console.info('[PLAYER_SESSION_STATUS] skippedNonPlayerRoute', {
+      playerDebugLog('[PLAYER_SESSION_STATUS] skippedNonPlayerRoute', {
         pathname: window.location.pathname || null,
         hasPlayerSessionId: Boolean(getLocalPlayerSessionId()),
         source: 'player_session_poll_tick',
@@ -1133,7 +1134,7 @@ export function startPlayerSessionStatusPolling(
       }
 
       if (status.ok) {
-        console.info('[PLAYER_SESSION_POLL]', {
+        playerDebugLog('[PLAYER_SESSION_POLL]', {
           status: 'ok',
           sessionId: pollSessionId,
         });
@@ -1142,7 +1143,7 @@ export function startPlayerSessionStatusPolling(
       }
 
       if (status.reason === 'session_replaced' || status.reason === 'session_inactive') {
-        console.info('[PLAYER_SESSION_POLL]', {
+        playerRuntimeWarn('[PLAYER_SESSION_POLL]', {
           status: status.reason,
           sessionId: pollSessionId,
           activeSessionId: status.activeSessionId || null,
@@ -1160,14 +1161,14 @@ export function startPlayerSessionStatusPolling(
         return;
       }
 
-      console.info('[PLAYER_SESSION_POLL]', {
+      playerRuntimeWarn('[PLAYER_SESSION_POLL]', {
         status: 'error',
         sessionId: pollSessionId,
         reason: status.reason,
       });
       scheduleNext(intervalMs);
     } catch (error) {
-      console.info('[PLAYER_SESSION_POLL]', {
+      playerRuntimeWarn('[PLAYER_SESSION_POLL]', {
         status: 'error',
         sessionId: pollSessionId,
         error: error instanceof Error ? error.message : String(error),
@@ -1244,14 +1245,14 @@ export async function forcePlayerSessionLogout(options?: {
   }
   clearPlayerBrowserState();
 
-  console.info('[SESSION_GUARD] firebase signOut start');
+  playerDebugLog('[SESSION_GUARD] firebase signOut start');
   try {
     await signOut(auth);
   } finally {
-    console.info('[SESSION_GUARD] firebase signOut done');
+    playerDebugLog('[SESSION_GUARD] firebase signOut done');
   }
 
-  console.info('[SESSION_GUARD] redirecting to login');
+  playerDebugLog('[SESSION_GUARD] redirecting to login');
   if (options?.redirect) {
     options.redirect(PLAYER_SESSION_REPLACED_LOGIN_PATH);
   } else if (typeof window !== 'undefined') {
@@ -1283,7 +1284,7 @@ async function verifyActivePlayerSessionViaApi(
   syncPlayerSessionReadyFromStorage('verifyActivePlayerSessionViaApi');
   const cachedSessionUser = getCachedSessionUser();
   if (!isCurrentPlayerRoute()) {
-    console.info('[PLAYER_SESSION_STATUS] skippedNonPlayerRoute', {
+    playerDebugLog('[PLAYER_SESSION_STATUS] skippedNonPlayerRoute', {
       pathname: typeof window === 'undefined' ? null : window.location.pathname || null,
       role: cachedSessionUser?.role || null,
       hasPlayerSessionId: Boolean(getLocalPlayerSessionId()),
@@ -1291,7 +1292,7 @@ async function verifyActivePlayerSessionViaApi(
     return { ok: false, reason: 'non_player_route', source: 'sql' };
   }
   if (cachedSessionUser?.role && cachedSessionUser.role !== 'player') {
-    console.info('[PLAYER_SESSION_STATUS] skippedNonPlayerRole', {
+    playerDebugLog('[PLAYER_SESSION_STATUS] skippedNonPlayerRole', {
       role: cachedSessionUser.role,
       uid: cachedSessionUser.uid || null,
       hasPlayerSessionId: Boolean(getLocalPlayerSessionId()),
@@ -1342,7 +1343,7 @@ async function verifyActivePlayerSessionViaApi(
     });
     if (!response.ok) {
       if (response.status === 401) {
-        console.info('[PLAYER_SESSION_STATUS] unauthorizedStopPolling', {
+        playerRuntimeWarn('[PLAYER_SESSION_STATUS] unauthorizedStopPolling', {
           pathname: typeof window === 'undefined' ? null : window.location.pathname || null,
           status: response.status,
           hasPlayerSessionId: Boolean(localSessionId),
@@ -1447,13 +1448,13 @@ async function resolveActivePlayerSession(
   if (!options?.forceRefresh) {
     const cached = readPlayerSessionVerifyCache(localSessionId);
     if (cached) {
-      console.info('[PLAYER_SESSION_VERIFY_CACHE]', {
+      playerDebugLog('[PLAYER_SESSION_VERIFY_CACHE]', {
         hit: true,
         sessionIdPrefix: localSessionId.slice(0, 8),
       });
       return cached;
     }
-    console.info('[PLAYER_SESSION_VERIFY_CACHE]', {
+    playerDebugLog('[PLAYER_SESSION_VERIFY_CACHE]', {
       hit: false,
       sessionIdPrefix: localSessionId.slice(0, 8),
     });
@@ -1495,7 +1496,7 @@ export async function verifyActivePlayerSession(options?: {
   }
 
   if (verifyActivePlayerSessionInflight) {
-    console.info('[PLAYER_SESSION_VERIFY_CACHE]', {
+    playerDebugLog('[PLAYER_SESSION_VERIFY_CACHE]', {
       hit: false,
       reason: 'inflight_deduped',
     });
@@ -1516,7 +1517,7 @@ export async function assertActivePlayerSession() {
   const result = await verifyActivePlayerSession();
 
   if (!result.ok) {
-    console.info('[SESSION_GUARD] blocked player session check', {
+    playerDebugLog('[SESSION_GUARD] blocked player session check', {
       reason: result.reason,
       uid: currentUser?.uid || null,
       localSessionId: localSessionId || null,
@@ -1533,7 +1534,7 @@ export async function assertActivePlayerSession() {
     }
 
     if (result.reason === 'session_replaced') {
-      console.info('[SESSION_GUARD] old device kicked because session mismatch', {
+      playerRuntimeWarn('[SESSION_GUARD] old device kicked because session mismatch', {
         uid: currentUser?.uid || null,
         localSessionId,
         activeSessionId: result.activeSessionId || null,
@@ -1560,7 +1561,7 @@ export async function assertActivePlayerSession() {
     throw new Error('Player session required.');
   }
 
-  console.info('[SESSION_GUARD] allowed player session check', {
+  playerDebugLog('[SESSION_GUARD] allowed player session check', {
     uid: currentUser?.uid || null,
     sessionId: localSessionId,
     source: result.source || 'sql',
@@ -1585,7 +1586,7 @@ export async function getPlayerApiHeaders(
   ).trim() || null;
 
   if (!isCurrentPlayerRoute()) {
-    console.info('[PLAYER_SESSION_STATUS] skippedNonPlayerRoute', {
+    playerDebugLog('[PLAYER_SESSION_STATUS] skippedNonPlayerRoute', {
       pathname: typeof window === 'undefined' ? null : window.location.pathname || null,
       route,
       uid,
@@ -1602,7 +1603,7 @@ export async function getPlayerApiHeaders(
       role,
       reason: 'non_player_role',
     });
-    console.info('[PLAYER_API_HEADERS]', {
+    playerDebugLog('[PLAYER_API_HEADERS]', {
       route,
       uid,
       role,
@@ -1658,7 +1659,7 @@ export async function getPlayerApiHeaders(
     throw new Error('Not authenticated.');
   }
   if (!headers.Authorization && hasAppSessionId && !hasPlayerSessionId) {
-    console.info('[PLAYER_API_HEADERS]', {
+    playerDebugLog('[PLAYER_API_HEADERS]', {
       route,
       uid,
       role: role || 'player',
@@ -1669,7 +1670,7 @@ export async function getPlayerApiHeaders(
     });
     throw new Error('Not authenticated.');
   }
-  console.info('[PLAYER_API_HEADERS]', {
+  playerDebugLog('[PLAYER_API_HEADERS]', {
     route,
     uid,
     role: role || 'player',
@@ -1713,14 +1714,14 @@ async function startPlayerSessionViaApi(
     if (!payload.ok || !payload.sessionId) {
       return null;
     }
-    console.info('[PLAYER_LOGIN_SESSION] sql session start ok', {
+    playerDebugLog('[PLAYER_LOGIN_SESSION] sql session start ok', {
       uid: user.uid,
       sessionId: payload.sessionId,
       sqlOk: payload.sqlOk === true,
     });
     return { sessionId: String(payload.sessionId), deviceId };
   } catch (error) {
-    console.info('[PLAYER_LOGIN_SESSION] sql session start failed, using firestore fallback', {
+    playerDebugLog('[PLAYER_LOGIN_SESSION] sql session start failed, using firestore fallback', {
       uid: user.uid,
       error,
     });
@@ -1735,7 +1736,7 @@ async function startPlayerSessionViaFirestore(user: User, deviceId: string) {
   const sessionRef = doc(db, 'playerSessions', sessionId);
   let previousSessionId = '';
 
-  console.info('[PLAYER_LOGIN_SESSION] generated sessionId', {
+  playerDebugLog('[PLAYER_LOGIN_SESSION] generated sessionId', {
     uid: user.uid,
     sessionId,
     deviceId,
@@ -1745,7 +1746,7 @@ async function startPlayerSessionViaFirestore(user: User, deviceId: string) {
     const userSnap = await transaction.get(userRef);
     previousSessionId = String(userSnap.data()?.activeSessionId || '').trim();
 
-    console.info('[PLAYER_LOGIN_SESSION] previous activeSessionId', {
+    playerDebugLog('[PLAYER_LOGIN_SESSION] previous activeSessionId', {
       uid: user.uid,
       previousSessionId: previousSessionId || null,
     });
@@ -1778,13 +1779,13 @@ async function startPlayerSessionViaFirestore(user: User, deviceId: string) {
           endedAt: serverTimestamp(),
           endedReason: 'replaced_by_new_login',
         });
-        console.info('[PLAYER_LOGIN_SESSION] previous player session marked inactive', {
+        playerDebugLog('[PLAYER_LOGIN_SESSION] previous player session marked inactive', {
           uid: user.uid,
           previousSessionId,
           activeSessionId: sessionId,
         });
       } else {
-        console.info('[PLAYER_LOGIN_SESSION] previous player session cleanup skipped', {
+        playerDebugLog('[PLAYER_LOGIN_SESSION] previous player session cleanup skipped', {
           uid: user.uid,
           previousSessionId,
           activeSessionId: sessionId,
@@ -1818,7 +1819,7 @@ export async function startPlayerSession(user: User) {
 
   storeLocalPlayerSessionId(result.sessionId);
 
-  console.info('[PLAYER_LOGIN_SESSION] newly saved activeSessionId', {
+  playerDebugLog('[PLAYER_LOGIN_SESSION] newly saved activeSessionId', {
     uid: user.uid,
     activeSessionId: result.sessionId,
     source: sqlStarted ? 'sql' : 'firestore_fallback',
@@ -2015,7 +2016,7 @@ export async function endLocalPlayerSessionOnBrowserLeave(
   const isRealUnload = isRealAppUnloadEvent(event);
   if (sessionId) {
     markPlayerSessionClientContinuation(sessionId);
-    console.info('[PLAYER_SESSION_CONTINUATION_MARKED]', {
+    playerDebugLog('[PLAYER_SESSION_CONTINUATION_MARKED]', {
       sessionIdPrefix: sessionId.slice(0, 8),
       trigger: event.type,
       isRouteNavigation,
@@ -2050,7 +2051,7 @@ export async function resumePlayerSessionAfterClientContinuation(user?: User | n
   if (!resumed && !reload) {
     return false;
   }
-  console.info('[PLAYER_SESSION_RESUME_AFTER_RELOAD]', {
+  playerDebugLog('[PLAYER_SESSION_RESUME_AFTER_RELOAD]', {
     sessionIdPrefix: sessionId.slice(0, 8),
     resumed,
     reload,
@@ -2087,7 +2088,7 @@ export function listenForPlayerSessionReplacement(
       return;
     }
 
-    console.info('[SESSION_GUARD] old device kicked because session mismatch', {
+    playerRuntimeWarn('[SESSION_GUARD] old device kicked because session mismatch', {
       uid: user.uid,
       localSessionId,
       activeSessionId,

@@ -1,5 +1,6 @@
 'use client';
 
+import { playerDebugLog } from '@/lib/client/playerDebugLogs';
 import { getCachedSessionUser, getSessionUserOnce } from '@/features/auth/sessionUser';
 
 export function logPlayerFetchBlockedRole(values: {
@@ -8,7 +9,7 @@ export function logPlayerFetchBlockedRole(values: {
   role: string | null;
   reason?: string;
 }) {
-  console.info('[PLAYER_FETCH_BLOCKED_ROLE]', {
+  playerDebugLog('[PLAYER_FETCH_BLOCKED_ROLE]', {
     route: values.route,
     uid: values.uid,
     role: values.role,

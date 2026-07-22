@@ -1,5 +1,6 @@
 'use client';
 
+import { playerDebugLog } from '@/lib/client/playerDebugLogs';
 import { isClientSqlReadMode, logClientFirestoreSkipped } from '@/lib/client/sqlReadMode';
 import { isPublicSqlPlayerLoginEnabled } from '@/lib/client/sqlPublicFlags';
 
@@ -30,7 +31,7 @@ export function assertClientFirestoreDisabled(
     return false;
   }
 
-  console.info('[CLIENT_FIRESTORE_BLOCKED]', {
+  playerDebugLog('[CLIENT_FIRESTORE_BLOCKED]', {
     feature,
     operation,
     sqlMode: true,
@@ -49,7 +50,7 @@ export function logClientFirestoreQuery(
 ) {
   const sqlMode = meta.sqlMode ?? isClientSqlReadMode();
   const skipped = meta.skipped ?? sqlMode;
-  console.info('[CLIENT_FIRESTORE_QUERY]', {
+  playerDebugLog('[CLIENT_FIRESTORE_QUERY]', {
     file: meta.file,
     feature: meta.feature,
     collection: meta.collection,

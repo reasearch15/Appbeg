@@ -1276,23 +1276,23 @@ export default function PlayerPage() {
     ) => {
       const cleanThreadId = String(threadId || '').trim();
       if (!cleanThreadId) {
-        console.info('[PLAYER_CHAT_READ] skippedNoThread', { chatType });
+        playerDebugLog('[PLAYER_CHAT_READ] skippedNoThread', { chatType });
         return;
       }
 
       const dedupeKey = `${chatType}:${cleanThreadId}`;
       const now = Date.now();
       if (chatReadInFlightRef.current.has(dedupeKey)) {
-        console.info('[PLAYER_CHAT_READ] debounced', { chatType, threadId: cleanThreadId, reason: 'in_flight' });
+        playerDebugLog('[PLAYER_CHAT_READ] debounced', { chatType, threadId: cleanThreadId, reason: 'in_flight' });
         return;
       }
       if (now - (lastChatReadClearAtRef.current[dedupeKey] || 0) < 10000) {
-        console.info('[PLAYER_CHAT_READ] debounced', { chatType, threadId: cleanThreadId, reason: 'recent' });
+        playerDebugLog('[PLAYER_CHAT_READ] debounced', { chatType, threadId: cleanThreadId, reason: 'recent' });
         return;
       }
       lastChatReadClearAtRef.current[dedupeKey] = now;
 
-      console.info(
+      playerDebugLog(
         trigger === 'open'
           ? '[PLAYER_CHAT_READ] openThreadClearUnread'
           : '[PLAYER_CHAT_READ] inputFocusClearUnread',
@@ -1307,7 +1307,7 @@ export default function PlayerPage() {
         if (!previous[cleanThreadId]) {
           return previous;
         }
-        console.info('[PLAYER_CHAT_READ] optimisticClear', {
+        playerDebugLog('[PLAYER_CHAT_READ] optimisticClear', {
           chatType,
           threadId: cleanThreadId,
         });
@@ -1320,7 +1320,7 @@ export default function PlayerPage() {
       chatReadInFlightRef.current.add(dedupeKey);
       void markPlayerChatThreadRead(cleanThreadId, chatType)
         .then((payload) => {
-          console.info('[PLAYER_CHAT_READ] persisted', {
+          playerDebugLog('[PLAYER_CHAT_READ] persisted', {
             chatType,
             threadId: cleanThreadId,
             conversationId: payload.conversationId || null,
@@ -1809,7 +1809,7 @@ export default function PlayerPage() {
       return undefined;
     }
 
-    console.info('[PWA_BACK] player back guard enabled', {
+    playerDebugLog('[PWA_BACK] player back guard enabled', {
       standalone: isStandaloneMode(),
       android: isAndroidDevice(),
     });
@@ -1831,7 +1831,7 @@ export default function PlayerPage() {
         '',
         window.location.href
       );
-      console.info('[PWA_BACK] guard pushed');
+      playerDebugLog('[PWA_BACK] guard pushed');
     };
 
     const getPreviousPlayerSection = (view: PlayerView) => {
@@ -1928,7 +1928,7 @@ export default function PlayerPage() {
     }
 
     const onPlayerPwaBack = () => {
-      console.info('[PWA_BACK] popstate', {
+      playerDebugLog('[PWA_BACK] popstate', {
         hasGuardState: hasExitGuardState(),
         pathname: window.location.pathname,
       });
@@ -1939,7 +1939,7 @@ export default function PlayerPage() {
 
       if (pwaBackHandledByOverlayRef.current) {
         pwaBackHandledByOverlayRef.current = false;
-        console.info('[PWA_BACK] modal/menu open close-first');
+        playerDebugLog('[PWA_BACK] modal/menu open close-first');
         pushExitGuardState();
         return;
       }
@@ -1949,7 +1949,7 @@ export default function PlayerPage() {
       }
 
       if (closeTopPlayerOverlay()) {
-        console.info('[PWA_BACK] modal/menu open close-first');
+        playerDebugLog('[PWA_BACK] modal/menu open close-first');
         pushExitGuardState();
         return;
       }
@@ -1961,14 +1961,14 @@ export default function PlayerPage() {
 
       pushExitGuardState();
       setShowPwaExitConfirm(true);
-      console.info('[PLAYER_BACK_EXIT_MODAL]', {
+      playerDebugLog('[PLAYER_BACK_EXIT_MODAL]', {
         section: 'lobby',
       });
-      console.info('[BEFORE_UNLOAD_TRIGGERED]', {
+      playerDebugLog('[BEFORE_UNLOAD_TRIGGERED]', {
         reason: 'pwa_back_no_overlay',
         currentPath: window.location.pathname,
       });
-      console.info('[PWA_BACK] exit confirm shown');
+      playerDebugLog('[PWA_BACK] exit confirm shown');
     };
 
     window.addEventListener('popstate', onPlayerPwaBack);
@@ -3614,7 +3614,7 @@ export default function PlayerPage() {
         markPlayerPerf('live_update_unread_counts', {
           threadCount: Object.keys(counts).length,
         });
-        console.info('[PLAYER_CHAT_READ] refreshReadStateLoaded', {
+        playerDebugLog('[PLAYER_CHAT_READ] refreshReadStateLoaded', {
           threadCount: Object.keys(counts).length,
         });
         setUnreadCounts((current) => (areUnreadCountsEqual(current, counts) ? current : counts));
@@ -4646,7 +4646,7 @@ export default function PlayerPage() {
         baseDataLoadedRef.current = false;
         setBaseDataLoaded(false);
 
-        console.info('[PLAYER_BASE_DATA_CLIENT]', {
+        playerDebugLog('[PLAYER_BASE_DATA_CLIENT]', {
           stage: 'fallback',
           deduped: false,
           usedFallback: true,
@@ -5856,7 +5856,7 @@ export default function PlayerPage() {
         if (profile) {
           applyPlayerProfileSnapshot(profile, playerUid || auth.currentUser?.uid || '');
         }
-        console.info('[PLAYER_SESSION_ME_REFETCH_DONE]', {
+        playerDebugLog('[PLAYER_SESSION_ME_REFETCH_DONE]', {
           direction: isCashToCoinTransfer ? 'cash_to_coin' : 'coin_to_cash',
           transferId,
           profileFound: Boolean(profile),
@@ -8232,8 +8232,8 @@ export default function PlayerPage() {
               <button
                 type="button"
                 onClick={() => {
-                  console.info('[PLAYER_BACK_EXIT_CONFIRMED]');
-                  console.info('[PWA_BACK] exit confirmed');
+                  playerDebugLog('[PLAYER_BACK_EXIT_CONFIRMED]');
+                  playerDebugLog('[PWA_BACK] exit confirmed');
                   pwaExitConfirmedRef.current = true;
                   setShowPwaExitConfirm(false);
                   window.history.back();

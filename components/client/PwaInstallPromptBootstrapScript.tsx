@@ -1,3 +1,4 @@
+import { playerDebugLog } from '@/lib/client/playerDebugLogs';
 import Script from 'next/script';
 
 export default function PwaInstallPromptBootstrapScript() {
@@ -10,7 +11,7 @@ export default function PwaInstallPromptBootstrapScript() {
         (function () {
           if (window.__royalVipPwaInstallBootstrapAttached) return;
           window.__royalVipPwaInstallBootstrapAttached = true;
-          console.info('[PWA] listener attached');
+          playerDebugLog('[PWA] listener attached');
 
           window.__royalVipPwaInstallSubscribers = window.__royalVipPwaInstallSubscribers || [];
           window.__royalVipNotifyPwaInstallSubscribers = function () {
@@ -22,15 +23,15 @@ export default function PwaInstallPromptBootstrapScript() {
           window.addEventListener('beforeinstallprompt', function (event) {
             event.preventDefault();
             window.__royalVipDeferredInstallPrompt = event;
-            console.info('[PWA] beforeinstallprompt fired');
-            console.info('[PWA] prompt stored');
+            playerDebugLog('[PWA] beforeinstallprompt fired');
+            playerDebugLog('[PWA] prompt stored');
             window.__royalVipNotifyPwaInstallSubscribers();
           });
 
           window.addEventListener('appinstalled', function () {
             window.__royalVipPwaInstalled = true;
             window.__royalVipDeferredInstallPrompt = null;
-            console.info('[PWA] appinstalled');
+            playerDebugLog('[PWA] appinstalled');
             window.__royalVipNotifyPwaInstallSubscribers();
           });
         })();

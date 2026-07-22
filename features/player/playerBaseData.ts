@@ -1,3 +1,4 @@
+import { playerDebugLog } from '@/lib/client/playerDebugLogs';
 import { getPlayerApiHeaders, PlayerSessionStaleError } from '@/features/auth/playerSession';
 import { resolvePlayerRoleForFetch } from '@/lib/client/playerFetchGuard';
 import type { GameLogin } from '@/features/games/gameLogins';
@@ -56,7 +57,7 @@ function normalizeBaseDataResponse(
 
 export async function loadPlayerBaseData(): Promise<PlayerBaseDataResponse> {
   if (inFlightBaseData) {
-    console.info('[PLAYER_BASE_DATA_CLIENT]', {
+    playerDebugLog('[PLAYER_BASE_DATA_CLIENT]', {
       stage: 'start',
       deduped: true,
       usedFallback: false,
@@ -64,7 +65,7 @@ export async function loadPlayerBaseData(): Promise<PlayerBaseDataResponse> {
     return inFlightBaseData;
   }
 
-  console.info('[PLAYER_BASE_DATA_CLIENT]', {
+  playerDebugLog('[PLAYER_BASE_DATA_CLIENT]', {
     stage: 'start',
     deduped: false,
     usedFallback: false,
@@ -87,7 +88,7 @@ export async function loadPlayerBaseData(): Promise<PlayerBaseDataResponse> {
         error?: string;
       };
       if (!response.ok) {
-        console.info('[PLAYER_BASE_DATA_CLIENT]', {
+        playerDebugLog('[PLAYER_BASE_DATA_CLIENT]', {
           stage: 'http_error',
           status: response.status,
           logout_suppressed: response.status === 401,
@@ -96,7 +97,7 @@ export async function loadPlayerBaseData(): Promise<PlayerBaseDataResponse> {
       }
 
       const normalized = normalizeBaseDataResponse(payload);
-      console.info('[PLAYER_BASE_DATA_CLIENT]', {
+      playerDebugLog('[PLAYER_BASE_DATA_CLIENT]', {
         stage: 'done',
         deduped: false,
         usedFallback: false,
@@ -111,7 +112,7 @@ export async function loadPlayerBaseData(): Promise<PlayerBaseDataResponse> {
       return normalized;
     } catch (error) {
       if (error instanceof PlayerSessionStaleError) {
-        console.info('[PLAYER_BASE_DATA_CLIENT]', {
+        playerDebugLog('[PLAYER_BASE_DATA_CLIENT]', {
           stage: 'stale_ignored',
           reason: error.message,
           durationMs: Date.now() - startedAt,

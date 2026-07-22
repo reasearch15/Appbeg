@@ -1,5 +1,6 @@
 'use client';
 
+import { playerDebugLog } from '@/lib/client/playerDebugLogs';
 import { getLocalAppSessionId } from '@/features/auth/appSession';
 import { getLocalPlayerSessionId } from '@/features/auth/playerSession';
 import { isSqlPlayerLoginEnabled } from '@/features/auth/sqlPlayerLoginFlags';
@@ -33,7 +34,7 @@ export function logSqlPlayerRuntimeAuth(values: {
   const route =
     values.route ??
     (typeof window !== 'undefined' ? window.location.pathname || '' : '');
-  console.info('[SQL_PLAYER_RUNTIME_AUTH]', {
+  playerDebugLog('[SQL_PLAYER_RUNTIME_AUTH]', {
     route,
     source: values.source || 'session_me',
     uid: values.uid ?? cached?.uid ?? null,

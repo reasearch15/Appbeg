@@ -1,5 +1,6 @@
 'use client';
 
+import { playerDebugLog } from '@/lib/client/playerDebugLogs';
 import { useCallback, useEffect, useState } from 'react';
 
 import {
@@ -69,7 +70,7 @@ export function usePwaInstall() {
   const canShowInstallButton = !installSnapshot.isInstalled;
 
   const handleInstallClick = useCallback(async () => {
-    console.info('[PWA] install clicked');
+    playerDebugLog('[PWA] install clicked');
 
     if (isIosDevice()) {
       setShowIosGuide(true);
@@ -78,7 +79,7 @@ export function usePwaInstall() {
 
     const { deferredPrompt } = getPwaInstallSnapshot();
     if (deferredPrompt) {
-      console.info('[PWA] prompt called');
+      playerDebugLog('[PWA] prompt called');
       await deferredPrompt.prompt();
       const choice = await deferredPrompt.userChoice;
 

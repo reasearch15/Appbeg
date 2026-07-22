@@ -20,7 +20,7 @@ export function logPlayerPollBlockedRole(values: {
   role: string | null;
   reason?: string;
 }) {
-  console.info('[PLAYER_POLL_BLOCKED_ROLE]', {
+  playerDebugLog('[PLAYER_POLL_BLOCKED_ROLE]', {
     pollName: values.pollName,
     uid: values.uid,
     role: values.role,
@@ -37,7 +37,7 @@ export async function checkPlayerPollRole(pollName: string) {
   const pathname = typeof window === 'undefined' ? '' : window.location.pathname || '';
   const isPlayerRoute = pathname === '/player' || pathname.startsWith('/player/');
   if (!isPlayerRoute) {
-    console.info('[PLAYER_SESSION_STATUS] skippedNonPlayerRoute', {
+    playerDebugLog('[PLAYER_SESSION_STATUS] skippedNonPlayerRoute', {
       pollName,
       pathname: pathname || null,
       hasPlayerSessionId: Boolean(getLocalPlayerSessionId()),
@@ -60,7 +60,7 @@ export async function checkPlayerPollRole(pollName: string) {
     uid: fetched?.uid ?? cached?.uid ?? null,
     role: fetched?.role ?? cached?.role ?? null,
   });
-  console.info('[PLAYER_SESSION_STATUS] skippedNonPlayerRole', {
+  playerDebugLog('[PLAYER_SESSION_STATUS] skippedNonPlayerRole', {
     pollName,
     uid: fetched?.uid ?? cached?.uid ?? null,
     role: fetched?.role ?? cached?.role ?? null,

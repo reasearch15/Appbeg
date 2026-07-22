@@ -1,5 +1,6 @@
 'use client';
 
+import { playerDebugLog } from '@/lib/client/playerDebugLogs';
 export function logCarerPageRequestAudit(input: {
   route: string;
   method: string;
@@ -10,7 +11,7 @@ export function logCarerPageRequestAudit(input: {
   authPath?: string | null;
   reason: string;
 }) {
-  console.info('[CARER_PAGE_REQUEST_AUDIT]', input);
+  playerDebugLog('[CARER_PAGE_REQUEST_AUDIT]', input);
 }
 
 export function logCarerFirestoreBlockedSuppressed(input: {
@@ -19,7 +20,7 @@ export function logCarerFirestoreBlockedSuppressed(input: {
   operation: string;
   route?: string;
 }) {
-  console.info('[CARER_FIRESTORE_BLOCKED_SUPPRESSED]', {
+  playerDebugLog('[CARER_FIRESTORE_BLOCKED_SUPPRESSED]', {
     feature: input.feature,
     file: input.file,
     operation: input.operation,

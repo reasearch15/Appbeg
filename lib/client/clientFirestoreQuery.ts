@@ -1,5 +1,6 @@
 'use client';
 
+import { playerDebugLog } from '@/lib/client/playerDebugLogs';
 import {
   getDoc,
   getDocs,
@@ -34,7 +35,7 @@ function resolveClientRoute(explicit?: string) {
 
 export function logClientFirestoreQuery(meta: ClientFirestoreQueryMeta) {
   const sqlMode = isClientSqlReadMode();
-  console.info('[CLIENT_FIRESTORE_QUERY]', {
+  playerDebugLog('[CLIENT_FIRESTORE_QUERY]', {
     file: meta.file,
     feature: meta.hook,
     collection: meta.collection,

@@ -1,5 +1,6 @@
 'use client';
 
+import { playerDebugLog, playerRuntimeWarn } from '@/lib/client/playerDebugLogs';
 import { isValidRole, type UserRole } from '@/lib/auth/roles';
 import {
   clearCachedSessionUser,
@@ -136,7 +137,7 @@ export async function bootstrapAppSessionAfterFirebaseLogin(input?: {
   playerSessionId?: string;
 }) {
   void input;
-  console.info('[SQL_AUTH_BOOTSTRAP] skipped', {
+  playerDebugLog('[SQL_AUTH_BOOTSTRAP] skipped', {
     reason: 'firebase_runtime_removed',
   });
   return null;

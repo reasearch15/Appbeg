@@ -1297,7 +1297,7 @@ export function attachPlayerRequestSqlReadListener(
       activePlayerRequestLiveStreamKeys.delete(activeLiveStreamKey);
       activeLiveStreamKey = null;
     }
-    playerLiveOpsLog('[PLAYER_LIVE_STREAM_CLIENT_CLOSE]', {
+    playerDebugLog('[PLAYER_LIVE_STREAM_CLIENT_CLOSE]', {
       reason,
       playerUid: cleanPlayerUid,
       channels: streamChannels,
@@ -1306,7 +1306,7 @@ export function attachPlayerRequestSqlReadListener(
       reconnectAttempt,
       listenerInstanceId,
     });
-    playerLiveOpsLog('[PLAYER_LIVE_STREAM_CLOSE]', {
+    playerDebugLog('[PLAYER_LIVE_STREAM_CLOSE]', {
       reason,
       playerUid: cleanPlayerUid,
       lastEventId,
@@ -1410,7 +1410,7 @@ export function attachPlayerRequestSqlReadListener(
         playerUid: cleanPlayerUid,
         channels: streamChannels,
       });
-      playerLiveOpsLog('[PLAYER_LIVE_STREAM_SUBSCRIBE]', {
+      playerDebugLog('[PLAYER_LIVE_STREAM_SUBSCRIBE]', {
         playerUid: cleanPlayerUid,
         channels: streamChannels,
         lastEventId,
@@ -1425,7 +1425,7 @@ export function attachPlayerRequestSqlReadListener(
         reconnectAttempt = 0;
         reconnectBackoffMs = INITIAL_RECONNECT_MS;
         notifyPlayerCashoutSharedHealth(cleanPlayerUid, true, 'open');
-        playerLiveOpsLog('[PLAYER_LIVE_STREAM_OPEN]', {
+        playerDebugLog('[PLAYER_LIVE_STREAM_OPEN]', {
           playerUid: cleanPlayerUid,
           channels: streamChannels,
           lastEventId,

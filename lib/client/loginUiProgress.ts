@@ -1,5 +1,6 @@
 'use client';
 
+import { playerDebugLog } from '@/lib/client/playerDebugLogs';
 export type LoginUiStep =
   | 'checking_account'
   | 'verifying_password'
@@ -92,7 +93,7 @@ export function logLoginUiProgress(values: {
   role?: string | null;
   reason: string;
 }) {
-  console.info('[LOGIN_UI_PROGRESS]', {
+  playerDebugLog('[LOGIN_UI_PROGRESS]', {
     step: values.step,
     startedAt: values.startedAt,
     elapsedMs: Date.now() - values.startedAt,

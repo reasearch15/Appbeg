@@ -1,5 +1,6 @@
 'use client';
 
+import { playerDebugLog } from '@/lib/client/playerDebugLogs';
 import type { UserRole } from '@/lib/auth/roles';
 
 export function logProtectedRouteDecision(values: {
@@ -11,7 +12,7 @@ export function logProtectedRouteDecision(values: {
   redirectTo?: string | null;
   reason: string;
 }) {
-  console.info('[PROTECTED_ROUTE_DECISION]', values);
+  playerDebugLog('[PROTECTED_ROUTE_DECISION]', values);
 }
 
 export function currentClientPath() {

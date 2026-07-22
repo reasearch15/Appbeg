@@ -1,5 +1,7 @@
 'use client';
 
+import { playerDebugLog, playerRuntimeWarn } from '@/lib/client/playerDebugLogs';
+
 const CONSECUTIVE_INVALID_LOGOUT_THRESHOLD = 2;
 
 let consecutiveInvalidSessionStatusCount = 0;
@@ -7,7 +9,7 @@ let lastInvalidSessionReason: string | null = null;
 
 export function resetConsecutiveInvalidSessionStatus(reason = 'session_ok') {
   if (consecutiveInvalidSessionStatusCount > 0) {
-    console.info('[PLAYER_SESSION_INVALID_GUARD]', {
+    playerDebugLog('[PLAYER_SESSION_INVALID_GUARD]', {
       action: 'reset',
       reason,
       previousCount: consecutiveInvalidSessionStatusCount,
@@ -37,7 +39,8 @@ export function shouldLogoutAfterInvalidPlayerSessionStatus(reason: string) {
   const shouldLogout =
     consecutiveInvalidSessionStatusCount >= CONSECUTIVE_INVALID_LOGOUT_THRESHOLD;
 
-  console.info('[PLAYER_SESSION_INVALID_GUARD]', {
+  const log = shouldLogout ? playerRuntimeWarn : playerDebugLog;
+  log('[PLAYER_SESSION_INVALID_GUARD]', {
     reason,
     consecutiveCount: consecutiveInvalidSessionStatusCount,
     threshold: CONSECUTIVE_INVALID_LOGOUT_THRESHOLD,

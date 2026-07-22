@@ -1,5 +1,6 @@
 'use client';
 
+import { playerDebugLog } from '@/lib/client/playerDebugLogs';
 import { getLocalAppSessionId } from '@/features/auth/appSession';
 import {
   getLocalPlayerSessionId,
@@ -28,7 +29,7 @@ export function logPlayerPageSessionGate(values: {
   blocked: boolean;
   reason: string;
 }) {
-  console.info('[PLAYER_PAGE_SESSION_GATE]', values);
+  playerDebugLog('[PLAYER_PAGE_SESSION_GATE]', values);
 }
 
 export function readPlayerPageSessionGateSnapshot() {

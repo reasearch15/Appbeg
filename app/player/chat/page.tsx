@@ -1,4 +1,5 @@
 'use client';
+import { playerDebugLog } from '@/lib/client/playerDebugLogs';
 
 import '@/styles/player-fire.css';
 
@@ -230,23 +231,23 @@ export default function PlayerChatPage() {
     ) => {
       const cleanThreadId = String(threadId || '').trim();
       if (!cleanThreadId) {
-        console.info('[PLAYER_CHAT_READ] skippedNoThread', { chatType });
+        playerDebugLog('[PLAYER_CHAT_READ] skippedNoThread', { chatType });
         return;
       }
 
       const dedupeKey = `${chatType}:${cleanThreadId}`;
       const now = Date.now();
       if (chatReadInFlightRef.current.has(dedupeKey)) {
-        console.info('[PLAYER_CHAT_READ] debounced', { chatType, threadId: cleanThreadId, reason: 'in_flight' });
+        playerDebugLog('[PLAYER_CHAT_READ] debounced', { chatType, threadId: cleanThreadId, reason: 'in_flight' });
         return;
       }
       if (now - (lastChatReadClearAtRef.current[dedupeKey] || 0) < 10000) {
-        console.info('[PLAYER_CHAT_READ] debounced', { chatType, threadId: cleanThreadId, reason: 'recent' });
+        playerDebugLog('[PLAYER_CHAT_READ] debounced', { chatType, threadId: cleanThreadId, reason: 'recent' });
         return;
       }
       lastChatReadClearAtRef.current[dedupeKey] = now;
 
-      console.info(
+      playerDebugLog(
         trigger === 'open'
           ? '[PLAYER_CHAT_READ] openThreadClearUnread'
           : '[PLAYER_CHAT_READ] inputFocusClearUnread',
@@ -261,7 +262,7 @@ export default function PlayerChatPage() {
         if (!current?.unread) {
           return previous;
         }
-        console.info('[PLAYER_CHAT_READ] optimisticClear', {
+        playerDebugLog('[PLAYER_CHAT_READ] optimisticClear', {
           chatType,
           threadId: cleanThreadId,
         });
@@ -277,7 +278,7 @@ export default function PlayerChatPage() {
       chatReadInFlightRef.current.add(dedupeKey);
       void markPlayerChatThreadRead(cleanThreadId, chatType)
         .then((payload) => {
-          console.info('[PLAYER_CHAT_READ] persisted', {
+          playerDebugLog('[PLAYER_CHAT_READ] persisted', {
             chatType,
             threadId: cleanThreadId,
             conversationId: payload.conversationId || null,
@@ -451,7 +452,7 @@ export default function PlayerChatPage() {
           last: row.lastMessage,
         };
       });
-      console.info('[PLAYER_CHAT_READ] refreshReadStateLoaded', {
+      playerDebugLog('[PLAYER_CHAT_READ] refreshReadStateLoaded', {
         threadCount: Object.keys(next).length,
       });
       setChatList(next);

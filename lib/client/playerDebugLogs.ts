@@ -31,11 +31,20 @@ export function playerStartupDebugLog(message: string, details?: Record<string, 
   playerDebugLog(message, details);
 }
 
-/** Important operational events (SSE connect, errors, reconnects) — always logged. */
+/** Important operational events (SSE errors, reconnects, session failures) — always logged. */
 export function playerLiveOpsLog(message: string, details?: Record<string, unknown>) {
   if (details) {
     console.info(message, details);
     return;
   }
   console.info(message);
+}
+
+/** Warnings that should remain visible in production (auth/session/SSE issues). */
+export function playerRuntimeWarn(message: string, details?: Record<string, unknown>) {
+  if (details) {
+    console.warn(message, details);
+    return;
+  }
+  console.warn(message);
 }

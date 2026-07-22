@@ -1,5 +1,6 @@
 'use client';
 
+import { playerDebugLog } from '@/lib/client/playerDebugLogs';
 import { DASHBOARD_BY_ROLE, isValidRole, type UserRole } from '@/lib/auth/roles';
 
 export function logLoginRoleRedirect(values: {
@@ -9,7 +10,7 @@ export function logLoginRoleRedirect(values: {
   to: string;
   reason: string;
 }) {
-  console.info('[LOGIN_ROLE_REDIRECT]', values);
+  playerDebugLog('[LOGIN_ROLE_REDIRECT]', values);
 }
 
 export function dashboardPathForRole(role: string) {

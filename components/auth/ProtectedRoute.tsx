@@ -1,5 +1,6 @@
 'use client';
 
+import { playerDebugLog, playerRuntimeWarn } from '@/lib/client/playerDebugLogs';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 
@@ -130,7 +131,7 @@ export default function ProtectedRoute({
       }
 
       if (!getLocalAppSessionId()) {
-        console.info('[PROTECTED_ROUTE_AUTH]', {
+        playerRuntimeWarn('[PROTECTED_ROUTE_AUTH]', {
           source: 'player_app_session',
           ok: false,
           reason: 'missing_app_session_id',
@@ -147,7 +148,7 @@ export default function ProtectedRoute({
             ? getCachedSessionUser()
             : await getSessionUserOnce().catch(() => null);
         if (loadingSessionUser?.role === 'player') {
-          console.info('[PROTECTED_ROUTE_AUTH]', {
+          playerDebugLog('[PROTECTED_ROUTE_AUTH]', {
             source: 'player_app_session',
             ok: true,
             uid: loadingSessionUser.uid,
@@ -161,7 +162,7 @@ export default function ProtectedRoute({
           setChecking(false);
           return 'allowed';
         }
-        console.info('[PROTECTED_ROUTE_AUTH]', {
+        playerDebugLog('[PROTECTED_ROUTE_AUTH]', {
           source: 'player_app_session',
           ok: true,
           reason: gate.reason || 'player_session_gate_loading',
@@ -169,7 +170,7 @@ export default function ProtectedRoute({
           hasPlayerSessionId: Boolean(getLocalPlayerSessionId()),
         });
       } else if (gate.state === 'failed') {
-        console.info('[PROTECTED_ROUTE_AUTH]', {
+        playerRuntimeWarn('[PROTECTED_ROUTE_AUTH]', {
           source: 'player_app_session',
           ok: false,
           reason: gate.reason,
@@ -189,7 +190,7 @@ export default function ProtectedRoute({
       }
 
       if (!sessionUser || sessionUser.role !== 'player') {
-        console.info('[PROTECTED_ROUTE_AUTH]', {
+        playerRuntimeWarn('[PROTECTED_ROUTE_AUTH]', {
           source: 'player_app_session',
           ok: false,
           reason: 'missing_or_invalid_session',
@@ -200,13 +201,13 @@ export default function ProtectedRoute({
       const sessionStatus = await verifyActivePlayerSession();
       if (!sessionStatus.ok) {
         if (sessionStatus.reason === 'session_replaced' && sessionStatus.activeSessionId) {
-          console.info('[SESSION_GUARD] old device kicked because session mismatch', {
+          playerRuntimeWarn('[SESSION_GUARD] old device kicked because session mismatch', {
             uid: sessionUser.uid,
             localSessionId: getLocalPlayerSessionId() || null,
             activeSessionId: sessionStatus.activeSessionId,
           });
         }
-        console.info('[PROTECTED_ROUTE_AUTH]', {
+        playerRuntimeWarn('[PROTECTED_ROUTE_AUTH]', {
           source: 'player_app_session',
           ok: false,
           uid: sessionUser.uid,
@@ -225,7 +226,7 @@ export default function ProtectedRoute({
           });
           return 'denied';
         }
-        console.info('[PROTECTED_ROUTE_AUTH]', {
+        playerDebugLog('[PROTECTED_ROUTE_AUTH]', {
           source: 'player_app_session',
           ok: true,
           uid: sessionUser.uid,
@@ -239,7 +240,7 @@ export default function ProtectedRoute({
       }
 
       seedPlayerSessionVerifyCache(sessionStatus);
-      console.info('[PROTECTED_ROUTE_AUTH]', {
+      playerDebugLog('[PROTECTED_ROUTE_AUTH]', {
         source: usedCachedSession ? 'cached_app_session' : 'player_app_session',
         ok: true,
         uid: sessionUser.uid,
@@ -266,7 +267,7 @@ export default function ProtectedRoute({
       }
 
       if (!sessionUser || !isValidRole(sessionUser.role)) {
-        console.info('[PROTECTED_ROUTE_AUTH]', {
+        playerRuntimeWarn('[PROTECTED_ROUTE_AUTH]', {
           source: 'app_session',
           ok: false,
           reason: 'missing_or_invalid_session',
@@ -275,7 +276,7 @@ export default function ProtectedRoute({
       }
 
       if (!allowedRoles.includes(sessionUser.role)) {
-        console.info('[PROTECTED_ROUTE_AUTH]', {
+        playerRuntimeWarn('[PROTECTED_ROUTE_AUTH]', {
           source: 'app_session',
           ok: false,
           role: sessionUser.role,
@@ -299,7 +300,7 @@ export default function ProtectedRoute({
         reason: usedCachedSession ? 'cached_app_session' : 'app_session',
       });
 
-      console.info('[PROTECTED_ROUTE_AUTH]', {
+      playerDebugLog('[PROTECTED_ROUTE_AUTH]', {
         source: usedCachedSession ? 'cached_app_session' : 'app_session',
         ok: true,
         role: sessionUser.role,
@@ -319,7 +320,7 @@ export default function ProtectedRoute({
 
     function startFirebaseGuard() {
       const cachedUser = getCachedSessionUser();
-      console.info('[PROTECTED_ROUTE_AUTH]', {
+      playerRuntimeWarn('[PROTECTED_ROUTE_AUTH]', {
         source: 'sql_session_only',
         ok: false,
         reason: 'missing_or_invalid_sql_session',
@@ -385,7 +386,7 @@ export default function ProtectedRoute({
           return;
         }
         if (sessionUser?.role === 'player') {
-          console.info('[PROTECTED_ROUTE_AUTH]', {
+          playerDebugLog('[PROTECTED_ROUTE_AUTH]', {
             source: 'sql_player_runtime',
             ok: true,
             uid: sessionUser.uid,
@@ -497,7 +498,7 @@ export default function ProtectedRoute({
   }, [currentRole]);
 
   if (forcedLogout || isPlayerForcedLogout()) {
-    console.info('[SESSION_GUARD] protected render blocked');
+    playerDebugLog('[SESSION_GUARD] protected render blocked');
     return (
       <main className="flex min-h-screen items-center justify-center bg-neutral-950 text-white">
         <p className="text-sm text-neutral-400">Signing out...</p>

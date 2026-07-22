@@ -1,5 +1,6 @@
 'use client';
 
+import { playerDebugLog } from '@/lib/client/playerDebugLogs';
 import { getCachedSessionUser, getSessionUserOnce } from '@/features/auth/sessionUser';
 import { getLocalAppSessionId } from '@/features/auth/appSession';
 import { getLocalPlayerSessionId, getPlayerApiHeaders } from '@/features/auth/playerSession';
@@ -36,7 +37,7 @@ export async function getSqlApiReadHeaders(contentType = false) {
   const role = await resolveClientRole();
   const playerRoute = isPlayerRoute();
   if (!playerRoute) {
-    console.info('[PLAYER_SESSION_STATUS] skippedNonPlayerRoute', {
+    playerDebugLog('[PLAYER_SESSION_STATUS] skippedNonPlayerRoute', {
       pathname: typeof window === 'undefined' ? null : window.location.pathname || null,
       role: role || null,
       hasPlayerSessionId: Boolean(getLocalPlayerSessionId()),
@@ -46,14 +47,14 @@ export async function getSqlApiReadHeaders(contentType = false) {
     return getPlayerApiHeaders(contentType);
   }
   if (role === 'player' && !playerRoute) {
-    console.info('[PLAYER_SESSION_STATUS] skippedNonPlayerRoute', {
+    playerDebugLog('[PLAYER_SESSION_STATUS] skippedNonPlayerRoute', {
       pathname: typeof window === 'undefined' ? null : window.location.pathname || null,
       role,
       hasPlayerSessionId: Boolean(getLocalPlayerSessionId()),
     });
   }
   if (role && isStaffRole(role)) {
-    console.info('[PLAYER_SESSION_STATUS] skippedNonPlayerRole', {
+    playerDebugLog('[PLAYER_SESSION_STATUS] skippedNonPlayerRole', {
       role,
       hasPlayerSessionId: Boolean(getLocalPlayerSessionId()),
     });
@@ -71,7 +72,7 @@ export async function getSqlApiReadHeaders(contentType = false) {
       return getPlayerApiHeaders(contentType);
     }
     if (resolvedRole === 'player' && !playerRoute) {
-      console.info('[PLAYER_SESSION_STATUS] skippedNonPlayerRoute', {
+      playerDebugLog('[PLAYER_SESSION_STATUS] skippedNonPlayerRoute', {
         pathname: typeof window === 'undefined' ? null : window.location.pathname || null,
         role: resolvedRole,
         hasPlayerSessionId: Boolean(playerSessionId),
@@ -79,7 +80,7 @@ export async function getSqlApiReadHeaders(contentType = false) {
       return getStaffAppSessionApiHeaders(contentType);
     }
     if (resolvedRole && isStaffRole(resolvedRole)) {
-      console.info('[PLAYER_SESSION_STATUS] skippedNonPlayerRole', {
+      playerDebugLog('[PLAYER_SESSION_STATUS] skippedNonPlayerRole', {
         role: resolvedRole,
         hasPlayerSessionId: Boolean(playerSessionId),
       });
@@ -91,7 +92,7 @@ export async function getSqlApiReadHeaders(contentType = false) {
     return getPlayerApiHeaders(contentType);
   }
   if (playerSessionId && !playerRoute) {
-    console.info('[PLAYER_SESSION_STATUS] skippedNonPlayerRoute', {
+    playerDebugLog('[PLAYER_SESSION_STATUS] skippedNonPlayerRoute', {
       pathname: typeof window === 'undefined' ? null : window.location.pathname || null,
       role: role || null,
       hasPlayerSessionId: true,
