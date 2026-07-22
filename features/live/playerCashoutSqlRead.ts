@@ -14,6 +14,7 @@ import {
   resolveVisiblePollIntervalMs,
 } from '@/lib/client/hiddenTabPoll';
 import { scheduleSafetyInterval } from '@/lib/client/snapshotPollJitter';
+import { withPlayerFetchLifecycleReason } from '@/lib/client/playerFetchLifecycleContext';
 import { isClientSqlReadMode, logClientFirestoreSkipped } from '@/lib/client/sqlReadMode';
 import {
   subscribePlayerCashoutLiveFromPlayerStream,
@@ -332,7 +333,9 @@ function attachCashoutSqlPoll(input: {
     }
     refetchInFlight = true;
     try {
-      const tasks = await fetchCashoutTasks(input.scope, input.uid, input.limit || 50);
+      const tasks = await withPlayerFetchLifecycleReason(reason, () =>
+        fetchCashoutTasks(input.scope, input.uid, input.limit || 50)
+      );
       if (!disposed) {
         input.onChange(tasks);
         logScopeListAfterEvent(input.scope, tasks.length, reason);
@@ -655,6 +658,7 @@ function attachScopedCashoutLifecyclePoll(input: {
     }
     refetchInFlight = true;
     try {
+      await withPlayerFetchLifecycleReason(reason, async () => {
       const combined = await fetchCashoutLifecycleTasks(
         input.scope,
         input.coadminUid,
@@ -691,6 +695,7 @@ function attachScopedCashoutLifecyclePoll(input: {
         console.info('[STAFF_CASHOUT_TASKS] activeLoaded', { scope: input.scope, count: active.length, reason });
         console.info(loadedLog, { scope: input.scope, count: completed.length, reason });
       }
+      });
     } catch (error) {
       if (!disposed) {
         input.onError?.(error instanceof Error ? error : new Error(String(error)));

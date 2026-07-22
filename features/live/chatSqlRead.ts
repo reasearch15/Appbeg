@@ -17,6 +17,7 @@ import {
   resolveVisiblePollIntervalMs,
 } from '@/lib/client/hiddenTabPoll';
 import { scheduleSafetyInterval } from '@/lib/client/snapshotPollJitter';
+import { withPlayerFetchLifecycleReason } from '@/lib/client/playerFetchLifecycleContext';
 import { auth } from '@/lib/firebase/client';
 import { isClientSqlReadMode, logClientFirestoreSkipped } from '@/lib/client/sqlReadMode';
 
@@ -345,7 +346,7 @@ function attachChatSqlPoll(input: {
     }
     refetchInFlight = true;
     try {
-      const meta = await input.onRefetch(reason);
+      const meta = await withPlayerFetchLifecycleReason(reason, () => input.onRefetch(reason));
       applyBootstrapCursor(meta?.latestOutboxId, reason);
     } catch (error) {
       if (!disposed) {

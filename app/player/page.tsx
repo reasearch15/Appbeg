@@ -23,6 +23,10 @@ import { getCachedSessionUser, getSessionUserOnce } from '@/features/auth/sessio
 import { useIsPlayerSessionRole } from '@/features/player/useIsPlayerSessionRole';
 import { resolvePlayerRoleForFetch } from '@/lib/client/playerFetchGuard';
 import { playerDebugLog } from '@/lib/client/playerDebugLogs';
+import {
+  peekPlayerFetchLifecycleReason,
+  readSnapshotReasonFromFetchUrl,
+} from '@/lib/client/playerFetchLifecycleContext';
 import { startPlayerRequestSummaryReporter } from '@/lib/client/playerRequestSummary';
 import { getGameLoginsByCoadmin } from '@/features/games/gameLogins';
 import {
@@ -810,6 +814,7 @@ export default function PlayerPage() {
     bonusListenerStarted: boolean;
     chatListenersStarted: boolean;
     sseStarted: boolean;
+    duplicateTrackingActive: boolean;
   } | null>(null);
 
   const startupNow = useCallback(() => {
@@ -980,14 +985,27 @@ export default function PlayerPage() {
       };
       startup.events.push(event);
       startup.requestCounts[classified.name] = (startup.requestCounts[classified.name] || 0) + 1;
-      if (startup.requestCounts[classified.name] > 1) {
-        startup.duplicateRequests += 1;
-        console.info('[PLAYER_DUPLICATE_STARTUP_REQUEST]', {
-          name: classified.name,
-          count: startup.requestCounts[classified.name],
-          url,
-          elapsed_ms: startupNow(),
-        });
+      const requestCount = startup.requestCounts[classified.name];
+      if (requestCount > 1) {
+        const lifecycleReason =
+          peekPlayerFetchLifecycleReason() || readSnapshotReasonFromFetchUrl(url);
+        if (startup.duplicateTrackingActive) {
+          startup.duplicateRequests += 1;
+          console.info('[PLAYER_DUPLICATE_STARTUP_REQUEST]', {
+            name: classified.name,
+            count: requestCount,
+            url,
+            elapsed_ms: startupNow(),
+          });
+        } else if (lifecycleReason) {
+          console.info('[PLAYER_LIFECYCLE_REQUEST]', {
+            name: classified.name,
+            count: requestCount,
+            reason: lifecycleReason,
+            url,
+            elapsed_ms: startupNow(),
+          });
+        }
       }
       if (classified.blocking) {
         console.info('[PLAYER_STARTUP_BLOCKER]', event);
@@ -1043,6 +1061,7 @@ export default function PlayerPage() {
       bonusListenerStarted: false,
       chatListenersStarted: false,
       sseStarted: false,
+      duplicateTrackingActive: true,
     };
 
     console.info('[PLAYER_DEPENDENCY_GRAPH]', {
@@ -1172,6 +1191,11 @@ export default function PlayerPage() {
       return;
     }
     startup.fullyLoadedLogged = true;
+    startup.duplicateTrackingActive = false;
+    console.info('[PLAYER_STARTUP_INSTRUMENTATION_CLOSED]', {
+      elapsed_ms: startupNow(),
+      definition: 'duplicate startup request tracking disabled; lifecycle requests logged separately',
+    });
     console.info('[PLAYER_STARTUP_SUMMARY]', {
       startupRequests: startup.events.length,
       startupDurationMs: startupNow(),
