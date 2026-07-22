@@ -7,6 +7,7 @@ import {
   logCacheSqlRead,
 } from '@/lib/server/cacheSqlRead';
 import { readConversationsCacheForUser } from '@/lib/sql/conversationsCache';
+import { getLatestOutboxIdForChannels, userChatLiveChannel } from '@/lib/sql/liveOutbox';
 
 export const runtime = 'nodejs';
 
@@ -64,8 +65,13 @@ export async function GET(request: Request) {
     }
   }
 
+  const outboxPack = await getLatestOutboxIdForChannels([
+    userChatLiveChannel(auth.user.uid),
+  ]);
+
   return NextResponse.json({
     unreadCounts: counts,
+    latestOutboxId: outboxPack.latestOutboxId,
     source: 'postgres',
     firestore_fallback: false,
   });

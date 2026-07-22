@@ -11,6 +11,7 @@ import {
   readChatMessagesCacheByConversation,
   readOlderChatMessagesCacheByConversation,
 } from '@/lib/sql/chatMessagesCache';
+import { getLatestOutboxIdForChannels, userChatLiveChannel } from '@/lib/sql/liveOutbox';
 import { cleanText, getPlayerMirrorPool } from '@/lib/sql/playerMirrorCommon';
 import { isDatabaseUrlConfigured } from '@/lib/server/sqlRuntime';
 import { isChatVerboseLogs } from '@/lib/server/verboseLogs';
@@ -332,6 +333,9 @@ export async function GET(request: Request) {
   }
 
   const responseMessages = messages || [];
+  const outboxPack = await getLatestOutboxIdForChannels([
+    userChatLiveChannel(auth.user.uid),
+  ]);
 
   return NextResponse.json({
     messages: responseMessages.map((message) => ({
@@ -349,6 +353,7 @@ export async function GET(request: Request) {
     hasMore: responseMessages.length === limit,
     nextCursor: responseMessages[0]?.id || null,
     conversationId,
+    latestOutboxId: outboxPack.latestOutboxId,
     source: 'postgres',
     firestore_fallback: false,
   });

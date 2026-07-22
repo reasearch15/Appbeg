@@ -155,6 +155,7 @@ export async function fetchSqlUnreadCounts(options?: { preferStaffSession?: bool
   );
   const payload = (await response.json().catch(() => ({}))) as {
     unreadCounts?: Record<string, number>;
+    latestOutboxId?: number;
     error?: string;
   };
   if (!response.ok) {
@@ -164,13 +165,15 @@ export async function fetchSqlUnreadCounts(options?: { preferStaffSession?: bool
     throw new Error(payload.error || 'Failed to load unread counts.');
   }
   const counts = payload.unreadCounts || {};
+  const latestOutboxId = Math.max(0, Number(payload.latestOutboxId || 0));
   console.info(`[${logTag}_RESULT]`, {
     uid: context.uid,
     role: context.role,
     peerCount: Object.keys(counts).length,
     totalUnread: Object.values(counts).reduce((sum, value) => sum + value, 0),
+    latestOutboxId,
   });
-  return counts;
+  return { unreadCounts: counts, latestOutboxId };
 }
 
 export async function fetchSqlChatMessages(
@@ -224,6 +227,7 @@ export async function fetchSqlChatMessages(
   );
   const payload = (await response.json().catch(() => ({}))) as {
     messages?: Array<Record<string, unknown>>;
+    latestOutboxId?: number;
     error?: string;
   };
   if (!response.ok) {
@@ -233,6 +237,7 @@ export async function fetchSqlChatMessages(
     throw new Error(payload.error || 'Failed to load chat messages.');
   }
   const messages = (payload.messages || []).map(mapCachedMessage);
+  const latestOutboxId = Math.max(0, Number(payload.latestOutboxId || 0));
   console.info('[CHAT_MESSAGES_CLIENT]', {
     conversationId: options?.conversationId || null,
     olderThanMessageId: options?.olderThanMessageId || null,
@@ -240,8 +245,9 @@ export async function fetchSqlChatMessages(
     currentRole: context.role,
     returnedMessages: messages.length,
     messageIds: messages.slice(0, 5).map((message) => message.id),
+    latestOutboxId,
   });
-  return messages;
+  return { messages, latestOutboxId };
 }
 
 export async function fetchSqlChatMessagesOlderThan(
@@ -250,15 +256,16 @@ export async function fetchSqlChatMessagesOlderThan(
   limit = 50,
   options?: { conversationId?: string; preferStaffSession?: boolean }
 ) {
-  return fetchSqlChatMessages(peerUid, limit, {
+  const result = await fetchSqlChatMessages(peerUid, limit, {
     ...options,
     olderThanMessageId,
   });
+  return result.messages;
 }
 
 function attachChatSqlPoll(input: {
   selfUid: string;
-  onRefetch: (reason: string) => Promise<void>;
+  onRefetch: (reason: string) => Promise<{ latestOutboxId?: number } | void>;
   onError?: (error: Error) => void;
   pollMs?: number;
   enableLive?: boolean;
@@ -278,6 +285,25 @@ function attachChatSqlPoll(input: {
   const recentEntityRefetchAt = new Map<string, number>();
   const ENTITY_REFETCH_DEDUP_MS = 750;
   const seenOutboxIds = new Set<number>();
+
+  const applyBootstrapCursor = (latestOutboxId: unknown, reason: string) => {
+    const next = Math.max(0, Number(latestOutboxId || 0));
+    if (next <= 0) {
+      return;
+    }
+    const previous = lastEventId;
+    lastEventId = Math.max(lastEventId, next);
+    if (lastEventId !== previous) {
+      console.info('[CHAT_LIVE_CURSOR_BOOTSTRAP]', {
+        pollName,
+        selfUid: input.selfUid,
+        subscriptionInstanceId,
+        reason,
+        previousLastEventId: previous,
+        lastEventId,
+      });
+    }
+  };
 
   const isSafetyOnlyMode = () =>
     input.enableLive === true && streamHealthy && eventSource?.readyState === EventSource.OPEN;
@@ -319,7 +345,8 @@ function attachChatSqlPoll(input: {
     }
     refetchInFlight = true;
     try {
-      await input.onRefetch(reason);
+      const meta = await input.onRefetch(reason);
+      applyBootstrapCursor(meta?.latestOutboxId, reason);
     } catch (error) {
       if (!disposed) {
         input.onError?.(error instanceof Error ? error : new Error(String(error)));
@@ -522,25 +549,31 @@ function attachChatSqlPoll(input: {
   const detachHiddenResume = attachHiddenTabPollResume(pollName, () => {
     scheduleImmediateRefetch('hidden_tab_resume');
   });
-  void runPoll('initial');
-  connectEventSource();
-  safetyRefetchStop = scheduleSafetyInterval({
-    baseMs: SAFETY_REFETCH_MS,
-    pollName: `${pollName}_safety`,
-    onTick: () => {
-      if (isDocumentHidden() && eventSource?.readyState === EventSource.OPEN) {
-        logHiddenTabPollPaused(`${pollName}_safety`);
-        return;
-      }
-      console.info('[CHAT_SAFETY_REFETCH]', {
-        pollName,
-        selfUid: input.selfUid,
-        subscriptionInstanceId,
-        streamHealthy,
-      });
-      scheduleImmediateRefetch('safety_interval');
-    },
-  });
+
+  void (async () => {
+    await runPoll('initial');
+    if (disposed) {
+      return;
+    }
+    connectEventSource();
+    safetyRefetchStop = scheduleSafetyInterval({
+      baseMs: SAFETY_REFETCH_MS,
+      pollName: `${pollName}_safety`,
+      onTick: () => {
+        if (isDocumentHidden() && eventSource?.readyState === EventSource.OPEN) {
+          logHiddenTabPollPaused(`${pollName}_safety`);
+          return;
+        }
+        console.info('[CHAT_SAFETY_REFETCH]', {
+          pollName,
+          selfUid: input.selfUid,
+          subscriptionInstanceId,
+          streamHealthy,
+        });
+        scheduleImmediateRefetch('safety_interval');
+      },
+    });
+  })();
 
   return () => {
     disposed = true;
@@ -576,15 +609,17 @@ export function attachSqlUnreadCountsPoll(
         enableLive: Boolean(selfUid),
         pollMs: UNREAD_SHARED_POLL_MS,
         onRefetch: async (reason) => {
-          const counts = await fetchSqlUnreadCounts();
+          const result = await fetchSqlUnreadCounts();
           if (!disposed) {
-            onChange(counts);
+            onChange(result.unreadCounts);
             console.info('[CHAT_RECEIVER_UI_UPDATED]', {
               kind: 'player_unread_counts',
-              peerCount: Object.keys(counts).length,
+              peerCount: Object.keys(result.unreadCounts).length,
               reason,
+              latestOutboxId: result.latestOutboxId,
             });
           }
+          return { latestOutboxId: result.latestOutboxId };
         },
         onError,
       });
@@ -609,15 +644,17 @@ export function attachSqlUnreadCountsPoll(
       selfUid,
       enableLive: Boolean(selfUid),
       onRefetch: async (reason) => {
-        const counts = await fetchSqlUnreadCounts({ preferStaffSession: true });
+        const result = await fetchSqlUnreadCounts({ preferStaffSession: true });
         if (!disposed) {
-          onChange(counts);
+          onChange(result.unreadCounts);
           console.info('[CHAT_RECEIVER_UI_UPDATED]', {
             kind: 'unread_counts',
-            peerCount: Object.keys(counts).length,
+            peerCount: Object.keys(result.unreadCounts).length,
             reason,
+            latestOutboxId: result.latestOutboxId,
           });
         }
+        return { latestOutboxId: result.latestOutboxId };
       },
       onError,
     });
@@ -654,18 +691,20 @@ export function attachSqlChatMessagesPoll(
         selfUid,
         enableLive: Boolean(selfUid),
         onRefetch: async (reason) => {
-          const messages = await fetchSqlChatMessages(peerUid, options?.limit || 50, {
+          const result = await fetchSqlChatMessages(peerUid, options?.limit || 50, {
             conversationId: options?.conversationId,
           });
           if (!disposed) {
-            onChange(messages);
+            onChange(result.messages);
             console.info('[CHAT_RECEIVER_UI_UPDATED]', {
               kind: 'messages',
               peerUid,
-              count: messages.length,
+              count: result.messages.length,
               reason,
+              latestOutboxId: result.latestOutboxId,
             });
           }
+          return { latestOutboxId: result.latestOutboxId };
         },
         onError,
       });
@@ -690,24 +729,27 @@ export function attachSqlChatMessagesPoll(
       selfUid,
       enableLive: Boolean(selfUid),
       onRefetch: async (reason) => {
-        const messages = await fetchSqlChatMessages(peerUid, options?.limit || 50, {
+        const result = await fetchSqlChatMessages(peerUid, options?.limit || 50, {
           conversationId: options?.conversationId,
           preferStaffSession: true,
         });
         if (!disposed) {
-          onChange(messages);
+          onChange(result.messages);
           console.info('[CHAT_MESSAGES_REFETCHED]', {
             peerUid,
-            count: messages.length,
+            count: result.messages.length,
             reason,
+            latestOutboxId: result.latestOutboxId,
           });
           console.info('[CHAT_RECEIVER_UI_UPDATED]', {
             kind: 'messages',
             peerUid,
-            count: messages.length,
+            count: result.messages.length,
             reason,
+            latestOutboxId: result.latestOutboxId,
           });
         }
+        return { latestOutboxId: result.latestOutboxId };
       },
       onError,
     });
