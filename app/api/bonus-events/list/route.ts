@@ -22,9 +22,12 @@ import {
 import { readGameLoginsCacheByCoadmin } from '@/lib/sql/gameLoginsCache';
 import {
   bonusEventsMemoryCacheKey,
+  invalidateBonusEventsMemoryCache,
   readBonusEventsMemoryCache,
   writeBonusEventsMemoryCache,
 } from '@/lib/server/bonusEventsMemoryCache';
+import { isAuthoritySqlWriteEnabled } from '@/lib/server/authoritySqlWrite';
+import { ensureBonusCapacityInSql } from '@/lib/sql/authorityBonus';
 
 export const runtime = 'nodejs';
 
@@ -275,34 +278,100 @@ export async function GET(request: Request) {
       includeInactive,
       skipTimeWindowFilter,
     });
+    const canAutoRefillEmptySqlBonusEvents =
+      !includeInactive &&
+      isAuthoritySqlWriteEnabled() &&
+      (auth.user.role === 'player' || auth.user.role === 'coadmin');
     const memoryCached = readBonusEventsMemoryCache<BonusEvent>(memoryCacheKey);
     if (memoryCached) {
-      return NextResponse.json({
-        events: memoryCached.events,
-        source: 'postgres',
-        firestore_fallback: false,
-        cache: 'memory',
-        filterReason: memoryCached.filterReason,
-      });
+      if (
+        canAutoRefillEmptySqlBonusEvents &&
+        memoryCached.events.length === 0 &&
+        memoryCached.filterReason !== 'no_rows_for_coadmin' &&
+        !String(memoryCached.filterReason || '').startsWith('ensure_')
+      ) {
+        console.info('[bonusEvents] list:empty-memory-cache-bypass-for-ensure', {
+          coadminUid,
+          filterReason: memoryCached.filterReason,
+        });
+      } else {
+        return NextResponse.json({
+          events: memoryCached.events,
+          source: 'postgres',
+          firestore_fallback: false,
+          cache: 'memory',
+          filterReason: memoryCached.filterReason,
+        });
+      }
     }
 
-    const sqlReadMode = isCacheSqlAuthoritative();
-    const sqlStartedAt = Date.now();
-    let gameNames: string[];
-    let rawEvents: CachedBonusEvent[];
-    try {
-      [gameNames, rawEvents] = await Promise.all([
+    async function readDecoratedEvents() {
+      const sqlReadMode = isCacheSqlAuthoritative();
+      const sqlStartedAt = Date.now();
+      const [gameNames, rawEvents] = await Promise.all([
         loadGameNames(coadminUid, sqlReadMode),
         loadBonusEvents(coadminUid, sqlReadMode),
       ]);
+      return {
+        events: decorateLegacyBonusEvents(rawEvents, gameNames),
+        rawEvents,
+        sql_ms: Date.now() - sqlStartedAt,
+        sqlReadMode,
+      };
+    }
+
+    let sqlReadMode = isCacheSqlAuthoritative();
+    let sql_ms = 0;
+    let rawEvents: CachedBonusEvent[] = [];
+    let events: BonusEvent[] = [];
+    let ensureReason: string | null = null;
+    try {
+      const read = await readDecoratedEvents();
+      sqlReadMode = read.sqlReadMode;
+      sql_ms = read.sql_ms;
+      rawEvents = read.rawEvents;
+      events = read.events;
+
+      if (canAutoRefillEmptySqlBonusEvents && events.length === 0) {
+        const ensure = await ensureBonusCapacityInSql({
+          coadminUid,
+          callerUid: auth.user.role === 'coadmin' ? auth.user.uid : coadminUid,
+          callerUsername: auth.user.role === 'coadmin' ? auth.user.username || 'Coadmin' : 'Coadmin',
+          activeCountHint: 0,
+        });
+        ensureReason = ensure.skipped ? `ensure_skipped_${ensure.skipped}` : 'ensure_attempted';
+        if (ensure.autoCreatedCount > 0) {
+          invalidateBonusEventsMemoryCache(coadminUid);
+          const refreshed = await readDecoratedEvents();
+          sqlReadMode = refreshed.sqlReadMode;
+          sql_ms += refreshed.sql_ms;
+          rawEvents = refreshed.rawEvents;
+          events = refreshed.events;
+          ensureReason = 'ensure_created';
+        }
+      }
     } catch (error) {
+      if (canAutoRefillEmptySqlBonusEvents) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error('[bonusEvents] list:ensure-or-read-failed', {
+          coadminUid,
+          message,
+        });
+        return NextResponse.json(
+          {
+            error: message || 'Failed to load bonus events.',
+            source: 'postgres',
+            firestore_fallback: false,
+            filterReason: 'ensure_or_read_failed',
+          },
+          { status: 500 }
+        );
+      }
       return firestoreFallbackRemovedResponse(ROUTE, {
         coadminUid,
         error: error instanceof Error ? error.message : String(error),
       });
     }
-    const events = decorateLegacyBonusEvents(rawEvents, gameNames);
-    const sql_ms = Date.now() - sqlStartedAt;
 
     logBonusEventsListSql({
       route: ROUTE,
@@ -311,7 +380,7 @@ export async function GET(request: Request) {
       activeCount: events.length,
       sql_ms,
       firestore_fallback: false,
-      reason: sqlReadMode ? 'bonus_events_cache_read' : 'legacy_firestore_branch',
+      reason: ensureReason || (sqlReadMode ? 'bonus_events_cache_read' : 'legacy_firestore_branch'),
     });
 
     if (auth.user.role === 'player') {
@@ -323,13 +392,14 @@ export async function GET(request: Request) {
         totalRowsForCoadmin: rawEvents.length,
         returnedCount: events.length,
         reason:
-          events.length > 0
+          ensureReason ||
+          (events.length > 0
             ? 'bonus_events_cache_read_active'
             : rawEvents.length > 0
               ? 'active_filter_empty'
               : coadminUid
                 ? 'no_rows_for_coadmin'
-                : 'missing_coadmin_scope',
+                : 'missing_coadmin_scope'),
       });
     }
 
@@ -342,13 +412,14 @@ export async function GET(request: Request) {
     }
 
     const filterReason =
-      events.length > 0
+      ensureReason ||
+      (events.length > 0
         ? 'active'
         : rawEvents.length > 0
           ? 'active_filter_empty'
           : coadminUid
             ? 'no_rows_for_coadmin'
-            : 'missing_coadmin_scope';
+            : 'missing_coadmin_scope');
     writeBonusEventsMemoryCache(memoryCacheKey, {
       events,
       rawCount: rawEvents.length,
