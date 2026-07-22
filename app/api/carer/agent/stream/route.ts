@@ -10,6 +10,7 @@ import {
 import { agentJobLiveChannel, getLiveOutboxRowsAfter, type LiveOutboxRow } from '@/lib/sql/liveOutbox';
 import { cleanText } from '@/lib/sql/playerMirrorCommon';
 import { warnIfFanoutRequiredButDisabled } from '@/lib/server/liveStreamFanoutGuard';
+import { debugLog } from '@/lib/server/verboseLogs';
 
 export const runtime = 'nodejs';
 
@@ -134,7 +135,7 @@ function createFanoutAgentStreamResponse(input: {
       const sendHeartbeat = (phase: 'initial' | 'interval') => {
         if (closed) return;
         enqueue(formatPingEvent(channel));
-        console.info('[AGENT_STREAM_HEARTBEAT]', {
+        debugLog('[AGENT_STREAM_HEARTBEAT]', {
           carerUid,
           agentId,
           channel,
@@ -319,7 +320,7 @@ export async function GET(request: Request) {
       const sendHeartbeat = (phase: 'initial' | 'interval') => {
         if (closed) return;
         enqueue(formatPingEvent(channel));
-        console.info('[AGENT_STREAM_HEARTBEAT]', {
+        debugLog('[AGENT_STREAM_HEARTBEAT]', {
           carerUid,
           agentId,
           channel,

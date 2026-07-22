@@ -5,6 +5,10 @@ import type { DocumentSnapshot } from 'firebase-admin/firestore';
 
 import { adminDb } from '@/lib/firebase/admin';
 import {
+  AUTH_SLOW_MS,
+  isAppDebugLoggingEnabled,
+} from '@/lib/server/verboseLogs';
+import {
   cleanText,
   getPlayerMirrorPool,
   normalizeJson,
@@ -453,13 +457,9 @@ export async function lookupApiUserProfileFromSqlCache(
       query_exec_ms: 0,
       total_ms: Date.now() - startedAt,
     };
-    console.info(
-      '[API_AUTH_SQL_PROFILE] hit=false uid=%s role=%s coadminUid=%s source=%s reason=%s',
-      cleanUid || null,
-      null,
-      null,
-      'players_cache',
-      'postgres_unavailable'
+    console.warn(
+      '[API_AUTH_SQL_PROFILE] hit=false uid=%s source=players_cache reason=postgres_unavailable',
+      cleanUid || null
     );
     return { profile: null, timing, missReason: 'postgres_unavailable' };
   }
@@ -478,17 +478,13 @@ export async function lookupApiUserProfileFromSqlCache(
       : await runMirrorPoolQuery<Record<string, unknown>>(db, profileSql, [cleanUid]);
 
     if (!rows.length) {
-      console.info(
-        '[API_AUTH_SQL_PROFILE] hit=false uid=%s role=%s coadminUid=%s source=%s reason=%s pool_acquire_ms=%s query_exec_ms=%s total_ms=%s',
-        cleanUid,
-        null,
-        null,
-        'players_cache',
-        'row_missing',
-        timing.pool_acquire_ms,
-        timing.query_exec_ms,
-        timing.total_ms
-      );
+      if (isAppDebugLoggingEnabled() || timing.total_ms >= AUTH_SLOW_MS) {
+        console.info(
+          '[API_AUTH_SQL_PROFILE] hit=false uid=%s source=players_cache reason=row_missing total_ms=%s',
+          cleanUid,
+          timing.total_ms
+        );
+      }
       return { profile: null, timing, missReason: 'row_missing' };
     }
 
@@ -505,17 +501,15 @@ export async function lookupApiUserProfileFromSqlCache(
       activeSessionId: resolveActiveSessionId(row),
     } satisfies ApiUserSqlProfileLookup;
 
-    console.info(
-      '[API_AUTH_SQL_PROFILE] hit=true uid=%s role=%s coadminUid=%s source=%s pool_acquire_ms=%s query_exec_ms=%s total_ms=%s shared_client=%s',
-      profile.uid,
-      profile.role,
-      profile.coadminUid,
-      'players_cache',
-      timing.pool_acquire_ms,
-      timing.query_exec_ms,
-      timing.total_ms,
-      Boolean(mirrorClient)
-    );
+    if (isAppDebugLoggingEnabled() || timing.total_ms >= AUTH_SLOW_MS) {
+      console.info(
+        '[API_AUTH_SQL_PROFILE] hit=true uid=%s role=%s source=players_cache total_ms=%s shared_client=%s',
+        profile.uid,
+        profile.role,
+        timing.total_ms,
+        Boolean(mirrorClient)
+      );
+    }
     return { profile, timing, missReason: null };
   } catch (error) {
     const timing = {
@@ -523,13 +517,9 @@ export async function lookupApiUserProfileFromSqlCache(
       query_exec_ms: 0,
       total_ms: Date.now() - startedAt,
     };
-    console.info(
-      '[API_AUTH_SQL_PROFILE] hit=false uid=%s role=%s coadminUid=%s source=%s reason=%s error=%s',
+    console.warn(
+      '[API_AUTH_SQL_PROFILE] hit=false uid=%s source=players_cache reason=lookup_failed error=%s',
       cleanUid,
-      null,
-      null,
-      'players_cache',
-      'lookup_failed',
       error instanceof Error ? error.message : String(error)
     );
     return { profile: null, timing, missReason: 'lookup_failed' };

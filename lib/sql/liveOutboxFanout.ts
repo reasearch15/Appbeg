@@ -4,6 +4,7 @@ import { Client } from 'pg';
 
 import { getLiveOutboxRowsAfter, type LiveOutboxRow } from '@/lib/sql/liveOutbox';
 import { cleanText, getPlayerMirrorPool, toIsoString } from '@/lib/sql/playerMirrorCommon';
+import { debugLog } from '@/lib/server/verboseLogs';
 
 const LIVE_OUTBOX_NOTIFY_CHANNEL = 'live_outbox';
 const FALLBACK_POLL_INTERVAL_MS = 250;
@@ -542,7 +543,19 @@ class LiveOutboxFanout {
 
   private logMetrics(phase: 'subscribe' | 'interval' | 'stop') {
     this.updateStats();
-    console.info('[LIVE_OUTBOX_FANOUT_METRICS]', {
+    const unhealthy =
+      !this.stats.listenerConnected ||
+      this.stats.listenerDegraded ||
+      this.stats.fallbackActive ||
+      this.stats.droppedSubscriberCount > 0;
+    if (unhealthy) {
+      console.warn('[LIVE_OUTBOX_FANOUT_METRICS]', {
+        phase,
+        ...this.stats,
+      });
+      return;
+    }
+    debugLog('[LIVE_OUTBOX_FANOUT_METRICS]', {
       phase,
       ...this.stats,
     });
