@@ -1540,7 +1540,41 @@ export default function PlayerPage() {
     return Boolean(state?.[ACTIVE_TABLE_SPLASH_HISTORY_KEY]);
   }
 
-  const openActiveTableSplash = useCallback(() => {
+  const getActiveTableSound = useCallback(() => {
+    if (!activeTableSoundRef.current) {
+      const audio = new Audio('/play.mp3');
+      audio.preload = 'auto';
+      activeTableSoundRef.current = audio;
+    }
+    return activeTableSoundRef.current;
+  }, []);
+
+  const openActiveTableSplash = useCallback(async () => {
+    const playAudio = getActiveTableSound();
+    const themeWasPlaying = Boolean(
+      musicEnabledRef.current && audioRef.current && !audioRef.current.paused
+    );
+
+    console.log('Opening game modal: attempting play.mp3');
+    playAudio.loop = true;
+    playAudio.volume = 0.4;
+    playAudio.currentTime = 0;
+
+    try {
+      // play() must run in this click handler so the browser allows autoplay.
+      await playAudio.play();
+      console.log('play.mp3 started');
+      if (themeWasPlaying) {
+        audioRef.current?.pause();
+        resumeThemeAfterTableRef.current = true;
+      } else {
+        resumeThemeAfterTableRef.current = false;
+      }
+    } catch (error) {
+      console.error(error);
+      resumeThemeAfterTableRef.current = false;
+    }
+
     showActiveTableSplashRef.current = true;
     if (!activeTableHistoryOpenRef.current) {
       window.history.pushState(
@@ -1554,9 +1588,20 @@ export default function PlayerPage() {
     }
     setIsPlayAmountEditable(false);
     setShowActiveTableSplash(true);
-  }, []);
+  }, [getActiveTableSound]);
 
   function closeActiveTableSplash(options?: { fromPopState?: boolean }) {
+    console.log('Game modal closed: resuming theme');
+
+    const tableAudio = activeTableSoundRef.current;
+    if (tableAudio) {
+      tableAudio.pause();
+      tableAudio.currentTime = 0;
+    }
+
+    const shouldResumeTheme = resumeThemeAfterTableRef.current;
+    resumeThemeAfterTableRef.current = false;
+
     showActiveTableSplashRef.current = false;
     setShowActiveTableSplash(false);
     if (!options?.fromPopState && hasActiveTableSplashHistoryState()) {
@@ -1567,6 +1612,10 @@ export default function PlayerPage() {
         currentPath: window.location.pathname,
       });
       window.history.back();
+    }
+
+    if (shouldResumeTheme) {
+      resumeBackgroundMusicRef.current?.();
     }
   }
 
@@ -1666,46 +1715,13 @@ export default function PlayerPage() {
   }, [showActiveTableSplash]);
 
   useEffect(() => {
-    if (!showActiveTableSplash) {
-      return undefined;
-    }
-
-    const themeAudio = audioRef.current;
-    resumeThemeAfterTableRef.current = Boolean(
-      musicEnabledRef.current && themeAudio && !themeAudio.paused
-    );
-    themeAudio?.pause();
-
-    const tableAudio = activeTableSoundRef.current ?? new Audio('/play.mp3');
-    if (!activeTableSoundRef.current) {
-      tableAudio.preload = 'auto';
-      activeTableSoundRef.current = tableAudio;
-    }
-    tableAudio.loop = true;
-    tableAudio.volume = 0.4;
-    if (tableAudio.paused || tableAudio.ended) {
-      try {
-        tableAudio.currentTime = 0;
-      } catch {
-        // Ignore seek errors before media is ready.
-      }
-      void tableAudio.play().catch(() => undefined);
-    }
-
+    // Keep one persistent /play.mp3 instance; do not play here (must start in click handler).
+    const playAudio = getActiveTableSound();
     return () => {
-      tableAudio.pause();
-      try {
-        tableAudio.currentTime = 0;
-      } catch {
-        // Ignore seek errors while tearing down.
-      }
-      const shouldResumeTheme = resumeThemeAfterTableRef.current;
-      resumeThemeAfterTableRef.current = false;
-      if (shouldResumeTheme) {
-        resumeBackgroundMusicRef.current?.();
-      }
+      playAudio.pause();
+      playAudio.currentTime = 0;
     };
-  }, [showActiveTableSplash]);
+  }, [getActiveTableSound]);
 
   const clearPlayerHelpHintHideTimeout = useCallback(() => {
     if (playerHelpHintHideTimeoutRef.current !== null) {
