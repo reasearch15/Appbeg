@@ -443,6 +443,7 @@ export async function PATCH(request: Request) {
   return NextResponse.json({
     success: true,
     message: result.message,
+    duplicate: 'duplicate' in result ? Boolean(result.duplicate) : false,
     source: 'postgres',
     firestore_fallback: false,
   });

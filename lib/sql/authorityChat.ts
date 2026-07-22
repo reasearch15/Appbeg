@@ -788,6 +788,36 @@ export async function deleteChatMessageInSql(input: AuthorityChatDeleteInput) {
       return { ok: false as const, status: 403, reason: 'only_sender_can_delete_for_everyone' };
     }
 
+    const alreadyDeletedForMe =
+      scope === 'for_me' &&
+      (beforeDeletedForEveryone || beforeDeletedFor.includes(actorUid));
+    const alreadyDeletedForEveryone = scope === 'for_everyone' && beforeDeletedForEveryone;
+    if (alreadyDeletedForMe || alreadyDeletedForEveryone) {
+      console.info('[CHAT_DELETE_NOOP_SKIP_OUTBOX]', {
+        messageId,
+        conversationId,
+        actorUid,
+        scope,
+        reason: alreadyDeletedForEveryone ? 'already_deleted_for_everyone' : 'already_deleted_for_me',
+      });
+      await client.query('ROLLBACK');
+      return {
+        ok: true as const,
+        duplicate: true as const,
+        message: {
+          id: messageId,
+          senderUid,
+          receiverUid,
+          type: cleanText(before.type) === 'image' ? 'image' : 'text',
+          text: beforeDeletedForEveryone ? null : cleanText(before.text) || null,
+          imageUrl: beforeDeletedForEveryone ? null : cleanText(before.image_url) || null,
+          imagePublicId: beforeDeletedForEveryone ? null : cleanText(before.image_public_id) || null,
+          deletedFor: beforeDeletedFor,
+          deletedForEveryone: beforeDeletedForEveryone,
+        },
+      };
+    }
+
     let updatedRow: Record<string, unknown> | undefined;
     if (scope === 'for_me') {
       const updatedDeletedFor = Array.from(new Set([...beforeDeletedFor, actorUid]));
