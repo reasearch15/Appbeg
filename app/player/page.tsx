@@ -3453,7 +3453,7 @@ export default function PlayerPage() {
         void run();
       }, 3000);
 
-      console.info('[PLAYER_PAGE_LOAD]', {
+      playerStartupDebugLog('[PLAYER_PAGE_LOAD]', {
         stage: 'init_sql_runtime',
         durationMs: Date.now() - pageLoadStartedAt,
       });
@@ -3529,7 +3529,7 @@ export default function PlayerPage() {
       await loadPlayerProfileForUid(nextPlayerUid, sessionUser);
     });
 
-    console.info('[PLAYER_PAGE_LOAD]', {
+    playerStartupDebugLog('[PLAYER_PAGE_LOAD]', {
       stage: 'init',
       durationMs: Date.now() - pageLoadStartedAt,
     });
