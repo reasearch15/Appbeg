@@ -4,6 +4,11 @@ import type { DocumentSnapshot } from 'firebase-admin/firestore';
 
 import { adminDb } from '@/lib/firebase/admin';
 import {
+  API_ROUTE_SLOW_MS,
+  debugLog,
+  isAppDebugLoggingEnabled,
+} from '@/lib/server/verboseLogs';
+import {
   mirrorBatchLogFields,
   mirrorErrorLogFields,
   runCarerTaskMirrorBatchItem,
@@ -971,31 +976,42 @@ export async function getPendingCarerTaskCandidatesFromSql(
       };
     }
 
-    console.info('[AUTO_TICK_SQL_PENDING_SCAN]', {
-      coadminUid: cleanCoadminUid,
-      carerUid: cleanCarerUid || null,
-      candidateCount: candidates.length,
-      excludeRetryPending,
-      excludeReturnCooldown,
-    });
-    for (const task of candidates) {
-      console.info('[AUTO_TICK_SQL_PENDING_TASK_ROW]', {
-        taskId: cleanText(task.id),
-        type: cleanText(task.type),
-        gameName: cleanText(task.gameName),
-        playerUid: cleanText(task.playerUid),
-        retryPending: task.retryPending === true,
+    if (candidates.length > 0) {
+      console.info(
+        '[AUTO_TICK_SQL_PENDING_SCAN] coadminUid=%s carerUid=%s candidateCount=%s',
+        cleanCoadminUid,
+        cleanCarerUid || '-',
+        candidates.length
+      );
+      if (isAppDebugLoggingEnabled()) {
+        for (const task of candidates) {
+          debugLog('[AUTO_TICK_SQL_PENDING_TASK_ROW]', {
+            taskId: cleanText(task.id),
+            type: cleanText(task.type),
+            gameName: cleanText(task.gameName),
+            playerUid: cleanText(task.playerUid),
+            retryPending: task.retryPending === true,
+          });
+        }
+      }
+    } else {
+      debugLog('[AUTO_TICK_SQL_PENDING_SCAN]', {
+        coadminUid: cleanCoadminUid,
+        carerUid: cleanCarerUid || null,
+        candidateCount: 0,
+        excludeRetryPending,
+        excludeReturnCooldown,
       });
     }
-    console.info(
-      '[AUTO_TICK_PENDING_SQL] hit=true candidateCount=%s coadminUid=%s carerUid=%s durationMs=%s pool_acquire_ms=%s query_exec_ms=%s',
-      candidates.length,
-      cleanCoadminUid,
-      cleanCarerUid || null,
-      timing.total_ms,
-      timing.pool_acquire_ms,
-      timing.query_exec_ms
-    );
+    if (isAppDebugLoggingEnabled() || timing.total_ms >= API_ROUTE_SLOW_MS || candidates.length > 0) {
+      console.info(
+        '[AUTO_TICK_PENDING_SQL] hit=true candidateCount=%s coadminUid=%s carerUid=%s durationMs=%s',
+        candidates.length,
+        cleanCoadminUid,
+        cleanCarerUid || null,
+        timing.total_ms
+      );
+    }
     return {
       candidates,
       timing,

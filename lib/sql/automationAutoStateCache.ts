@@ -6,6 +6,11 @@ import type { PoolClient } from 'pg';
 import { AUTOMATION_AUTO_STATE_COLLECTION } from '@/features/automation/automationAutoState';
 import { adminDb } from '@/lib/firebase/admin';
 import {
+  API_ROUTE_SLOW_MS,
+  debugLog,
+  isAppDebugLoggingEnabled,
+} from '@/lib/server/verboseLogs';
+import {
   cleanText,
   getPlayerMirrorPool,
   isPgPoolExhaustedError,
@@ -262,12 +267,9 @@ export async function lookupAutomationAutoStateFromSqlCache(
       query_exec_ms: 0,
       total_ms: Date.now() - startedAt,
     };
-    console.info(
-      '[AUTO_TICK_STATE_SQL] hit=false carerUid=%s enabled=%s leaseOwner=%s leaseExpired=%s reason=%s',
+    console.warn(
+      '[AUTO_TICK_STATE_SQL] hit=false carerUid=%s reason=%s',
       cleanCarerUid || null,
-      null,
-      null,
-      null,
       'postgres_unavailable'
     );
     return { state: null, timing, missReason: 'postgres_unavailable' };
@@ -287,17 +289,14 @@ export async function lookupAutomationAutoStateFromSqlCache(
     ]);
 
     if (!rows.length) {
-      console.info(
-        '[AUTO_TICK_STATE_SQL] hit=false carerUid=%s enabled=%s leaseOwner=%s leaseExpired=%s reason=%s pool_acquire_ms=%s query_exec_ms=%s total_ms=%s',
-        cleanCarerUid,
-        null,
-        null,
-        null,
-        'row_missing',
-        timing.pool_acquire_ms,
-        timing.query_exec_ms,
-        timing.total_ms
-      );
+      debugLog('[AUTO_TICK_STATE_SQL]', {
+        hit: false,
+        carerUid: cleanCarerUid,
+        reason: 'row_missing',
+        pool_acquire_ms: timing.pool_acquire_ms,
+        query_exec_ms: timing.query_exec_ms,
+        total_ms: timing.total_ms,
+      });
       return { state: null, timing, missReason: 'row_missing' };
     }
 
@@ -313,16 +312,15 @@ export async function lookupAutomationAutoStateFromSqlCache(
       leaseExpiresAt,
     } satisfies AutomationAutoStateSqlLookup;
 
-    console.info(
-      '[AUTO_TICK_STATE_SQL] hit=true carerUid=%s enabled=%s leaseOwner=%s leaseExpired=%s pool_acquire_ms=%s query_exec_ms=%s total_ms=%s',
-      state.carerUid,
-      state.enabled,
-      leaseOwner,
-      leaseExpired(leaseExpiresAt),
-      timing.pool_acquire_ms,
-      timing.query_exec_ms,
-      timing.total_ms
-    );
+    if (isAppDebugLoggingEnabled() || timing.total_ms >= API_ROUTE_SLOW_MS) {
+      console.info(
+        '[AUTO_TICK_STATE_SQL] hit=true carerUid=%s enabled=%s leaseExpired=%s total_ms=%s',
+        state.carerUid,
+        state.enabled,
+        leaseExpired(leaseExpiresAt),
+        timing.total_ms
+      );
+    }
     return { state, timing, missReason: null };
   } catch (error) {
     const timing = {
@@ -331,12 +329,9 @@ export async function lookupAutomationAutoStateFromSqlCache(
       total_ms: Date.now() - startedAt,
     };
     const missReason = isPgPoolExhaustedError(error) ? 'pool_exhausted' : 'lookup_failed';
-    console.info(
-      '[AUTO_TICK_STATE_SQL] hit=false carerUid=%s enabled=%s leaseOwner=%s leaseExpired=%s reason=%s error=%s',
+    console.warn(
+      '[AUTO_TICK_STATE_SQL] hit=false carerUid=%s reason=%s error=%s',
       cleanCarerUid,
-      null,
-      null,
-      null,
       missReason,
       error instanceof Error ? error.message : String(error)
     );
@@ -455,16 +450,13 @@ export async function acquireAutomationAutoTickLeaseSql(
       [cleanCarerUid, cleanInstanceId, nextExpiresAt, JSON.stringify(normalizeJson(raw) || {})]
     );
     await client.query('COMMIT');
-    console.info('[AUTO_TICK_LEASE_SQL]', {
-      carerUid: cleanCarerUid,
-      instanceId: cleanInstanceId,
-      lease_source: 'sql',
-      lease_acquired: true,
-      firestore_fallback: false,
-      pool_acquire_ms: timing.pool_acquire_ms,
-      query_exec_ms: timing.query_exec_ms,
-      total_ms: timing.total_ms,
-    });
+    if (isAppDebugLoggingEnabled() || timing.total_ms >= API_ROUTE_SLOW_MS) {
+      console.info(
+        '[AUTO_TICK_LEASE_SQL] carerUid=%s lease_acquired=true total_ms=%s',
+        cleanCarerUid,
+        timing.total_ms
+      );
+    }
     return { ok: true, timing };
   } catch (error) {
     try {

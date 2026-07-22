@@ -4,6 +4,13 @@ function envFlag(name: string) {
   return process.env[name] === '1';
 }
 
+function envTruthy(name: string) {
+  const value = String(process.env[name] || '')
+    .trim()
+    .toLowerCase();
+  return value === '1' || value === 'true' || value === 'yes' || value === 'on';
+}
+
 export function isLoadTestMode() {
   return envFlag('LOAD_TEST_MODE');
 }
@@ -25,6 +32,25 @@ export function isVerboseAllowed(flagName: string) {
     return false;
   }
   return isDebugLogLevel() || envFlag(flagName);
+}
+
+/** Central production-safe debug flag for noisy diagnostic polling logs. */
+export function isAppDebugLoggingEnabled() {
+  if (isLoadTestMode()) {
+    return false;
+  }
+  return isDebugLogLevel() || envTruthy('APP_DEBUG_LOGS');
+}
+
+export function debugLog(message: string, details?: Record<string, unknown>) {
+  if (!isAppDebugLoggingEnabled()) {
+    return;
+  }
+  if (details === undefined) {
+    console.info(message);
+    return;
+  }
+  console.info(message, details);
 }
 
 export function isSqlAuthVerboseLogs() {

@@ -49,6 +49,11 @@ import {
   lookupApiUserProfileFromSqlCache,
   mirrorPlayerById,
 } from '@/lib/sql/playersCache';
+import {
+  API_ROUTE_SLOW_MS,
+  debugLog,
+  isAppDebugLoggingEnabled,
+} from '@/lib/server/verboseLogs';
 
 export const runtime = 'nodejs';
 
@@ -57,10 +62,11 @@ const MAX_CLAIMS_PER_TICK = 5;
 const PENDING_QUERY_LIMIT = 15;
 
 function logAutoTickTiming(step: string, startedAt: number, details: Record<string, unknown> = {}) {
-  console.info(`[AUTO_TICK_TIMING] ${step}`, {
-    durationMs: Date.now() - startedAt,
-    ...details,
-  });
+  const durationMs = Date.now() - startedAt;
+  if (!isAppDebugLoggingEnabled() && durationMs < API_ROUTE_SLOW_MS) {
+    return;
+  }
+  console.info(`[AUTO_TICK_TIMING] ${step} durationMs=%s`, durationMs, details);
 }
 
 function isAgentSupportedAutomationType(value: string) {
@@ -220,7 +226,7 @@ async function resolveAutoTickCarerProfile(params: {
         durationMs: 0,
       });
       const authSource = mapAutoTickAuthSource(authPath);
-      console.info('[AUTO_TICK_AUTH_SOURCE] source=%s authPath=%s', authSource, authPath);
+      debugLog('[AUTO_TICK_AUTH_SOURCE]', { source: authSource, authPath });
       return {
         ok: true,
         profile: {
@@ -247,7 +253,7 @@ async function resolveAutoTickCarerProfile(params: {
         source: 'sql_cache',
         durationMs: Date.now() - userReadStartedAt,
       });
-      console.info('[AUTO_TICK_AUTH_SOURCE] source=%s authPath=%s', 'api_user_sql', authPath);
+      debugLog('[AUTO_TICK_AUTH_SOURCE]', { source: 'api_user_sql', authPath });
       return {
         ok: true,
         profile: carerProfileFromSqlProfile(sqlLookup.profile),
@@ -368,7 +374,15 @@ function logAutoTickSources(input: {
   firestore_fallback: boolean;
   details?: Record<string, unknown>;
 }) {
-  console.info('[AUTO_TICK_SOURCES]', {
+  if (
+    !isAppDebugLoggingEnabled() &&
+    !input.firestore_fallback &&
+    input.lease_acquired !== false &&
+    !input.details?.error
+  ) {
+    return;
+  }
+  debugLog('[AUTO_TICK_SOURCES]', {
     carerUid: input.carerUid,
     auto_state_source: input.auto_state_source ?? null,
     pending_source: input.pending_source ?? null,
@@ -394,6 +408,17 @@ function logAutoTickLease(input: {
   skipped?: boolean;
   mode?: string;
 }) {
+  const leaseMs = Math.max(input.lease_sql_ms ?? 0, input.lease_transaction_ms ?? 0);
+  const interesting =
+    isAppDebugLoggingEnabled() ||
+    input.firestore_fallback ||
+    input.emergency_fallback === true ||
+    !input.lease_acquired ||
+    Boolean(input.error) ||
+    leaseMs >= API_ROUTE_SLOW_MS;
+  if (!interesting) {
+    return;
+  }
   logAutoTickSources({
     carerUid: input.carerUid,
     lease_source: input.lease_source,
@@ -410,20 +435,15 @@ function logAutoTickLease(input: {
       mode: input.mode ?? null,
     },
   });
-  console.info('[AUTO_TICK_LEASE]', {
-    carerUid: input.carerUid,
-    instanceId: input.instanceId,
-    lease_source: input.lease_source,
-    lease_acquired: input.lease_acquired,
-    firestore_fallback: input.firestore_fallback,
-    emergency_fallback: input.emergency_fallback ?? false,
-    lease_sql_ms: input.lease_sql_ms ?? 0,
-    lease_transaction_ms: input.lease_transaction_ms ?? 0,
-    error: input.error ?? null,
-    skipped: input.skipped ?? false,
-    mode: input.mode ?? null,
-    coadminUid: input.coadminUid,
-  });
+  console.info(
+    '[AUTO_TICK_LEASE] carerUid=%s instanceId=%s lease_source=%s lease_acquired=%s firestore_fallback=%s error=%s',
+    input.carerUid,
+    input.instanceId,
+    input.lease_source,
+    input.lease_acquired,
+    input.firestore_fallback,
+    input.error ?? '-'
+  );
 }
 
 async function acquireAutomationAutoTickLeaseFirestore(
@@ -524,7 +544,7 @@ async function resolveAutomationAutoTickState(
       enabled: sqlStateLookup.state.enabled,
       firestore_fallback: false,
     });
-    console.info('[AUTO_TICK_STATE_SQL]', {
+    debugLog('[AUTO_TICK_STATE_SQL]', {
       carerUid,
       enabled: sqlStateLookup.state.enabled,
       coadminUid: sqlStateLookup.state.coadminUid,
@@ -665,7 +685,7 @@ async function resolveAutoTickPendingCandidates(
   timing: AutoTickPendingTiming;
 }> {
   const sqlStartedAt = Date.now();
-  console.info('[AUTO_TICK_SQL_PENDING_SCAN_START]', {
+  debugLog('[AUTO_TICK_SQL_PENDING_SCAN_START]', {
     carerUid,
     coadminUid,
     limit,
@@ -685,12 +705,22 @@ async function resolveAutoTickPendingCandidates(
   const pending_sql_ms = Date.now() - sqlStartedAt;
 
   if (sqlResult.hit) {
-    console.info('[AUTO_TICK_SQL_PENDING_SCAN_RESULT]', {
-      carerUid,
-      coadminUid,
-      candidateCount: sqlResult.candidates.length,
-      pending_sql_ms,
-    });
+    if (sqlResult.candidates.length > 0) {
+      console.info(
+        '[AUTO_TICK_SQL_PENDING_SCAN_RESULT] carerUid=%s coadminUid=%s candidateCount=%s pending_sql_ms=%s',
+        carerUid,
+        coadminUid,
+        sqlResult.candidates.length,
+        pending_sql_ms
+      );
+    } else {
+      debugLog('[AUTO_TICK_SQL_PENDING_SCAN_RESULT]', {
+        carerUid,
+        coadminUid,
+        candidateCount: 0,
+        pending_sql_ms,
+      });
+    }
     logAutoTickSources({
       carerUid,
       pending_source: 'sql',
@@ -907,15 +937,8 @@ async function resolveAutoTickTaskRecheck(
 
 export async function POST(request: Request) {
   const routeStartedAt = Date.now();
-  console.info('[AUTO_TICK_ROUTE_ENTER]', {
-    at: routeStartedAt,
-    hasSecretHeader: Boolean(String(request.headers.get('x-carer-automation-tick-secret') || '').trim()),
-    hasAuthorization: Boolean(String(request.headers.get('Authorization') || '').trim()),
-  });
-  console.info('[AUTO_TICK] route called', {
-    hasSecretHeader: Boolean(String(request.headers.get('x-carer-automation-tick-secret') || '').trim()),
-    hasAuthorization: Boolean(String(request.headers.get('Authorization') || '').trim()),
-  });
+  debugLog('[AUTO_TICK_ROUTE_ENTER]', { at: routeStartedAt });
+  debugLog('[AUTO_TICK] route called', {});
 
   let body: {
     carerUid?: unknown;
@@ -982,9 +1005,8 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ ok: true, claimed: false, reason: 'missing_coadmin_uid' });
   }
-  console.info('[AUTO_TICK] request received', {
+  debugLog('[AUTO_TICK] request received', {
     carerUid,
-    carerUsername: carerProfile.username || null,
     agentId,
     instanceId,
   });
@@ -1002,7 +1024,7 @@ export async function POST(request: Request) {
 
   const sqlReadMode = isAuthSqlReadEnabled();
   if (sqlReadMode) {
-    console.info('[AUTO_TICK_SQL_START]', {
+    debugLog('[AUTO_TICK_SQL_START]', {
       carerUid,
       coadminUid,
       agentId,
@@ -1018,16 +1040,12 @@ export async function POST(request: Request) {
   if (!stateResult.ok) {
     return stateResult.response;
   }
-  console.info('[AUTO_TICK] automation enabled state', {
+  debugLog('[AUTO_TICK] automation enabled state', {
     carerUid,
-    carerUsername: carerProfile.username || null,
     stateExists: stateResult.stateExists,
     enabled: stateResult.enabled,
-    stateCoadminUidIgnored: stateResult.stateCoadminUidIgnored,
     coadminUid,
     auto_state_source: stateTiming.state_source,
-    firestore_fallback: false,
-    agentSecretAuth: hasValidSecret,
   });
   if (!stateResult.enabled) {
     console.info('[AUTO_DISPATCH_SKIPPED_AUTOMATION_OFF]', {
@@ -1231,7 +1249,7 @@ export async function POST(request: Request) {
 
   const pendingStartedAt = Date.now();
   const dispatchCounts = await countAutoTickDispatchRows(coadminUid, carerUid);
-  console.info('[DISPATCH_TRIGGER]', {
+  debugLog('[DISPATCH_TRIGGER]', {
     route: '/api/carer/automation-auto-tick',
     source: dispatchSource,
     carerUid,
@@ -1258,16 +1276,25 @@ export async function POST(request: Request) {
     pending_firestore_ms: pendingResult.timing.pending_firestore_ms,
   });
 
-  console.info('[AUTO_TICK] pending query result', {
-    carerUid,
-    coadminUid,
-    candidateCount: pendingCandidates.length,
-    candidateTaskIds: pendingCandidates.map((task) => task.id),
-    pending_source: pendingResult.timing.pending_source,
-  });
+  if (pendingCandidates.length > 0) {
+    console.info(
+      '[AUTO_TICK] pending query result carerUid=%s coadminUid=%s candidateCount=%s pending_source=%s',
+      carerUid,
+      coadminUid,
+      pendingCandidates.length,
+      pendingResult.timing.pending_source
+    );
+  } else {
+    debugLog('[AUTO_TICK] pending query result', {
+      carerUid,
+      coadminUid,
+      candidateCount: 0,
+      pending_source: pendingResult.timing.pending_source,
+    });
+  }
 
   if (pendingCandidates.length === 0) {
-    console.info('[DISPATCH_REFILL]', {
+    debugLog('[DISPATCH_REFILL]', {
       route: '/api/carer/automation-auto-tick',
       source: dispatchSource,
       started: 0,
@@ -1277,13 +1304,13 @@ export async function POST(request: Request) {
       reason: 'no_pending_tasks',
     });
     if (sqlReadMode) {
-      console.info('[AUTO_TICK_SQL_NO_PENDING]', {
+      debugLog('[AUTO_TICK_SQL_NO_PENDING]', {
         carerUid,
         coadminUid,
         pending_source: pendingResult.timing.pending_source,
       });
     }
-    console.info('[AUTO_TICK_NO_TASKS]', {
+    debugLog('[AUTO_TICK_NO_TASKS]', {
       carerUid,
       coadminUid,
       reason: 'no_pending_tasks',
@@ -1852,15 +1879,24 @@ export async function POST(request: Request) {
     });
   }
 
-  console.info('[AUTO_TICK_NO_TASKS]', {
-    carerUid,
-    coadminUid,
-    reason: 'no_claimable_pending_task',
-    candidateCount: pendingCandidates.length,
-    skippedCount: skippedTasks.length,
-    skippedTasks,
-  });
-  console.info('[DISPATCH_REFILL]', {
+  if (skippedTasks.length > 0) {
+    console.info(
+      '[AUTO_TICK_NO_TASKS] carerUid=%s coadminUid=%s reason=no_claimable_pending_task candidateCount=%s skippedCount=%s',
+      carerUid,
+      coadminUid,
+      pendingCandidates.length,
+      skippedTasks.length
+    );
+  } else {
+    debugLog('[AUTO_TICK_NO_TASKS]', {
+      carerUid,
+      coadminUid,
+      reason: 'no_claimable_pending_task',
+      candidateCount: pendingCandidates.length,
+      skippedCount: 0,
+    });
+  }
+  debugLog('[DISPATCH_REFILL]', {
     route: '/api/carer/automation-auto-tick',
     source: dispatchSource,
     started: 0,

@@ -12,6 +12,7 @@ import {
 } from '@/lib/sql/authorityAgentJobs';
 import { verifyAgentTickSecret } from '@/lib/automation/agentApiAuth';
 import { apiError } from '@/lib/firebase/apiAuth';
+import { debugLog } from '@/lib/server/verboseLogs';
 
 export const runtime = 'nodejs';
 
@@ -21,7 +22,7 @@ export async function GET(request: Request) {
   const agentId = String(url.searchParams.get('agentId') || '').trim();
   const resource = String(url.searchParams.get('resource') || 'queued_jobs').trim().toLowerCase();
 
-  console.info('[AGENT_JOBS_API_REQUEST]', {
+  debugLog('[AGENT_JOBS_API_REQUEST]', {
     method: 'GET',
     resource,
     carerUid: carerUid || null,
@@ -47,10 +48,15 @@ export async function GET(request: Request) {
 
   try {
     if (resource === 'queued_jobs') {
-      console.info('[AGENT_JOBS_API_SQL_READ]', { resource: 'queued_jobs', carerUid, agentId, limit });
+      debugLog('[AGENT_JOBS_API_SQL_READ]', {
+        resource: 'queued_jobs',
+        carerUid,
+        agentId,
+        limit,
+      });
       const jobs = await listQueuedAutomationJobsForAgent({ carerUid, agentId, limit });
       if (!jobs.length) {
-        console.info('[AGENT_JOBS_API_NO_JOBS]', {
+        debugLog('[AGENT_JOBS_API_NO_JOBS]', {
           resource: 'queued_jobs',
           carerUid,
           agentId,
@@ -98,7 +104,7 @@ export async function POST(request: Request) {
   const action = String(body.action || '').trim();
   const jobId = String(body.jobId || '').trim();
 
-  console.info('[AGENT_JOBS_API_REQUEST]', {
+  debugLog('[AGENT_JOBS_API_REQUEST]', {
     method: 'POST',
     action: action || null,
     carerUid: carerUid || null,
@@ -120,40 +126,40 @@ export async function POST(request: Request) {
   try {
     await verifyAgentLinkedToCarerInSql(carerUid, agentId);
     if (action === 'claim') {
-      console.info('[AGENT_JOBS_API_CLAIM_ATTEMPT]', { carerUid, agentId, jobId: jobId || null });
+      console.info('[AGENT_JOBS_API_CLAIM_ATTEMPT] carerUid=%s agentId=%s jobId=%s', carerUid, agentId, jobId || '-');
     }
     if (action === 'dismiss_midnight_party_blocked_recharge') {
-      console.info('[AGENT_JOBS_API_DISMISS_ATTEMPT]', {
-        jobId: jobId || null,
+      console.info(
+        '[AGENT_JOBS_API_DISMISS_ATTEMPT] jobId=%s carerUid=%s agentId=%s',
+        jobId || '-',
         carerUid,
-        agentId,
-        reason: String(body.reason || '').trim() || null,
-      });
+        agentId
+      );
     }
     if (action === 'dismiss_player_in_game') {
-      console.info('[AGENT_JOBS_API_DISMISS_ATTEMPT]', {
-        jobId: jobId || null,
+      console.info(
+        '[AGENT_JOBS_API_DISMISS_ATTEMPT] jobId=%s carerUid=%s agentId=%s reasonCode=PLAYER_IN_GAME',
+        jobId || '-',
         carerUid,
-        agentId,
-        reason: String(body.reason || '').trim() || null,
-        reasonCode: 'PLAYER_IN_GAME',
-      });
+        agentId
+      );
     }
     if (action === 'mark_redeem_waiting_player_exit') {
-      console.info('[REDEEM_BLOCKED_PLAYER_IN_GAME]', {
-        jobId: jobId || null,
+      console.info(
+        '[REDEEM_BLOCKED_PLAYER_IN_GAME] jobId=%s carerUid=%s agentId=%s reasonCode=PLAYER_ACTIVE_IN_GAME',
+        jobId || '-',
         carerUid,
-        agentId,
-        reasonCode: 'PLAYER_ACTIVE_IN_GAME',
-      });
+        agentId
+      );
     }
     if (action === 'complete_recharge_redeem') {
-      console.info('[AGENT_JOBS_API_COMPLETE_ATTEMPT]', {
-        jobId: jobId || null,
-        taskId: String(body.taskId || '').trim() || null,
+      console.info(
+        '[AGENT_JOBS_API_COMPLETE_ATTEMPT] jobId=%s taskId=%s carerUid=%s agentId=%s',
+        jobId || '-',
+        String(body.taskId || '').trim() || '-',
         carerUid,
-        agentId,
-      });
+        agentId
+      );
     }
     const result = await runAgentJobAction({
       action,
@@ -176,14 +182,15 @@ export async function POST(request: Request) {
     if (action === 'claim') {
       if (result && typeof result === 'object' && 'id' in (result as Record<string, unknown>)) {
         const claimed = result as Record<string, unknown>;
-        console.info('[AGENT_JOBS_API_CLAIMED]', {
-          jobId: claimed.id,
-          taskId: claimed.taskId || null,
+        console.info(
+          '[AGENT_JOBS_API_CLAIMED] jobId=%s taskId=%s carerUid=%s agentId=%s',
+          claimed.id,
+          claimed.taskId || '-',
           carerUid,
-          agentId,
-        });
+          agentId
+        );
       } else {
-        console.info('[AGENT_JOBS_API_NO_JOBS]', {
+        debugLog('[AGENT_JOBS_API_NO_JOBS]', {
           action: 'claim',
           carerUid,
           agentId,

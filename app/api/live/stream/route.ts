@@ -16,6 +16,7 @@ import {
 } from '@/lib/sql/liveOutboxFanout';
 import { getLiveOutboxRowsAfter, type LiveOutboxRow } from '@/lib/sql/liveOutbox';
 import { warnIfFanoutRequiredButDisabled } from '@/lib/server/liveStreamFanoutGuard';
+import { debugLog } from '@/lib/server/verboseLogs';
 
 export const runtime = 'nodejs';
 
@@ -700,7 +701,7 @@ function createFanoutLiveStreamResponse(
       const sendHeartbeat = (phase: 'initial' | 'interval') => {
         if (closed) return;
         enqueue(formatPingEvent(allowedChannels));
-        console.info('[LIVE_STREAM_HEARTBEAT]', {
+        debugLog('[LIVE_STREAM_HEARTBEAT]', {
           channels: allowedChannels,
           lastEventId: cursor,
           phase,
@@ -844,7 +845,7 @@ function createLiveStreamResponse(
       const sendHeartbeat = (phase: 'initial' | 'interval') => {
         if (closed) return;
         enqueue(formatPingEvent(allowedChannels));
-        console.info('[LIVE_STREAM_HEARTBEAT]', {
+        debugLog('[LIVE_STREAM_HEARTBEAT]', {
           channels: allowedChannels,
           lastEventId: cursor,
           phase,
