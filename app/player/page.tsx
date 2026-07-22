@@ -79,12 +79,6 @@ import {
 } from '@/lib/client/playerThemeAudioGuard';
 import { usePaginatedChatMessages } from '@/features/messages/usePaginatedChatMessages';
 import {
-  createCoinLoadSession,
-  deleteCoinLoadSession,
-  getSessionExpiresAtMs,
-  type CoinLoadSession,
-} from '@/features/coinLoad/coinLoadSession';
-import {
   createPlayerCredentialTask,
   getCompletedUsernameCarersByPlayer,
   sendCarerCashboxInquiryAlert,
@@ -200,7 +194,6 @@ import {
   formatDateTime,
   getGameBackgroundImage,
   getPlayerAlertInfo,
-  getPlayerBonusEventDescription,
   getRecentPlayAmountStorageKey,
   getRequestStatusClass,
   getRequestStatusLabel,
@@ -343,6 +336,9 @@ type PlayerTransferDirection = 'cash_to_coin' | 'coin_to_cash';
 
 const PLAYER_RENDER_DEBUG = process.env.NEXT_PUBLIC_PLAYER_RENDER_DEBUG === '1';
 const LOW_PERFORMANCE_REQUEST_HISTORY_DISPLAY = 12;
+const ROYAL_VIP_TELEGRAM_BOT_URL = normalizeExternalUrl(
+  process.env.NEXT_PUBLIC_ROYAL_VIP_TELEGRAM_BOT_URL
+);
 
 // Legacy helper retained only to avoid a broad page rewrite in this pass.
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -642,11 +638,6 @@ export default function PlayerPage() {
   const [transferCoinAmountInput, setTransferCoinAmountInput] = useState('');
   const [cashToCoinTransferId, setCashToCoinTransferId] = useState('');
   const [showLoadCoinPanel, setShowLoadCoinPanel] = useState(false);
-  const [activeCoinLoad, setActiveCoinLoad] = useState<CoinLoadSession | null>(null);
-  const [loadCoinTimeLeftSec, setLoadCoinTimeLeftSec] = useState(0);
-  const [coinLoadBusy, setCoinLoadBusy] = useState(false);
-  const [showPaymentImageDownloadConfirm, setShowPaymentImageDownloadConfirm] = useState(false);
-  const [paymentImageDownloadBusy, setPaymentImageDownloadBusy] = useState(false);
   const [cashoutPayoutMethod, setCashoutPayoutMethod] = useState<'qr' | 'app'>('qr');
   const [cashoutQrUrl, setCashoutQrUrl] = useState('');
   const [cashoutAppName, setCashoutAppName] = useState('');
@@ -1871,10 +1862,6 @@ export default function PlayerPage() {
         setShowLoadCoinPanel(false);
         return true;
       }
-      if (showPaymentImageDownloadConfirm && !paymentImageDownloadBusy) {
-        setShowPaymentImageDownloadConfirm(false);
-        return true;
-      }
       if (credentialResetModal) {
         setCredentialResetModal(null);
         return true;
@@ -1979,11 +1966,9 @@ export default function PlayerPage() {
     showIosGuide,
     showLoadCoinPanel,
     showLogoutConfirmSplash,
-    showPaymentImageDownloadConfirm,
     showPlayerPasswordResetModal,
     showPwaExitConfirm,
     credentialResetModal,
-    paymentImageDownloadBusy,
   ]);
 
   useEffect(() => {
@@ -2055,6 +2040,7 @@ export default function PlayerPage() {
   const playRandomTrackRef = useRef<((previousTrack?: string | null) => Promise<void>) | null>(null);
   const interactionListenerCleanupRef = useRef<null | (() => void)>(null);
   const autoplayRetryTimeoutRef = useRef<number | null>(null);
+  const musicControllerMountedRef = useRef(true);
   const pageVisibleRef = useRef(true);
   const audioUnlockedRef = useRef(false);
 
@@ -2697,7 +2683,12 @@ export default function PlayerPage() {
 
   const playCurrentAudio = useCallback(async () => {
     const audio = audioRef.current;
-    if (!audio || !musicEnabledRef.current || !pageVisibleRef.current) {
+    if (
+      !audio ||
+      !musicControllerMountedRef.current ||
+      !musicEnabledRef.current ||
+      !pageVisibleRef.current
+    ) {
       return false;
     }
     if (
@@ -2714,6 +2705,12 @@ export default function PlayerPage() {
     try {
       stopWrongPlayerRouteThemeAudio(CASINO_BACKGROUND_TRACKS);
       stopDuplicatePlayerThemeAudio(audio, CASINO_BACKGROUND_TRACKS);
+      if (!audio.paused && !audio.ended) {
+        audioUnlockedRef.current = true;
+        clearInteractionListener();
+        clearAutoplayRetry();
+        return true;
+      }
       giftSoundRef.current?.pause();
       activeTableSoundRef.current?.pause();
       notificationSoundRef.current?.pause();
@@ -2743,21 +2740,32 @@ export default function PlayerPage() {
     }
 
     const handleInteraction = () => {
+      const audio = audioRef.current;
+      if (
+        !musicControllerMountedRef.current ||
+        !musicEnabledRef.current ||
+        !audio ||
+        !audio.paused
+      ) {
+        return;
+      }
       void playCurrentAudio();
     };
 
     const options: AddEventListenerOptions = { passive: true };
     window.addEventListener('pointerdown', handleInteraction, options);
-    window.addEventListener('keydown', handleInteraction, options);
+    window.addEventListener('touchstart', handleInteraction, options);
+    window.addEventListener('click', handleInteraction, options);
     interactionListenerCleanupRef.current = () => {
       window.removeEventListener('pointerdown', handleInteraction);
-      window.removeEventListener('keydown', handleInteraction);
+      window.removeEventListener('touchstart', handleInteraction);
+      window.removeEventListener('click', handleInteraction);
     };
   }, [playCurrentAudio]);
 
   const playRandomTrack = useCallback(
     async (previousTrack?: string | null) => {
-      if (!musicEnabledRef.current) {
+      if (!musicControllerMountedRef.current || !musicEnabledRef.current) {
         return;
       }
       if (
@@ -2801,6 +2809,9 @@ export default function PlayerPage() {
       currentTrackRef.current = nextTrack;
 
       const didPlay = await playCurrentAudio();
+      if (!musicControllerMountedRef.current || !musicEnabledRef.current) {
+        return;
+      }
       if (!didPlay) {
         attachInteractionListener();
       }
@@ -3108,7 +3119,9 @@ export default function PlayerPage() {
   ]);
 
   useEffect(() => {
+    musicControllerMountedRef.current = true;
     return () => {
+      musicControllerMountedRef.current = false;
       clearInteractionListener();
       clearAutoplayRetry();
       cleanupAudioElement();
@@ -6268,128 +6281,6 @@ export default function PlayerPage() {
     }
   }
 
-  useEffect(() => {
-    if (!isPlayerRole || !activeCoinLoad) {
-      setLoadCoinTimeLeftSec(0);
-      return;
-    }
-    const exp = getSessionExpiresAtMs(activeCoinLoad);
-    const sessionId = activeCoinLoad.id;
-    const tick = () => {
-      const left = Math.max(0, Math.ceil((exp - Date.now()) / 1000));
-      setLoadCoinTimeLeftSec(left);
-      if (left <= 0) {
-        void deleteCoinLoadSession(sessionId)
-          .catch(() => undefined)
-          .finally(() => {
-            setActiveCoinLoad((prev) => (prev?.id === sessionId ? null : prev));
-            setShowLoadCoinPanel(false);
-            setMessage('Payment code expired. Request a new one if you still need to pay.');
-          });
-        return true;
-      }
-      return false;
-    };
-    if (tick()) {
-      return;
-    }
-    const stop = startPlayerRoleGuardedInterval({
-      pollName: 'player_coin_load_countdown',
-      intervalMs: 1000,
-      onTick: () => {
-        if (tick()) {
-          stop();
-        }
-      },
-    });
-    return () => stop();
-  }, [activeCoinLoad, isPlayerRole]);
-
-  async function handleCreateCoinLoadSession() {
-    if (maintenanceBreak.enabled) {
-      console.info('[MAINTENANCE] blocked player action', {
-        action: 'coin_load',
-        playerUid: playerUid || auth.currentUser?.uid || null,
-        coadminUid: playerCoadminUid || null,
-      });
-      setMessage(maintenanceBreak.message);
-      return;
-    }
-
-    if (!playerCoadminUid) {
-      setMessage('No co-admin is linked to your account yet.');
-      return;
-    }
-    if (isBlockedPlayer) {
-      setMessage('Your account is restricted. Contact an agent for help with payments.');
-      return;
-    }
-    setCoinLoadBusy(true);
-    setMessage('');
-    try {
-      const s = await createCoinLoadSession(playerCoadminUid);
-      setActiveCoinLoad(s);
-    } catch (e) {
-      setMessage(
-        e instanceof Error ? e.message : 'Could not create payment code. Try again or contact an agent.'
-      );
-    } finally {
-      setCoinLoadBusy(false);
-    }
-  }
-
-  function formatLoadCoinCountdown(totalSec: number) {
-    const m = Math.floor(totalSec / 60);
-    const s = totalSec % 60;
-    return `${m}:${String(s).padStart(2, '0')}`;
-  }
-
-  function openPaymentImageFallback(url: string) {
-    const opened = window.open(url, '_blank', 'noopener,noreferrer');
-    if (!opened) {
-      window.location.href = url;
-    }
-  }
-
-  async function handleDownloadPaymentDetailsImage() {
-    const imageUrl = String(activeCoinLoad?.paymentPhotoUrl || '').trim();
-    if (!imageUrl || paymentImageDownloadBusy) {
-      return;
-    }
-
-    setPaymentImageDownloadBusy(true);
-    try {
-      const response = await fetch(imageUrl, { mode: 'cors' });
-      if (!response.ok) {
-        throw new Error('Image download request failed.');
-      }
-
-      const blob = await response.blob();
-      const objectUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = objectUrl;
-      link.download = 'royal-vip-payment-details.png';
-      link.rel = 'noopener';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 1000);
-      setShowPaymentImageDownloadConfirm(false);
-    } catch (error) {
-      console.info('[PAYMENT_DETAILS_IMAGE_DOWNLOAD_FALLBACK]', {
-        error: error instanceof Error ? error.message : String(error || ''),
-      });
-      try {
-        openPaymentImageFallback(imageUrl);
-        setShowPaymentImageDownloadConfirm(false);
-      } catch {
-        setMessage('Could not download payment details image. Please try again.');
-      }
-    } finally {
-      setPaymentImageDownloadBusy(false);
-    }
-  }
-
   const shouldShowPaymentDetailsNotice =
     paymentDetailsNoticeVersion > 0 &&
     paymentDetailsNoticeVersion > dismissedPaymentDetailsNoticeVersion;
@@ -7634,148 +7525,78 @@ export default function PlayerPage() {
         <div
           onClick={() => setShowLoadCoinPanel(false)}
           className={`${PLAYER_SPLASH_BACKDROP_CENTER} z-[120]`}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="load-coin-title"
         >
           <div
             onClick={(event) => event.stopPropagation()}
-            className="fire-panel fire-purple relative z-[121] isolate w-full max-w-md overflow-hidden rounded-3xl border border-violet-400/40 bg-gradient-to-br from-violet-950/95 via-zinc-900 to-black/95 p-6 text-left text-white shadow-[0_0_60px_-12px_rgba(139,92,246,0.45)] backdrop-blur-xl sm:p-7"
+            className="fire-panel fire-purple relative z-[121] isolate w-full max-w-lg overflow-hidden rounded-3xl border border-violet-400/40 bg-gradient-to-br from-violet-950/95 via-zinc-900 to-black/95 p-6 text-left text-white shadow-[0_0_60px_-12px_rgba(139,92,246,0.45)] backdrop-blur-xl sm:p-7"
           >
-            <h3 className="text-2xl font-black">Load coin</h3>
-            <p className="mt-2 text-sm text-violet-100/80">
-              Copy your Royal VIP username and paste it in the payment note/remark. This helps us
-              match your payment fast.
+            <p className="text-xs font-black uppercase tracking-[0.28em] text-violet-200/75">
+              Royal VIP
+            </p>
+            <h3 id="load-coin-title" className="mt-2 text-2xl font-black sm:text-3xl">
+              Load Coin
+            </h3>
+            <p className="mt-3 text-sm leading-relaxed text-violet-100/82 sm:text-base">
+              Load coins through the Royal VIP Telegram bot.
             </p>
 
-            {!activeCoinLoad ? (
-              <div className="mt-6">
-                <button
-                  type="button"
-                  onClick={() => void handleCreateCoinLoadSession()}
-                  disabled={
-                    coinLoadBusy ||
-                    !playerCoadminUid ||
-                    isBlockedPlayer ||
-                    maintenanceBreak.enabled
-                  }
-                  className="fire-button fire-purple w-full min-h-[52px] rounded-2xl bg-gradient-to-r from-violet-500 to-fuchsia-600 py-3 text-sm font-black text-white shadow-lg shadow-violet-500/25 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {coinLoadBusy ? 'Preparing…' : 'Add coins'}
-                </button>
-                {!playerCoadminUid ? (
-                  <p className="mt-2 text-xs text-amber-200/90">
-                    Your account is not linked to a co-admin yet. Contact an agent.
-                  </p>
-                ) : null}
-                {isBlockedPlayer ? (
-                  <p className="mt-2 text-xs text-rose-200/90">Restricted account — ask an agent for help.</p>
-                ) : null}
-              </div>
-            ) : (
-              <div className="mt-6 space-y-4">
-                <button
-                  type="button"
-                  onClick={() => setShowPaymentImageDownloadConfirm(true)}
-                  className="group block w-full overflow-hidden rounded-2xl border border-white/10 bg-black/40 outline-none transition hover:border-violet-300/40 focus:border-violet-200 focus:ring-2 focus:ring-violet-300/35"
-                  aria-label="Download payment details picture"
-                >
-                  <img
-                    src={activeCoinLoad.paymentPhotoUrl}
-                    alt="Payment reference"
-                    loading="lazy"
-                    className="max-h-64 w-full object-contain transition group-active:scale-[0.99]"
-                  />
-                </button>
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-violet-200/80">
-                    YOUR ROYAL VIP USERNAME
-                  </p>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <code className="flex-1 break-all rounded-xl border border-violet-400/30 bg-black/50 px-3 py-2 text-center text-lg font-mono font-bold tracking-wider text-white sm:text-xl">
-                      {playerUsername || 'Username loading...'}
-                    </code>
-                    <button
-                      type="button"
-                      onClick={async (e) => {
-                        const username = playerUsername.trim();
-                        if (!username) {
-                          showClipboardToast('Username is not ready yet.', 'warn', e);
-                          return;
-                        }
-                        try {
-                          await navigator.clipboard.writeText(username);
-                          showClipboardToast('Copied.', 'success', e);
-                        } catch {
-                          showClipboardToast('Could not copy.', 'error', e);
-                        }
-                      }}
-                      className="shrink-0 rounded-xl border border-violet-400/40 bg-violet-500/20 px-4 py-2 text-sm font-bold text-violet-50 hover:bg-violet-500/30"
-                    >
-                      Copy
-                    </button>
-                  </div>
-                </div>
-                <p className="text-center text-sm font-bold text-amber-200/95">
-                  Time left: {formatLoadCoinCountdown(loadCoinTimeLeftSec)}
-                </p>
-                <p className="text-center text-xs text-neutral-400">
-                  When the timer ends, this screen closes and the payment image session is removed
-                  from the server.
-                </p>
-              </div>
-            )}
+            <ol className="mt-6 space-y-3 text-sm leading-relaxed text-violet-50/90 sm:text-base">
+              {[
+                'Open the Royal VIP Telegram bot.',
+                'Tap Deposit.',
+                'Enter the amount you want to deposit.',
+                'Complete the payment using the instructions sent by the bot.',
+                'Once the payment is confirmed, the coins will be added to your Royal VIP account.',
+              ].map((step, index) => (
+                <li key={step} className="flex gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-violet-300/40 bg-violet-300/15 text-xs font-black text-violet-100">
+                    {index + 1}
+                  </span>
+                  <span>{step}</span>
+                </li>
+              ))}
+            </ol>
 
-            <div className="mt-6 flex justify-end">
+            {!ROYAL_VIP_TELEGRAM_BOT_URL ? (
+              <p className="mt-5 rounded-2xl border border-amber-300/30 bg-amber-500/10 px-4 py-3 text-sm font-bold text-amber-100">
+                The Royal VIP bot link is not configured yet. Please contact an agent for help
+                loading coins.
+              </p>
+            ) : null}
+
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row-reverse">
+              <a
+                href={ROYAL_VIP_TELEGRAM_BOT_URL || undefined}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-disabled={!ROYAL_VIP_TELEGRAM_BOT_URL}
+                onClick={(event) => {
+                  if (!ROYAL_VIP_TELEGRAM_BOT_URL) {
+                    event.preventDefault();
+                  }
+                }}
+                className={`fire-button fire-purple flex min-h-[52px] flex-1 items-center justify-center rounded-2xl bg-gradient-to-r from-violet-500 to-fuchsia-600 px-5 py-3 text-center text-sm font-black text-white shadow-lg shadow-violet-500/25 transition hover:brightness-110 sm:text-base ${
+                  ROYAL_VIP_TELEGRAM_BOT_URL
+                    ? ''
+                    : 'pointer-events-none cursor-not-allowed opacity-50'
+                }`}
+              >
+                Open Royal VIP Bot
+              </a>
               <button
                 type="button"
                 onClick={() => setShowLoadCoinPanel(false)}
-                className="rounded-xl bg-white/10 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/20"
+                className="min-h-[52px] flex-1 rounded-2xl border border-white/15 bg-white/10 px-5 py-3 text-sm font-bold text-white transition hover:bg-white/15 sm:text-base"
               >
-                Close
+                Back
               </button>
             </div>
           </div>
         </div>
       )}
-
-      {showPaymentImageDownloadConfirm && activeCoinLoad?.paymentPhotoUrl ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="payment-image-download-title"
-          onClick={() => {
-            if (!paymentImageDownloadBusy) {
-              setShowPaymentImageDownloadConfirm(false);
-            }
-          }}
-          className={`${PLAYER_SPLASH_BACKDROP_CENTER} z-[126] bg-black/88 px-4 backdrop-blur-2xl`}
-        >
-          <div
-            onClick={(event) => event.stopPropagation()}
-            className="fire-panel fire-purple w-full max-w-sm rounded-3xl border border-violet-300/45 bg-gradient-to-br from-violet-950/95 via-zinc-950 to-black/95 p-6 text-center text-white shadow-2xl shadow-violet-900/30"
-          >
-            <h3 id="payment-image-download-title" className="text-2xl font-black">
-              Do you want to download this picture?
-            </h3>
-            <div className="mt-6 flex gap-3">
-              <button
-                type="button"
-                onClick={() => setShowPaymentImageDownloadConfirm(false)}
-                disabled={paymentImageDownloadBusy}
-                className="flex-1 rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-bold text-white hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleDownloadPaymentDetailsImage()}
-                disabled={paymentImageDownloadBusy}
-                className="fire-button fire-purple flex-1 rounded-xl bg-violet-300 px-4 py-3 text-sm font-black text-violet-950 hover:bg-violet-200 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {paymentImageDownloadBusy ? 'Preparing...' : 'Download'}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
 
       {showCoinConfirmSplash && (
         <div
@@ -8104,8 +7925,8 @@ export default function PlayerPage() {
               Payment details changed
             </h3>
             <p className="mt-4 text-sm leading-relaxed text-violet-50/90">
-              Payment details for loading coins has been changed. Please click on Load Coin to see
-              the latest payment details.
+              Coin deposits now happen through the Royal VIP Telegram bot. Please click Load Coin
+              for the latest steps.
             </p>
             <button
               type="button"

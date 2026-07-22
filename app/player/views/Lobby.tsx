@@ -151,7 +151,7 @@ function Lobby(props: Props) {
                           disabled={isBlockedPlayer || maintenanceBreak.enabled}
                           className="fire-button fire-purple h-11 w-full rounded-2xl border border-violet-400/50 bg-violet-500/20 py-2 text-sm font-black text-violet-50 transition hover:bg-violet-500/30 disabled:cursor-not-allowed disabled:opacity-60 sm:h-12 sm:text-base"
                         >
-                          ⬇ Load coin — payment reference
+                          ⬇ Load coin — Telegram bot
                         </button>
                       </div>
                     </div>
