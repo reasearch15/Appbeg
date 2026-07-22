@@ -93,7 +93,7 @@ export function attachPlayerGameLoginsSqlPoll(input: {
   }
 
   let cancelled = false;
-  console.info('[POLLING_INVENTORY]', {
+  playerDebugLog('[POLLING_INVENTORY]', {
     route: '/api/player-game-logins/cache',
     intervalMs: 0,
     previousIntervalMs: POLL_MS,
@@ -102,7 +102,7 @@ export function attachPlayerGameLoginsSqlPoll(input: {
     canUseSSE: true,
     required: 'initial_load_only',
   });
-  console.info('[POLLING_DISABLED]', {
+  playerDebugLog('[POLLING_DISABLED]', {
     route: '/api/player-game-logins/cache',
     replacement: 'initial_fetch_only_for_carer_page; local username mutations update page state and task SSE drives task cards',
   });

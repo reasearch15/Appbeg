@@ -22,7 +22,7 @@ import { getLocalAppSessionId } from '@/features/auth/appSession';
 import { getCachedSessionUser, getSessionUserOnce } from '@/features/auth/sessionUser';
 import { useIsPlayerSessionRole } from '@/features/player/useIsPlayerSessionRole';
 import { resolvePlayerRoleForFetch } from '@/lib/client/playerFetchGuard';
-import { playerDebugLog } from '@/lib/client/playerDebugLogs';
+import { playerDebugLog, playerStartupDebugLog } from '@/lib/client/playerDebugLogs';
 import {
   peekPlayerFetchLifecycleReason,
   readSnapshotReasonFromFetchUrl,
@@ -827,14 +827,14 @@ export default function PlayerPage() {
 
   const logPlayerStartupPhase = useCallback(
     (phase: number, target: string, delayMs: number, reason: string) => {
-      console.info('[PLAYER_STARTUP_PHASE]', {
+      playerStartupDebugLog('[PLAYER_STARTUP_PHASE]', {
         phase,
         target,
         delayMs,
         reason,
         elapsed_ms: startupNow(),
       });
-      console.info('[STARTUP_ROUTE_PHASE]', {
+      playerStartupDebugLog('[STARTUP_ROUTE_PHASE]', {
         phase,
         target,
         delayMs,
@@ -842,25 +842,25 @@ export default function PlayerPage() {
         elapsed_ms: startupNow(),
       });
       if (delayMs > 0) {
-        console.info('[PLAYER_STARTUP_DEFERRED_FETCH]', {
+        playerStartupDebugLog('[PLAYER_STARTUP_DEFERRED_FETCH]', {
           phase,
           target,
           delayMs,
           reason,
         });
-        console.info('[STARTUP_FETCH_DEFERRED]', {
+        playerStartupDebugLog('[STARTUP_FETCH_DEFERRED]', {
           phase,
           target,
           delayMs,
           reason,
         });
       }
-      console.info('[PLAYER_STARTUP_BURST_REDUCED]', {
+      playerStartupDebugLog('[PLAYER_STARTUP_BURST_REDUCED]', {
         phase,
         target,
         delayMs,
       });
-      console.info('[STARTUP_BURST_SOFTENED]', {
+      playerStartupDebugLog('[STARTUP_BURST_SOFTENED]', {
         phase,
         target,
         delayMs,
@@ -919,7 +919,7 @@ export default function PlayerPage() {
     if (!startup) {
       return;
     }
-    console.info('[PLAYER_STARTUP_WATERFALL]', {
+    playerStartupDebugLog('[PLAYER_STARTUP_WATERFALL]', {
       elapsed_ms: startupNow(),
       events: startup.events,
     });
@@ -942,7 +942,7 @@ export default function PlayerPage() {
       }
       startup[key] = true;
       startup.pollersCreated += 1;
-      console.info('[PLAYER_STARTUP_POLLERS]', {
+      playerStartupDebugLog('[PLAYER_STARTUP_POLLERS]', {
         started: key,
         elapsed_ms: startupNow(),
         ...(meta || {}),
@@ -991,14 +991,14 @@ export default function PlayerPage() {
           peekPlayerFetchLifecycleReason() || readSnapshotReasonFromFetchUrl(url);
         if (startup.duplicateTrackingActive) {
           startup.duplicateRequests += 1;
-          console.info('[PLAYER_DUPLICATE_STARTUP_REQUEST]', {
+          playerStartupDebugLog('[PLAYER_DUPLICATE_STARTUP_REQUEST]', {
             name: classified.name,
             count: requestCount,
             url,
             elapsed_ms: startupNow(),
           });
         } else if (lifecycleReason) {
-          console.info('[PLAYER_LIFECYCLE_REQUEST]', {
+          playerStartupDebugLog('[PLAYER_LIFECYCLE_REQUEST]', {
             name: classified.name,
             count: requestCount,
             reason: lifecycleReason,
@@ -1008,7 +1008,7 @@ export default function PlayerPage() {
         }
       }
       if (classified.blocking) {
-        console.info('[PLAYER_STARTUP_BLOCKER]', event);
+        playerStartupDebugLog('[PLAYER_STARTUP_BLOCKER]', event);
       }
       logPlayerStartupWaterfall();
     },
@@ -1064,7 +1064,7 @@ export default function PlayerPage() {
       duplicateTrackingActive: true,
     };
 
-    console.info('[PLAYER_DEPENDENCY_GRAPH]', {
+    playerStartupDebugLog('[PLAYER_DEPENDENCY_GRAPH]', {
       page_mount: ['session/me'],
       'session/me': ['playerUid', 'playerCoadminUid', 'profile snapshot'],
       'profile snapshot': ['usable player identity', 'wallet/profile fields'],
@@ -1076,7 +1076,7 @@ export default function PlayerPage() {
       'chat listeners': ['unread counts', 'chat messages after chat route/view'],
       'SSE subscriptions': ['live request/cashout/chat refetch triggers'],
     });
-    console.info('[PLAYER_STARTUP_POLLERS]', {
+    playerStartupDebugLog('[PLAYER_STARTUP_POLLERS]', {
       immediate: ['session gate retry interval:3000ms'],
       staggered: [
         'profile snapshot after identity:250ms',
@@ -1146,7 +1146,7 @@ export default function PlayerPage() {
         return;
       }
       startup.firstRenderLogged = true;
-      console.info('[PLAYER_PAGE_STARTUP]', {
+      playerStartupDebugLog('[PLAYER_PAGE_STARTUP]', {
         first_render_ms: startupNow(),
         usable_ms: null,
         fully_loaded_ms: null,
@@ -1169,7 +1169,7 @@ export default function PlayerPage() {
       return;
     }
     startup.usableLogged = true;
-    console.info('[PLAYER_PAGE_STARTUP]', {
+    playerStartupDebugLog('[PLAYER_PAGE_STARTUP]', {
       first_render_ms: null,
       usable_ms: startupNow(),
       fully_loaded_ms: null,
@@ -1192,11 +1192,11 @@ export default function PlayerPage() {
     }
     startup.fullyLoadedLogged = true;
     startup.duplicateTrackingActive = false;
-    console.info('[PLAYER_STARTUP_INSTRUMENTATION_CLOSED]', {
+    playerStartupDebugLog('[PLAYER_STARTUP_INSTRUMENTATION_CLOSED]', {
       elapsed_ms: startupNow(),
       definition: 'duplicate startup request tracking disabled; lifecycle requests logged separately',
     });
-    console.info('[PLAYER_STARTUP_SUMMARY]', {
+    playerStartupDebugLog('[PLAYER_STARTUP_SUMMARY]', {
       startupRequests: startup.events.length,
       startupDurationMs: startupNow(),
       duplicateRequestsRemoved: startup.duplicateRequestsRemoved,
@@ -1204,7 +1204,7 @@ export default function PlayerPage() {
       pollersCreated: startup.pollersCreated,
       pollersRemoved: startup.pollersRemoved,
     });
-    console.info('[PLAYER_REQUEST_BUDGET]', {
+    playerStartupDebugLog('[PLAYER_REQUEST_BUDGET]', {
       idle_player: {
         before: {
           requests_per_minute: 14,
@@ -1248,7 +1248,7 @@ export default function PlayerPage() {
         'base-data owns initial game-login payload',
       ],
     });
-    console.info('[PLAYER_PAGE_STARTUP]', {
+    playerStartupDebugLog('[PLAYER_PAGE_STARTUP]', {
       first_render_ms: null,
       usable_ms: null,
       fully_loaded_ms: startupNow(),
@@ -3310,7 +3310,7 @@ export default function PlayerPage() {
             setPlayerCoadminUid(String(sessionUser.coadminUid || '').trim());
             setIsBlockedPlayer(sessionUser.status === 'disabled');
           }
-          console.info('[PLAYER_STARTUP_STAGGER]', {
+          playerStartupDebugLog('[PLAYER_STARTUP_STAGGER]', {
             target: '/api/auth/session/me',
             delayMs: 250,
             reason: 'profile_snapshot_after_identity',
@@ -3352,13 +3352,13 @@ export default function PlayerPage() {
 
     const syncSqlPlayerRuntime = async () => {
       if (syncedRuntimePlayerUidRef.current) {
-        console.info('[PLAYER_SESSION_ME_STARTUP_SKIP_DUPLICATE]', {
+        playerStartupDebugLog('[PLAYER_SESSION_ME_STARTUP_SKIP_DUPLICATE]', {
           uid: syncedRuntimePlayerUidRef.current,
           reason: 'identity_already_synced_before_runtime_fetch',
         });
         return;
       }
-      console.info('[PLAYER_SESSION_ME_STARTUP_SINGLE_FLIGHT]', {
+      playerStartupDebugLog('[PLAYER_SESSION_ME_STARTUP_SINGLE_FLIGHT]', {
         reason: 'runtime_sync_initial',
       });
       const gate = await ensurePlayerSessionGateReady({ source: 'player_page_runtime_sync' });
@@ -3400,15 +3400,15 @@ export default function PlayerPage() {
         if (playerStartupRef.current) {
           playerStartupRef.current.duplicateRequestsRemoved += 1;
         }
-        console.info('[PLAYER_SESSION_ME_DEDUPED]', {
+        playerStartupDebugLog('[PLAYER_SESSION_ME_DEDUPED]', {
           uid: sessionUser.uid,
           reason: 'runtime_sync_identity_already_applied',
         });
-        console.info('[PLAYER_SESSION_ME_STARTUP_SKIP_DUPLICATE]', {
+        playerStartupDebugLog('[PLAYER_SESSION_ME_STARTUP_SKIP_DUPLICATE]', {
           uid: sessionUser.uid,
           reason: 'runtime_sync_identity_already_applied',
         });
-        console.info('[PLAYER_STARTUP_FETCH_SKIPPED]', {
+        playerStartupDebugLog('[PLAYER_STARTUP_FETCH_SKIPPED]', {
           request: '/api/auth/session/me',
           reason: 'runtime_sync_identity_already_applied',
           uid: sessionUser.uid,
@@ -3431,7 +3431,7 @@ export default function PlayerPage() {
         if (syncedUid && retryTimer !== null) {
           window.clearInterval(retryTimer);
           retryTimer = null;
-          console.info('[PLAYER_SESSION_ME_DEDUPED]', {
+          playerStartupDebugLog('[PLAYER_SESSION_ME_DEDUPED]', {
             uid: syncedUid,
             reason: 'runtime_sync_success_retry_timer_cleared',
           });
@@ -3444,7 +3444,7 @@ export default function PlayerPage() {
             window.clearInterval(retryTimer);
             retryTimer = null;
           }
-          console.info('[PLAYER_SESSION_ME_DEDUPED]', {
+          playerStartupDebugLog('[PLAYER_SESSION_ME_DEDUPED]', {
             uid: syncedRuntimePlayerUidRef.current,
             reason: 'runtime_sync_retry_skipped_after_success',
           });
@@ -3587,7 +3587,7 @@ export default function PlayerPage() {
     }
     let unsubscribe: (() => void) | null = null;
     if (chatUnreadStartedForUidRef.current === playerUid) {
-      console.info('[PLAYER_CHAT_UNREAD_SKIP_RESTART]', {
+      playerStartupDebugLog('[PLAYER_CHAT_UNREAD_SKIP_RESTART]', {
         playerUid,
         reason: 'already_started_for_identity',
         baseDataLoaded,
@@ -3596,13 +3596,13 @@ export default function PlayerPage() {
     }
     chatUnreadStartedForUidRef.current = playerUid;
     const delayMs = playerStartupJitterMs(1_000, 2_500);
-    console.info('[PLAYER_CHAT_UNREAD_START_ONCE]', {
+    playerStartupDebugLog('[PLAYER_CHAT_UNREAD_START_ONCE]', {
       playerUid,
       delayMs,
       baseDataLoaded: baseDataLoadedRef.current,
     });
     logPlayerStartupPhase(3, '/api/chat/unread-counts', delayMs, 'phase_3_chat_unread');
-    console.info('[PLAYER_CHAT_UNREAD_DEFERRED]', {
+    playerStartupDebugLog('[PLAYER_CHAT_UNREAD_DEFERRED]', {
       delayMs,
       reason: 'phase_3_after_core_startup',
     });
@@ -4140,7 +4140,7 @@ export default function PlayerPage() {
         delayMs,
         'phase_2_live_snapshot'
       );
-      console.info('[PLAYER_STARTUP_STAGGER]', {
+      playerStartupDebugLog('[PLAYER_STARTUP_STAGGER]', {
         target: '/api/live/snapshot/player/[playerUid]/requests',
         delayMs,
         reason: 'defer_secondary_sql_snapshot',
@@ -4175,14 +4175,14 @@ export default function PlayerPage() {
       return;
     }
     if (cashoutListenerStartedForUidRef.current === playerUid) {
-      console.info('[PLAYER_CASHOUT_LISTENER_SKIP_RESTART]', {
+      playerStartupDebugLog('[PLAYER_CASHOUT_LISTENER_SKIP_RESTART]', {
         playerUid,
         reason: 'already_started_for_identity',
       });
       return;
     }
     cashoutListenerStartedForUidRef.current = playerUid;
-    console.info('[PLAYER_CASHOUT_LISTENER_STABLE]', {
+    playerStartupDebugLog('[PLAYER_CASHOUT_LISTENER_STABLE]', {
       playerUid,
       key: `player:${playerUid}`,
     });
@@ -4207,14 +4207,14 @@ export default function PlayerPage() {
         delayMs,
         'phase_2_cashout_cache'
       );
-      console.info('[PLAYER_STARTUP_STAGGER]', {
+      playerStartupDebugLog('[PLAYER_STARTUP_STAGGER]', {
         target: '/api/player-cashout-tasks/cache',
         delayMs,
         reason: 'defer_secondary_sql_cache',
       });
     }
     const startCashoutListener = () => {
-      console.info('[PLAYER_CASHOUT_LISTENER_REUSE]', {
+      playerStartupDebugLog('[PLAYER_CASHOUT_LISTENER_REUSE]', {
         playerUid,
         reason: 'identity_keyed_listener_start',
       });
@@ -4415,7 +4415,7 @@ export default function PlayerPage() {
       let disposed = false;
       let stopPoll: (() => void) | null = null;
       const delayMs = baseDataLoadedRef.current ? 750 : 2_000;
-      console.info('[PLAYER_STARTUP_STAGGER]', {
+      playerStartupDebugLog('[PLAYER_STARTUP_STAGGER]', {
         target: 'player_profile_poll',
         delayMs,
         reason: baseDataLoadedRef.current
@@ -4429,7 +4429,7 @@ export default function PlayerPage() {
         markPlayerStartupFlag('profilePollStarted', {
           source: 'attachPlayerProfileSqlPoll',
         });
-        console.info('[PLAYER_SESSION_ME_STARTUP_SKIP_DUPLICATE]', {
+        playerStartupDebugLog('[PLAYER_SESSION_ME_STARTUP_SKIP_DUPLICATE]', {
           uid: playerUid,
           reason: 'profile_poll_initial_fetch_delayed',
           initialDelayMs: 10_000,

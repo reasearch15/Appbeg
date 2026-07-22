@@ -20,6 +20,7 @@ import { scheduleSafetyInterval } from '@/lib/client/snapshotPollJitter';
 import { withPlayerFetchLifecycleReason } from '@/lib/client/playerFetchLifecycleContext';
 import { auth } from '@/lib/firebase/client';
 import { isClientSqlReadMode, logClientFirestoreSkipped } from '@/lib/client/sqlReadMode';
+import { playerDebugLog, playerLiveOpsLog } from '@/lib/client/playerDebugLogs';
 
 const POLL_MS = 8_000;
 const SAFETY_REFETCH_MS = 45_000;
@@ -108,7 +109,7 @@ async function readChatApiContext(options?: { preferStaffSession?: boolean; peer
       ? [uid, options.peerUid].sort().join('_')
       : null;
 
-  console.info('[CHAT_SESSION_CONTEXT]', {
+  playerDebugLog('[CHAT_SESSION_CONTEXT]', {
     currentUid: uid,
     currentRole: role || null,
     expectedReceiverUid: options?.peerUid || null,
@@ -134,7 +135,7 @@ export async function fetchSqlUnreadCounts(options?: { preferStaffSession?: bool
     preferStaffSession: options?.preferStaffSession,
   });
   const logTag = listQueryLogTag(context.role);
-  console.info(`[${logTag}_QUERY]`, {
+  playerDebugLog(`[${logTag}_QUERY]`, {
     uid: context.uid,
     role: context.role,
   });
@@ -167,7 +168,7 @@ export async function fetchSqlUnreadCounts(options?: { preferStaffSession?: bool
   }
   const counts = payload.unreadCounts || {};
   const latestOutboxId = Math.max(0, Number(payload.latestOutboxId || 0));
-  console.info(`[${logTag}_RESULT]`, {
+  playerDebugLog(`[${logTag}_RESULT]`, {
     uid: context.uid,
     role: context.role,
     peerCount: Object.keys(counts).length,
@@ -203,7 +204,7 @@ export async function fetchSqlChatMessages(
   }
   const url = `/api/chat/messages?${params.toString()}`;
 
-  console.info(`[${logTag}_QUERY]`, {
+  playerDebugLog(`[${logTag}_QUERY]`, {
     uid: context.uid,
     role: context.role,
     peerUid,
@@ -239,7 +240,7 @@ export async function fetchSqlChatMessages(
   }
   const messages = (payload.messages || []).map(mapCachedMessage);
   const latestOutboxId = Math.max(0, Number(payload.latestOutboxId || 0));
-  console.info('[CHAT_MESSAGES_CLIENT]', {
+  playerDebugLog('[CHAT_MESSAGES_CLIENT]', {
     conversationId: options?.conversationId || null,
     olderThanMessageId: options?.olderThanMessageId || null,
     currentUid: context.uid,
@@ -295,7 +296,7 @@ function attachChatSqlPoll(input: {
     const previous = lastEventId;
     lastEventId = Math.max(lastEventId, next);
     if (lastEventId !== previous) {
-      console.info('[CHAT_LIVE_CURSOR_BOOTSTRAP]', {
+      playerDebugLog('[CHAT_LIVE_CURSOR_BOOTSTRAP]', {
         pollName,
         selfUid: input.selfUid,
         subscriptionInstanceId,
@@ -314,7 +315,7 @@ function attachChatSqlPoll(input: {
       return;
     }
     if (isSafetyOnlyMode()) {
-      console.info('[CHAT_SSE_HEALTHY_SAFETY_ONLY]', {
+      playerDebugLog('[CHAT_SSE_HEALTHY_SAFETY_ONLY]', {
         pollName,
         selfUid: input.selfUid,
         subscriptionInstanceId,
@@ -322,7 +323,7 @@ function attachChatSqlPoll(input: {
       });
       return;
     }
-    console.info('[CHAT_POLL_FAST_MODE]', {
+    playerDebugLog('[CHAT_POLL_FAST_MODE]', {
       pollName,
       selfUid: input.selfUid,
       subscriptionInstanceId,
@@ -371,7 +372,7 @@ function attachChatSqlPoll(input: {
 
   const closeEventSource = () => {
     if (eventSource) {
-      console.info('[CHAT_LIVE_UNSUBSCRIBE]', {
+      playerLiveOpsLog('[CHAT_LIVE_UNSUBSCRIBE]', {
         pollName,
         selfUid: input.selfUid,
         subscriptionInstanceId,
@@ -405,7 +406,7 @@ function attachChatSqlPoll(input: {
     const url = `/api/live/stream?${params.toString()}`;
     const source = new EventSource(url);
     eventSource = source;
-    console.info('[CHAT_LIVE_SUBSCRIBE]', {
+    playerLiveOpsLog('[CHAT_LIVE_SUBSCRIBE]', {
       pollName,
       selfUid: input.selfUid,
       subscriptionInstanceId,
@@ -415,7 +416,7 @@ function attachChatSqlPoll(input: {
 
     source.onopen = () => {
       streamHealthy = true;
-      console.info('[CHAT_SSE_HEALTHY_SAFETY_ONLY]', {
+      playerDebugLog('[CHAT_SSE_HEALTHY_SAFETY_ONLY]', {
         pollName,
         selfUid: input.selfUid,
         subscriptionInstanceId,
@@ -453,7 +454,7 @@ function attachChatSqlPoll(input: {
         messageId = cleanText(payload.messageId || payload.entityId);
         senderUid = cleanText(payload.senderUid);
         receiverUid = cleanText(payload.receiverUid);
-        console.info('[MESSAGE_LIVE_EVENT_RECEIVED]', {
+        playerDebugLog('[MESSAGE_LIVE_EVENT_RECEIVED]', {
           eventType: eventName,
           messageId,
           senderUid,
@@ -464,7 +465,7 @@ function attachChatSqlPoll(input: {
           delivery: alreadySeenOutbox ? 'duplicate_outbox' : 'first_outbox',
         });
       } catch {
-        console.info('[MESSAGE_LIVE_EVENT_RECEIVED]', {
+        playerDebugLog('[MESSAGE_LIVE_EVENT_RECEIVED]', {
           eventType: eventName,
           outboxId,
           subscriptionInstanceId,
@@ -474,7 +475,7 @@ function attachChatSqlPoll(input: {
       }
 
       if (alreadySeenOutbox) {
-        console.info('[MESSAGE_LIVE_REFETCH_DEDUPED]', {
+        playerDebugLog('[MESSAGE_LIVE_REFETCH_DEDUPED]', {
           reason: 'duplicate_outbox_id',
           eventType: eventName,
           messageId: messageId || null,
@@ -488,7 +489,7 @@ function attachChatSqlPoll(input: {
         const now = Date.now();
         const previousAt = recentEntityRefetchAt.get(messageId) || 0;
         if (now - previousAt < ENTITY_REFETCH_DEDUP_MS) {
-          console.info('[MESSAGE_LIVE_REFETCH_DEDUPED]', {
+          playerDebugLog('[MESSAGE_LIVE_REFETCH_DEDUPED]', {
             reason: 'same_message_id_window',
             eventType: eventName,
             messageId,
@@ -534,7 +535,7 @@ function attachChatSqlPoll(input: {
       const wasHealthy = streamHealthy;
       streamHealthy = false;
       if (wasHealthy) {
-        console.info('[CHAT_STREAM_UNHEALTHY_RESUME_POLL]', {
+        playerLiveOpsLog('[CHAT_STREAM_UNHEALTHY_RESUME_POLL]', {
           pollName,
           selfUid: input.selfUid,
           subscriptionInstanceId,
@@ -565,7 +566,7 @@ function attachChatSqlPoll(input: {
           logHiddenTabPollPaused(`${pollName}_safety`);
           return;
         }
-        console.info('[CHAT_SAFETY_REFETCH]', {
+        playerDebugLog('[CHAT_SAFETY_REFETCH]', {
           pollName,
           selfUid: input.selfUid,
           subscriptionInstanceId,
@@ -613,7 +614,7 @@ export function attachSqlUnreadCountsPoll(
           const result = await fetchSqlUnreadCounts();
           if (!disposed) {
             onChange(result.unreadCounts);
-            console.info('[CHAT_RECEIVER_UI_UPDATED]', {
+            playerDebugLog('[CHAT_RECEIVER_UI_UPDATED]', {
               kind: 'player_unread_counts',
               peerCount: Object.keys(result.unreadCounts).length,
               reason,
@@ -648,7 +649,7 @@ export function attachSqlUnreadCountsPoll(
         const result = await fetchSqlUnreadCounts({ preferStaffSession: true });
         if (!disposed) {
           onChange(result.unreadCounts);
-          console.info('[CHAT_RECEIVER_UI_UPDATED]', {
+          playerDebugLog('[CHAT_RECEIVER_UI_UPDATED]', {
             kind: 'unread_counts',
             peerCount: Object.keys(result.unreadCounts).length,
             reason,
@@ -697,7 +698,7 @@ export function attachSqlChatMessagesPoll(
           });
           if (!disposed) {
             onChange(result.messages);
-            console.info('[CHAT_RECEIVER_UI_UPDATED]', {
+            playerDebugLog('[CHAT_RECEIVER_UI_UPDATED]', {
               kind: 'messages',
               peerUid,
               count: result.messages.length,
@@ -736,13 +737,13 @@ export function attachSqlChatMessagesPoll(
         });
         if (!disposed) {
           onChange(result.messages);
-          console.info('[CHAT_MESSAGES_REFETCHED]', {
+          playerDebugLog('[CHAT_MESSAGES_REFETCHED]', {
             peerUid,
             count: result.messages.length,
             reason,
             latestOutboxId: result.latestOutboxId,
           });
-          console.info('[CHAT_RECEIVER_UI_UPDATED]', {
+          playerDebugLog('[CHAT_RECEIVER_UI_UPDATED]', {
             kind: 'messages',
             peerUid,
             count: result.messages.length,

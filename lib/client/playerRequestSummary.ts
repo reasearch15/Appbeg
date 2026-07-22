@@ -1,5 +1,7 @@
 'use client';
 
+import { playerDebugLog } from '@/lib/client/playerDebugLogs';
+
 type RouteStats = {
   count: number;
   totalMs: number;
@@ -38,7 +40,7 @@ export function startPlayerRequestSummaryReporter() {
       }))
       .sort((a, b) => b.count - a.count);
 
-    console.info('[PLAYER_REQUEST_SUMMARY]', summary);
+    playerDebugLog('[PLAYER_REQUEST_SUMMARY]', { routes: summary });
     statsByRoute.clear();
   }, 60_000);
 

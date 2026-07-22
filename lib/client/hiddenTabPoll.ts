@@ -1,5 +1,7 @@
 'use client';
 
+import { playerDebugLog } from '@/lib/client/playerDebugLogs';
+
 export const HIDDEN_THROTTLED_POLL_MS = 3 * 60 * 1000;
 
 export function isDocumentHidden() {
@@ -11,15 +13,15 @@ export function resolveVisiblePollIntervalMs(visibleMs: number) {
 }
 
 export function logHiddenTabPollPaused(pollName: string) {
-  console.info('[HIDDEN_TAB_POLL_PAUSED]', { pollName });
+  playerDebugLog('[HIDDEN_TAB_POLL_PAUSED]', { pollName });
 }
 
 export function logHiddenTabPollThrottled(pollName: string, intervalMs: number) {
-  console.info('[HIDDEN_TAB_POLL_THROTTLED]', { pollName, intervalMs });
+  playerDebugLog('[HIDDEN_TAB_POLL_THROTTLED]', { pollName, intervalMs });
 }
 
 export function logHiddenTabPollResumed(pollName: string) {
-  console.info('[HIDDEN_TAB_POLL_RESUMED]', { pollName });
+  playerDebugLog('[HIDDEN_TAB_POLL_RESUMED]', { pollName });
 }
 
 export function attachHiddenTabPollResume(pollName: string, onResume: () => void) {

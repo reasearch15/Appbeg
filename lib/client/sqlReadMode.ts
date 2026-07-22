@@ -1,6 +1,7 @@
 'use client';
 
 import { getLocalAppSessionId } from '@/features/auth/appSession';
+import { playerDebugLog } from '@/lib/client/playerDebugLogs';
 import {
   isClientSqlReadMode as isSqlReadModeFromFlags,
   isPublicSqlPlayerLoginEnabled,
@@ -11,7 +12,7 @@ export function isClientSqlReadMode() {
 }
 
 export function logClientFirestoreSkipped(feature: string, extra?: Record<string, unknown>) {
-  console.info('[CLIENT_FIRESTORE_SKIPPED]', {
+  playerDebugLog('[CLIENT_FIRESTORE_SKIPPED]', {
     client_firestore_skipped: true,
     reason: 'sql_read_mode',
     feature,
@@ -24,7 +25,7 @@ export function logClientFirestoreRuntimeAudit(path?: string) {
   const resolvedPath =
     path ??
     (typeof window !== 'undefined' ? window.location.pathname || '' : '');
-  console.info('[CLIENT_FIRESTORE_RUNTIME_AUDIT]', {
+  playerDebugLog('[CLIENT_FIRESTORE_RUNTIME_AUDIT]', {
     path: resolvedPath,
     sqlMode,
     firestoreListenersAllowed: !sqlMode,

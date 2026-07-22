@@ -1,6 +1,7 @@
 'use client';
 
 import { getLocalAppSessionId } from '@/features/auth/appSession';
+import { playerDebugLog } from '@/lib/client/playerDebugLogs';
 import {
   getLocalPlayerSessionId,
 } from '@/features/auth/playerSession';
@@ -73,7 +74,7 @@ export function logChatPageMount(values: {
   appSessionIdPrefix: string | null;
   playerSessionIdPrefix: string | null;
 }) {
-  console.info('[CHAT_PAGE_MOUNT]', values);
+  playerDebugLog('[CHAT_PAGE_MOUNT]', values);
 }
 
 export function logChatApiRequest(values: {
@@ -86,7 +87,7 @@ export function logChatApiRequest(values: {
   blocked: boolean;
   reason: string;
 }) {
-  console.info('[CHAT_API_REQUEST]', values);
+  playerDebugLog('[CHAT_API_REQUEST]', values);
 }
 
 export function logChatApi401(values: {

@@ -1,5 +1,7 @@
 'use client';
 
+import { playerDebugLog } from '@/lib/client/playerDebugLogs';
+
 export function safetyIntervalWithJitter(baseMs: number, jitterFraction = 0.2) {
   const cap = Math.max(1, Math.floor(baseMs * jitterFraction));
   const delta = Math.floor(Math.random() * (cap * 2 + 1)) - cap;
@@ -19,7 +21,7 @@ export function scheduleSafetyInterval(input: {
       return;
     }
     const delayMs = safetyIntervalWithJitter(input.baseMs);
-    console.info('[SNAPSHOT_SAFETY_JITTER]', {
+    playerDebugLog('[SNAPSHOT_SAFETY_JITTER]', {
       pollName: input.pollName,
       baseMs: input.baseMs,
       delayMs,
@@ -46,13 +48,13 @@ export function scheduleSafetyInterval(input: {
 
 export function visibilityRefetchDelayMs() {
   const delayMs = 250 + Math.floor(Math.random() * (3_000 - 250 + 1));
-  console.info('[VISIBILITY_REFETCH_JITTER]', { delayMs });
+  playerDebugLog('[VISIBILITY_REFETCH_JITTER]', { delayMs });
   return delayMs;
 }
 
 export function reconnectRecoveryDelayMs() {
   const delayMs = 500 + Math.floor(Math.random() * (5_000 - 500 + 1));
-  console.info('[RECONNECT_RECOVERY_JITTER]', { delayMs });
+  playerDebugLog('[RECONNECT_RECOVERY_JITTER]', { delayMs });
   return delayMs;
 }
 

@@ -14,6 +14,7 @@ import {
   resolveVisiblePollIntervalMs,
 } from '@/lib/client/hiddenTabPoll';
 import { scheduleSafetyInterval } from '@/lib/client/snapshotPollJitter';
+import { playerDebugLog, playerLiveOpsLog } from '@/lib/client/playerDebugLogs';
 import { withPlayerFetchLifecycleReason } from '@/lib/client/playerFetchLifecycleContext';
 import { isClientSqlReadMode, logClientFirestoreSkipped } from '@/lib/client/sqlReadMode';
 import {
@@ -65,24 +66,24 @@ function logScopeEventReceived(scope: CashoutScope, eventType: string, payload: 
     scope,
   };
   if (scope === 'coadmin' || role === 'coadmin') {
-    console.info('[COADMIN_CASHOUT_EVENT_RECEIVED]', base);
+    playerDebugLog('[COADMIN_CASHOUT_EVENT_RECEIVED]', base);
   }
   if (scope === 'coadmin' || scope === 'all' || scope === 'staff' || role === 'staff') {
-    console.info('[STAFF_CASHOUT_EVENT_RECEIVED]', base);
+    playerDebugLog('[STAFF_CASHOUT_EVENT_RECEIVED]', base);
   }
-  console.info('[CASHOUT_SSE_EVENT_RECEIVED]', base);
+  playerDebugLog('[CASHOUT_SSE_EVENT_RECEIVED]', base);
 }
 
 function logScopeListAfterEvent(scope: CashoutScope, count: number, reason: string) {
   const role = String(getCachedSessionUser()?.role || '').toLowerCase();
   const base = { scope, count, reason };
   if (scope === 'coadmin' || role === 'coadmin') {
-    console.info('[COADMIN_CASHOUT_LIST_AFTER_EVENT]', base);
+    playerDebugLog('[COADMIN_CASHOUT_LIST_AFTER_EVENT]', base);
   }
   if (scope === 'coadmin' || scope === 'all' || scope === 'staff' || role === 'staff') {
-    console.info('[STAFF_CASHOUT_LIST_AFTER_EVENT]', base);
+    playerDebugLog('[STAFF_CASHOUT_LIST_AFTER_EVENT]', base);
   }
-  console.info('[CASHOUT_UI_REFETCHED]', base);
+  playerDebugLog('[CASHOUT_UI_REFETCHED]', base);
 }
 
 function isoToTimestamp(iso: string | null | undefined): Date | null {
@@ -138,7 +139,7 @@ async function fetchCashoutTasks(
     params.set('list', list);
   }
 
-  console.info('[CASHOUT_LIST_QUERY]', {
+  playerDebugLog('[CASHOUT_LIST_QUERY]', {
     scope,
     uid: scope === 'all' ? null : uid,
     limit,
@@ -158,7 +159,7 @@ async function fetchCashoutTasks(
   }
 
   const tasks = (payload.tasks || []).map(mapCachedTask);
-  console.info('[CASHOUT_LIST_RESULT]', {
+  playerDebugLog('[CASHOUT_LIST_RESULT]', {
     scope,
     uid: scope === 'all' ? null : uid,
     count: tasks.length,
@@ -178,7 +179,7 @@ async function fetchCashoutLifecycleTasks(
     list: 'lifecycle',
   });
 
-  console.info('[CASHOUT_LIFECYCLE_QUERY]', {
+  playerDebugLog('[CASHOUT_LIFECYCLE_QUERY]', {
     scope,
     uid,
     limit,
@@ -210,7 +211,7 @@ async function fetchCashoutLifecycleTasks(
     active: (payload.lifecycle.active || []).map(mapCachedTask),
     completed: (payload.lifecycle.completed || []).map(mapCachedTask),
   };
-  console.info('[CASHOUT_LIFECYCLE_RESULT]', {
+  playerDebugLog('[CASHOUT_LIFECYCLE_RESULT]', {
     scope,
     uid,
     pendingCount: lists.pending.length,
@@ -242,7 +243,7 @@ function attachCashoutSqlPoll(input: {
     uid: input.uid,
     liveChannel: input.liveChannel || null,
   });
-  console.info('[POLLER_RETAINED]', {
+  playerDebugLog('[POLLER_RETAINED]', {
     pollName: 'player_cashout_tasks',
     scope: input.scope,
     reason: input.liveChannel
@@ -269,7 +270,7 @@ function attachCashoutSqlPoll(input: {
     Date.now() - startedAt < STARTUP_CASHOUT_CACHE_COOLDOWN_MS;
 
   const logCashoutCacheDeduped = (reason: string, detail: string) => {
-    console.info('[PLAYER_CASHOUT_CACHE_DEDUPED]', {
+    playerDebugLog('[PLAYER_CASHOUT_CACHE_DEDUPED]', {
       scope: input.scope,
       uid: input.scope === 'all' ? null : input.uid,
       reason,
@@ -289,14 +290,14 @@ function attachCashoutSqlPoll(input: {
       return;
     }
     if (isCashoutSafetyOnlyMode()) {
-      console.info('[CASHOUT_STREAM_HEALTHY_SAFETY_ONLY]', {
+      playerDebugLog('[CASHOUT_STREAM_HEALTHY_SAFETY_ONLY]', {
         scope: input.scope,
         uid: input.uid,
         safetyRefetchMs: SAFETY_REFETCH_MS,
       });
       return;
     }
-    console.info('[CASHOUT_POLL_FAST_MODE]', {
+    playerDebugLog('[CASHOUT_POLL_FAST_MODE]', {
       scope: input.scope,
       uid: input.scope === 'all' ? null : input.uid,
       intervalMs: resolveVisiblePollIntervalMs(POLL_MS),
@@ -339,7 +340,7 @@ function attachCashoutSqlPoll(input: {
       if (!disposed) {
         input.onChange(tasks);
         logScopeListAfterEvent(input.scope, tasks.length, reason);
-        console.info('[CASHOUT_UI_UPDATED]', {
+        playerDebugLog('[CASHOUT_UI_UPDATED]', {
           scope: input.scope,
           uid: input.scope === 'all' ? null : input.uid,
           count: tasks.length,
@@ -381,7 +382,7 @@ function attachCashoutSqlPoll(input: {
       logCashoutCacheDeduped(reason, 'recent_startup_fetch_suppressed');
       return;
     }
-    console.info('[CASHOUT_LIVE_EVENT_RECEIVED]', {
+    playerDebugLog('[CASHOUT_LIVE_EVENT_RECEIVED]', {
       scope: input.scope,
       uid: input.scope === 'all' ? null : input.uid,
       reason,
@@ -404,7 +405,7 @@ function attachCashoutSqlPoll(input: {
     try {
       const payload = JSON.parse(rawData) as Record<string, unknown>;
       logScopeEventReceived(input.scope, eventName, payload);
-      console.info('[CASHOUT_LIVE_EVENT_RECEIVED]', {
+      playerDebugLog('[CASHOUT_LIVE_EVENT_RECEIVED]', {
         eventType: eventName,
         taskId: cleanText(payload.taskId || payload.entityId),
         coadminUid: cleanText(payload.coadminUid),
@@ -413,7 +414,7 @@ function attachCashoutSqlPoll(input: {
         outboxId,
       });
     } catch {
-      console.info('[CASHOUT_LIVE_EVENT_RECEIVED]', {
+      playerDebugLog('[CASHOUT_LIVE_EVENT_RECEIVED]', {
         eventType: eventName,
         outboxId,
       });
@@ -439,7 +440,7 @@ function attachCashoutSqlPoll(input: {
 
     if (input.scope === 'player') {
       if (sharedStreamUnsubscribe) {
-        console.info('[PLAYER_LIVE_STREAM_SINGLETON_REUSED]', {
+        playerDebugLog('[PLAYER_LIVE_STREAM_SINGLETON_REUSED]', {
           playerUid: input.uid,
           subscriber: 'cashout',
           reason: 'already_registered',
@@ -459,7 +460,7 @@ function attachCashoutSqlPoll(input: {
           const wasHealthy = cashoutStreamHealthy;
           cashoutStreamHealthy = healthy;
           if (healthy) {
-            console.info('[CASHOUT_STREAM_HEALTHY_SAFETY_ONLY]', {
+            playerDebugLog('[CASHOUT_STREAM_HEALTHY_SAFETY_ONLY]', {
               scope: input.scope,
               uid: input.uid,
               reason,
@@ -470,7 +471,7 @@ function attachCashoutSqlPoll(input: {
               pollTimer = null;
             }
           } else if (wasHealthy) {
-            console.info('[CASHOUT_STREAM_UNHEALTHY_RESUME_POLL]', {
+            playerLiveOpsLog('[CASHOUT_STREAM_UNHEALTHY_RESUME_POLL]', {
               scope: input.scope,
               uid: input.uid,
               reason,
@@ -480,7 +481,7 @@ function attachCashoutSqlPoll(input: {
           }
         }
       );
-      console.info('[PLAYER_LIVE_STREAM_SINGLETON_REUSED]', {
+      playerDebugLog('[PLAYER_LIVE_STREAM_SINGLETON_REUSED]', {
         playerUid: input.uid,
         subscriber: 'cashout',
         channel: input.liveChannel,
@@ -500,7 +501,7 @@ function attachCashoutSqlPoll(input: {
     const url = `/api/live/stream?${params.toString()}`;
     const streamKey = `cashout:${input.scope}:${input.liveChannel}`;
     if (activeCashoutLiveStreamKeys.has(streamKey)) {
-      console.info('[PLAYER_SSE_DEDUPED]', {
+      playerDebugLog('[PLAYER_SSE_DEDUPED]', {
         streamKey,
         scope: input.scope,
         uid: input.scope === 'all' ? null : input.uid,
@@ -562,7 +563,7 @@ function attachCashoutSqlPoll(input: {
         logHiddenTabPollPaused('player_cashout_safety');
         return;
       }
-      console.info('[CASHOUT_SAFETY_REFETCH]', {
+      playerDebugLog('[CASHOUT_SAFETY_REFETCH]', {
         scope: input.scope,
         uid: input.scope === 'all' ? null : input.uid,
         streamHealthy: cashoutStreamHealthy,
@@ -686,14 +687,14 @@ function attachScopedCashoutLifecyclePoll(input: {
         input.onCompletedChange(completed);
         const loadedLog =
           input.scope === 'staff' ? '[STAFF_COMPLETED_TASKS] loaded' : '[COADMIN_COMPLETED_TASKS] loaded';
-        console.info('[STAFF_CASHOUT_TASKS] pendingLoaded', {
+        playerDebugLog('[STAFF_CASHOUT_TASKS] pendingLoaded', {
           scope: input.scope,
           count: sanitizedPending.length,
           rawCount: pending.length,
           reason,
         });
-        console.info('[STAFF_CASHOUT_TASKS] activeLoaded', { scope: input.scope, count: active.length, reason });
-        console.info(loadedLog, { scope: input.scope, count: completed.length, reason });
+        playerDebugLog('[STAFF_CASHOUT_TASKS] activeLoaded', { scope: input.scope, count: active.length, reason });
+        playerDebugLog(loadedLog, { scope: input.scope, count: completed.length, reason });
       }
       });
     } catch (error) {

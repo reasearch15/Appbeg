@@ -39,6 +39,7 @@ import {
   logSqlClientMigration,
 } from '@/lib/client/sqlClientMigration';
 import { getCachedSessionUser } from '@/features/auth/sessionUser';
+import { playerDebugLog } from '@/lib/client/playerDebugLogs';
 import { getSqlApiReadHeaders } from '@/lib/client/sqlApiHeaders';
 import { logClientFirestoreSkipped } from '@/lib/client/sqlReadMode';
 
@@ -116,7 +117,7 @@ export const PLAYER_AGENT_CHAT_RECENT_MESSAGE_WINDOW = 7;
 export const CHAT_OLDER_MESSAGE_PAGE_SIZE = 50;
 
 async function sendChatMessageViaSql(receiverUid: string, text: string) {
-  console.info('[PLAYER_MESSAGE_API_REQUEST]', {
+  playerDebugLog('[PLAYER_MESSAGE_API_REQUEST]', {
     peerUid: receiverUid,
     textLength: text.length,
   });
@@ -145,7 +146,7 @@ async function sendChatMessageViaSql(receiverUid: string, text: string) {
     throw new Error(payload.error || 'Failed to send chat message.');
   }
 
-  console.info('[PLAYER_MESSAGE_API_SUCCESS]', {
+  playerDebugLog('[PLAYER_MESSAGE_API_SUCCESS]', {
     peerUid: receiverUid,
     messageId: payload.messageId || null,
     conversationId: payload.conversationId || null,
