@@ -13,9 +13,22 @@ export function snapshotFetchRequiresFullBody(reason: string) {
   return false;
 }
 
+/** Temporary diagnostic: safe client refetch reason for snapshot URL (max 80 chars). */
+export function sanitizeSnapshotReasonParam(reason: unknown): string | null {
+  const cleaned = String(reason || '')
+    .trim()
+    .slice(0, 80)
+    .replace(/[^a-zA-Z0-9_.:-]+/g, '_');
+  return cleaned || null;
+}
+
 export function buildLiveSnapshotPath(
   path: string,
-  options: { latestOutboxId?: number; requireFull?: boolean }
+  options: {
+    latestOutboxId?: number;
+    requireFull?: boolean;
+    snapshotReason?: string | null;
+  }
 ) {
   const params = new URLSearchParams();
   if (options.requireFull) {
@@ -26,6 +39,10 @@ export function buildLiveSnapshotPath(
     options.latestOutboxId >= 0
   ) {
     params.set('latestOutboxId', String(Math.trunc(options.latestOutboxId)));
+  }
+  const snapshotReason = sanitizeSnapshotReasonParam(options.snapshotReason);
+  if (snapshotReason) {
+    params.set('snapshotReason', snapshotReason);
   }
   const query = params.toString();
   return query ? `${path}?${query}` : path;

@@ -915,6 +915,7 @@ export function attachPlayerRequestSqlReadListener(
         {
           latestOutboxId: lastEventId,
           requireFull,
+          snapshotReason: reason,
         }
       );
       if (!requireFull && lastEventId > 0) {

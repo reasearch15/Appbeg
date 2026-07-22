@@ -5,12 +5,23 @@ import { getLatestOutboxIdForChannels } from '@/lib/sql/liveOutbox';
 export type SnapshotClientCursor = {
   clientLatestOutboxId: number | null;
   forceFull: boolean;
+  /** Temporary diagnostic from client `snapshotReason` query param. */
+  clientReason: string | null;
 };
+
+export function sanitizeSnapshotClientReason(value: unknown): string | null {
+  const cleaned = String(value || '')
+    .trim()
+    .slice(0, 80)
+    .replace(/[^a-zA-Z0-9_.:-]+/g, '_');
+  return cleaned || null;
+}
 
 export function parseSnapshotClientCursor(request: Request): SnapshotClientCursor {
   const url = new URL(request.url);
   const forceFull =
     url.searchParams.get('forceFull') === '1' || url.searchParams.get('bootstrap') === '1';
+  const clientReason = sanitizeSnapshotClientReason(url.searchParams.get('snapshotReason'));
 
   let clientLatestOutboxId: number | null = null;
   const queryParam = url.searchParams.get('latestOutboxId');
@@ -32,7 +43,7 @@ export function parseSnapshotClientCursor(request: Request): SnapshotClientCurso
     }
   }
 
-  return { clientLatestOutboxId, forceFull };
+  return { clientLatestOutboxId, forceFull, clientReason };
 }
 
 export function logSnapshotNoChangeCheck(details: Record<string, unknown>) {
@@ -82,12 +93,14 @@ export async function trySnapshotNoChangeResponse(input: {
     carerUid: input.carerUid || null,
     clientLatestOutboxId: cursor.clientLatestOutboxId,
     forceFull: cursor.forceFull,
+    clientReason: cursor.clientReason,
   });
 
   if (cursor.forceFull || cursor.clientLatestOutboxId === null) {
     logSnapshotFullQueryRun({
       route: input.route,
       reason: cursor.forceFull ? 'force_full' : 'missing_client_cursor',
+      clientReason: cursor.clientReason,
     });
     return { kind: 'full', latestOutboxId: null };
   }
@@ -104,11 +117,13 @@ export async function trySnapshotNoChangeResponse(input: {
       carerUid: input.carerUid || null,
       latestOutboxId: serverLatestOutboxId,
       outboxQueryMs,
+      clientReason: cursor.clientReason,
     });
     logSnapshotFullQuerySkipped({
       route: input.route,
       latestOutboxId: serverLatestOutboxId,
       outboxQueryMs,
+      clientReason: cursor.clientReason,
     });
 
     const body = {
@@ -145,12 +160,14 @@ export async function trySnapshotNoChangeResponse(input: {
     clientLatestOutboxId: cursor.clientLatestOutboxId,
     serverLatestOutboxId,
     outboxQueryMs,
+    clientReason: cursor.clientReason,
   });
   logSnapshotFullQueryRun({
     route: input.route,
     reason: 'outbox_cursor_advanced',
     clientLatestOutboxId: cursor.clientLatestOutboxId,
     serverLatestOutboxId,
+    clientReason: cursor.clientReason,
   });
 
   return { kind: 'full', latestOutboxId: serverLatestOutboxId };
