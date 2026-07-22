@@ -271,6 +271,13 @@ function attachChatSqlPoll(input: {
   let refetchInFlight = false;
   let streamHealthy = false;
   const pollName = 'chat_sql_poll';
+  const subscriptionInstanceId = `chat-live-${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
+  /** Dedupe rapid dual create events (player_message_created + chat_message_created). */
+  const recentEntityRefetchAt = new Map<string, number>();
+  const ENTITY_REFETCH_DEDUP_MS = 750;
+  const seenOutboxIds = new Set<number>();
 
   const isSafetyOnlyMode = () =>
     input.enableLive === true && streamHealthy && eventSource?.readyState === EventSource.OPEN;
@@ -283,6 +290,7 @@ function attachChatSqlPoll(input: {
       console.info('[CHAT_SSE_HEALTHY_SAFETY_ONLY]', {
         pollName,
         selfUid: input.selfUid,
+        subscriptionInstanceId,
         safetyRefetchMs: SAFETY_REFETCH_MS,
       });
       return;
@@ -290,6 +298,7 @@ function attachChatSqlPoll(input: {
     console.info('[CHAT_POLL_FAST_MODE]', {
       pollName,
       selfUid: input.selfUid,
+      subscriptionInstanceId,
       intervalMs: resolveVisiblePollIntervalMs(input.pollMs || POLL_MS),
     });
     pollTimer = setTimeout(() => {
@@ -334,6 +343,11 @@ function attachChatSqlPoll(input: {
 
   const closeEventSource = () => {
     if (eventSource) {
+      console.info('[CHAT_LIVE_UNSUBSCRIBE]', {
+        pollName,
+        selfUid: input.selfUid,
+        subscriptionInstanceId,
+      });
       eventSource.close();
       eventSource = null;
     }
@@ -363,12 +377,20 @@ function attachChatSqlPoll(input: {
     const url = `/api/live/stream?${params.toString()}`;
     const source = new EventSource(url);
     eventSource = source;
+    console.info('[CHAT_LIVE_SUBSCRIBE]', {
+      pollName,
+      selfUid: input.selfUid,
+      subscriptionInstanceId,
+      channel,
+      lastEventId,
+    });
 
     source.onopen = () => {
       streamHealthy = true;
       console.info('[CHAT_SSE_HEALTHY_SAFETY_ONLY]', {
         pollName,
         selfUid: input.selfUid,
+        subscriptionInstanceId,
         safetyRefetchMs: SAFETY_REFETCH_MS,
       });
       if (pollTimer) {
@@ -383,26 +405,80 @@ function attachChatSqlPoll(input: {
         return;
       }
       streamHealthy = true;
+      const alreadySeenOutbox = outboxId > 0 && seenOutboxIds.has(outboxId);
       if (outboxId > 0) {
+        seenOutboxIds.add(outboxId);
+        if (seenOutboxIds.size > 500) {
+          const oldest = seenOutboxIds.values().next().value;
+          if (oldest !== undefined) {
+            seenOutboxIds.delete(oldest);
+          }
+        }
         lastEventId = Math.max(lastEventId, outboxId);
       }
+
+      let messageId = '';
+      let senderUid = '';
+      let receiverUid = '';
       try {
         const payload = JSON.parse(rawData) as Record<string, unknown>;
+        messageId = cleanText(payload.messageId || payload.entityId);
+        senderUid = cleanText(payload.senderUid);
+        receiverUid = cleanText(payload.receiverUid);
         console.info('[MESSAGE_LIVE_EVENT_RECEIVED]', {
           eventType: eventName,
-          messageId: cleanText(payload.messageId || payload.entityId),
-          playerUid: cleanText(payload.playerUid),
-          coadminUid: cleanText(payload.coadminUid),
-          senderUid: cleanText(payload.senderUid),
-          receiverUid: cleanText(payload.receiverUid),
+          messageId,
+          senderUid,
+          receiverUid,
           outboxId,
+          subscriptionInstanceId,
+          alreadySeenOutbox,
+          delivery: alreadySeenOutbox ? 'duplicate_outbox' : 'first_outbox',
         });
       } catch {
         console.info('[MESSAGE_LIVE_EVENT_RECEIVED]', {
           eventType: eventName,
           outboxId,
+          subscriptionInstanceId,
+          alreadySeenOutbox,
+          delivery: alreadySeenOutbox ? 'duplicate_outbox' : 'first_outbox',
         });
       }
+
+      if (alreadySeenOutbox) {
+        console.info('[MESSAGE_LIVE_REFETCH_DEDUPED]', {
+          reason: 'duplicate_outbox_id',
+          eventType: eventName,
+          messageId: messageId || null,
+          outboxId,
+          subscriptionInstanceId,
+        });
+        return;
+      }
+
+      if (messageId) {
+        const now = Date.now();
+        const previousAt = recentEntityRefetchAt.get(messageId) || 0;
+        if (now - previousAt < ENTITY_REFETCH_DEDUP_MS) {
+          console.info('[MESSAGE_LIVE_REFETCH_DEDUPED]', {
+            reason: 'same_message_id_window',
+            eventType: eventName,
+            messageId,
+            outboxId,
+            subscriptionInstanceId,
+            windowMs: ENTITY_REFETCH_DEDUP_MS,
+          });
+          return;
+        }
+        recentEntityRefetchAt.set(messageId, now);
+        if (recentEntityRefetchAt.size > 200) {
+          const firstKey = recentEntityRefetchAt.keys().next().value;
+          if (firstKey) {
+            recentEntityRefetchAt.delete(firstKey);
+          }
+        }
+      }
+
       scheduleImmediateRefetch(`live:${eventName}`);
     };
 
@@ -433,6 +509,7 @@ function attachChatSqlPoll(input: {
         console.info('[CHAT_STREAM_UNHEALTHY_RESUME_POLL]', {
           pollName,
           selfUid: input.selfUid,
+          subscriptionInstanceId,
           reason: 'sse_error',
           intervalMs: input.pollMs || POLL_MS,
         });
@@ -458,6 +535,7 @@ function attachChatSqlPoll(input: {
       console.info('[CHAT_SAFETY_REFETCH]', {
         pollName,
         selfUid: input.selfUid,
+        subscriptionInstanceId,
         streamHealthy,
       });
       scheduleImmediateRefetch('safety_interval');
