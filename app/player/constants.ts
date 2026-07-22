@@ -30,7 +30,6 @@ export const PLAYER_SPLASH_CARD =
 export const PLAYER_SPLASH_CARD_WIDE =
   'w-full max-w-lg rounded-3xl border border-amber-400/25 bg-gradient-to-b from-[#121018] via-zinc-950/98 to-black p-6 shadow-2xl shadow-amber-500/10 sm:max-w-2xl sm:p-7';
 
-export const BONUS_ROTATE_MS = 7500;
 export const CASINO_BACKGROUND_TRACKS = ['/theme3.mp3'] as const;
 export const PLAYER_MUSIC_STORAGE_KEY = 'playerBackgroundMusicEnabled';
 export const DEFAULT_PLAYER_MUSIC_VOLUME = 0.3;

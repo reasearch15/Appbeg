@@ -22,7 +22,6 @@ import { getLocalAppSessionId } from '@/features/auth/appSession';
 import { getCachedSessionUser, getSessionUserOnce } from '@/features/auth/sessionUser';
 import { useIsPlayerSessionRole } from '@/features/player/useIsPlayerSessionRole';
 import { resolvePlayerRoleForFetch } from '@/lib/client/playerFetchGuard';
-import { startPlayerRoleGuardedInterval } from '@/lib/client/playerPollGuard';
 import { playerDebugLog } from '@/lib/client/playerDebugLogs';
 import { startPlayerRequestSummaryReporter } from '@/lib/client/playerRequestSummary';
 import { getGameLoginsByCoadmin } from '@/features/games/gameLogins';
@@ -158,7 +157,6 @@ import type {
 
 import {
   ACTIVE_TABLE_SPLASH_HISTORY_KEY,
-  BONUS_ROTATE_MS,
   CASINO_BACKGROUND_TRACKS,
   DEFAULT_PLAYER_MUSIC_VOLUME,
   GAME_BACKGROUND_IMAGE_BY_KEY,
@@ -336,8 +334,10 @@ type PlayerTransferDirection = 'cash_to_coin' | 'coin_to_cash';
 
 const PLAYER_RENDER_DEBUG = process.env.NEXT_PUBLIC_PLAYER_RENDER_DEBUG === '1';
 const LOW_PERFORMANCE_REQUEST_HISTORY_DISPLAY = 12;
+const DEFAULT_ROYAL_VIP_TELEGRAM_BOT_URL = 'https://t.me/Royal_Sweeps_bot';
 const ROYAL_VIP_TELEGRAM_BOT_URL = normalizeExternalUrl(
-  process.env.NEXT_PUBLIC_ROYAL_VIP_TELEGRAM_BOT_URL
+  process.env.NEXT_PUBLIC_ROYAL_VIP_TELEGRAM_BOT_URL ||
+    DEFAULT_ROYAL_VIP_TELEGRAM_BOT_URL
 );
 
 // Legacy helper retained only to avoid a broad page rewrite in this pass.
@@ -2290,21 +2290,6 @@ export default function PlayerPage() {
       isCancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    const len = playerBonusEvents.length;
-    if (!isPlayerRole || len <= 1 || bonusStripPaused) {
-      return;
-    }
-    const stop = startPlayerRoleGuardedInterval({
-      pollName: 'player_bonus_carousel',
-      intervalMs: BONUS_ROTATE_MS,
-      onTick: () => {
-        setBonusCarouselIndex((i) => (i + 1) % len);
-      },
-    });
-    return () => stop();
-  }, [playerBonusEvents.length, bonusStripPaused, isPlayerRole]);
 
   useEffect(() => {
     const nextIds = playerBonusEvents.map((e) => e.id);
