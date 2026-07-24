@@ -26,6 +26,17 @@ export function playerDebugLog(message: string, details?: Record<string, unknown
   console.info(message);
 }
 
+export function playerDevLog(message: string, details?: Record<string, unknown>) {
+  if (process.env.NODE_ENV === 'production') {
+    return;
+  }
+  if (details) {
+    console.info(message, details);
+    return;
+  }
+  console.info(message);
+}
+
 /** Startup / lifecycle investigation instrumentation (same gate as playerDebugLog). */
 export function playerStartupDebugLog(message: string, details?: Record<string, unknown>) {
   playerDebugLog(message, details);

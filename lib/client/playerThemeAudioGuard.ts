@@ -5,6 +5,7 @@ const PLAYER_THEME = 'player';
 const WRONG_ROLE_THEME_PATTERN = /(carer|admin|coadmin|staff)/i;
 const ROLE_THEME_STORAGE_PATTERN =
   /(?:carer|admin|coadmin|staff).*(?:theme|music|audio)|(?:theme|music|audio).*(?:carer|admin|coadmin|staff)/i;
+const PLAYER_SOUND_EFFECT_TRACKS = ['/gift.mp3', '/play.mp3', '/urgency-sound.mp3'] as const;
 
 type PlayerThemeGuardInput = {
   currentPath: string;
@@ -36,20 +37,44 @@ function getAudioTheme(audio: HTMLAudioElement) {
   ).toLowerCase();
 }
 
+function getAudioPath(audio: HTMLAudioElement, fallbackSrc?: string | null) {
+  const source = audio.currentSrc || audio.src || fallbackSrc || '';
+  try {
+    return new URL(source, window.location.href).pathname;
+  } catch {
+    return source.split('?')[0].split('#')[0];
+  }
+}
+
+function audioPathMatches(audio: HTMLAudioElement, tracks: readonly string[], fallbackSrc?: string | null) {
+  const path = getAudioPath(audio, fallbackSrc);
+  return tracks.some((track) => path === track || path.endsWith(track));
+}
+
 function isPlayerThemeAudio(audio: HTMLAudioElement, playerTracks: readonly string[]) {
   const theme = getAudioTheme(audio);
   if (theme === PLAYER_THEME) {
     return true;
   }
-  const src = audio.currentSrc || audio.src || '';
-  return playerTracks.some((track) => src.endsWith(track));
+  return audioPathMatches(audio, playerTracks);
+}
+
+function isAllowedPlayerRouteAudio(
+  audio: HTMLAudioElement,
+  playerTracks: readonly string[],
+  fallbackSrc?: string | null
+) {
+  return (
+    isPlayerThemeAudio(audio, playerTracks) ||
+    audioPathMatches(audio, PLAYER_SOUND_EFFECT_TRACKS, fallbackSrc)
+  );
 }
 
 function shouldStopAudio(audio: HTMLAudioElement, playerTracks: readonly string[]) {
   if (audio.paused && audio.currentTime === 0) {
     return false;
   }
-  if (isPlayerThemeAudio(audio, playerTracks)) {
+  if (isAllowedPlayerRouteAudio(audio, playerTracks)) {
     return false;
   }
   const theme = getAudioTheme(audio);
@@ -201,7 +226,7 @@ export function installPlayerThemeAudioGuard(playerTracks: readonly string[]) {
     const nativePlay = audio.play.bind(audio);
     audio.play = (() => {
       const path = window.location.pathname;
-      if (isPlayerPath(path) && !isPlayerThemeAudio(audio, playerTracks)) {
+      if (isPlayerPath(path) && !isAllowedPlayerRouteAudio(audio, playerTracks, src)) {
         stopAudio(audio);
         playerDebugLog('[THEME_AUDIO_GUARD] blockedWrongThemeOnPlayer', {
           currentPath: path,
@@ -212,7 +237,7 @@ export function installPlayerThemeAudioGuard(playerTracks: readonly string[]) {
           stopped: 1,
           source: audio.currentSrc || audio.src || src || null,
         });
-        return Promise.reject(new Error('Blocked non-player theme audio on /player route.'));
+        return Promise.resolve();
       }
       if (isPlayerPath(path) && isPlayerThemeAudio(audio, playerTracks)) {
         stopDuplicatePlayerThemeAudio(audio, playerTracks);
@@ -221,7 +246,7 @@ export function installPlayerThemeAudioGuard(playerTracks: readonly string[]) {
     }) as typeof audio.play;
 
     const path = window.location.pathname;
-    if (isPlayerPath(path) && !isPlayerThemeAudio(audio, playerTracks)) {
+    if (isPlayerPath(path) && !isAllowedPlayerRouteAudio(audio, playerTracks, src)) {
       window.setTimeout(() => {
         if (shouldStopAudio(audio, playerTracks)) {
           stopAudio(audio);

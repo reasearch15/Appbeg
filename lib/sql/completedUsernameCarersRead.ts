@@ -86,7 +86,7 @@ export async function readCompletedUsernameCarersByPlayer(
     );
     const mapping = buildCompletedUsernameCarersMap(rows);
     const durationMs = Date.now() - startedAt;
-    if (isPlayerVerboseLogs() || durationMs >= SQL_QUERY_SLOW_MS) {
+    if (process.env.NODE_ENV !== 'production' && (isPlayerVerboseLogs() || durationMs >= SQL_QUERY_SLOW_MS)) {
       console.info('[COMPLETED_USERNAME_CARERS_SQL_READ]', {
         playerUid: cleanPlayerUid,
         source: 'sql',
@@ -97,13 +97,15 @@ export async function readCompletedUsernameCarersByPlayer(
     }
     return mapping;
   } catch (error) {
-    console.warn('[COMPLETED_USERNAME_CARERS_SQL_READ]', {
-      playerUid: cleanPlayerUid,
-      source: 'sql',
-      ok: false,
-      error: error instanceof Error ? error.message : String(error),
-      durationMs: Date.now() - startedAt,
-    });
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('[COMPLETED_USERNAME_CARERS_SQL_READ]', {
+        playerUid: cleanPlayerUid,
+        source: 'sql',
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+        durationMs: Date.now() - startedAt,
+      });
+    }
     return null;
   }
 }

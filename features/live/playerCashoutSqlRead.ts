@@ -14,7 +14,7 @@ import {
   resolveVisiblePollIntervalMs,
 } from '@/lib/client/hiddenTabPoll';
 import { scheduleSafetyInterval } from '@/lib/client/snapshotPollJitter';
-import { playerDebugLog, playerLiveOpsLog } from '@/lib/client/playerDebugLogs';
+import { playerDebugLog, playerDevLog, playerLiveOpsLog } from '@/lib/client/playerDebugLogs';
 import { withPlayerFetchLifecycleReason } from '@/lib/client/playerFetchLifecycleContext';
 import { isClientSqlReadMode, logClientFirestoreSkipped } from '@/lib/client/sqlReadMode';
 import {
@@ -471,7 +471,7 @@ function attachCashoutSqlPoll(input: {
               pollTimer = null;
             }
           } else if (wasHealthy) {
-            playerLiveOpsLog('[CASHOUT_STREAM_UNHEALTHY_RESUME_POLL]', {
+            playerDevLog('[CASHOUT_STREAM_UNHEALTHY_RESUME_POLL]', {
               scope: input.scope,
               uid: input.uid,
               reason,

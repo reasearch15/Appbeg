@@ -25,7 +25,7 @@ import {
   registerPlayerRuntimeStopper,
 } from '@/lib/client/playerStaleSession';
 import { LIVE_STREAM_DISABLED } from '@/features/live/liveStreamFlags';
-import { playerDebugLog, playerLiveOpsLog } from '@/lib/client/playerDebugLogs';
+import { playerDebugLog, playerDevLog, playerLiveOpsLog } from '@/lib/client/playerDebugLogs';
 import { isPublicPlayerRequestsSqlReadEnabled } from '@/lib/client/sqlPublicFlags';
 
 export const PLAYER_REQUESTS_SQL_READ_ENABLED = isPublicPlayerRequestsSqlReadEnabled();
@@ -1505,7 +1505,7 @@ export function attachPlayerRequestSqlReadListener(
       reconnectAttempt += 1;
       reconnectCycleId += 1;
       const cycleId = reconnectCycleId;
-      playerLiveOpsLog('[PLAYER_LIVE_STREAM_RECONNECT]', {
+      playerDevLog('[PLAYER_LIVE_STREAM_RECONNECT]', {
         playerUid: cleanPlayerUid,
         attempt: reconnectAttempt,
         backoffMs: reconnectBackoffMs,
@@ -1514,7 +1514,7 @@ export function attachPlayerRequestSqlReadListener(
         listenerInstanceId,
         reconnectCycleId: cycleId,
       });
-      playerLiveOpsLog('[PLAYER_LIVE_STREAM_RECONNECT_SCHEDULED]', {
+      playerDevLog('[PLAYER_LIVE_STREAM_RECONNECT_SCHEDULED]', {
         playerUid: cleanPlayerUid,
         channels: streamChannels,
         attempt: reconnectAttempt,

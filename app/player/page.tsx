@@ -22,7 +22,7 @@ import { getLocalAppSessionId } from '@/features/auth/appSession';
 import { getCachedSessionUser, getSessionUserOnce } from '@/features/auth/sessionUser';
 import { useIsPlayerSessionRole } from '@/features/player/useIsPlayerSessionRole';
 import { resolvePlayerRoleForFetch } from '@/lib/client/playerFetchGuard';
-import { playerDebugLog, playerStartupDebugLog } from '@/lib/client/playerDebugLogs';
+import { playerDebugLog, playerDevLog, playerStartupDebugLog } from '@/lib/client/playerDebugLogs';
 import {
   peekPlayerFetchLifecycleReason,
   readSnapshotReasonFromFetchUrl,
@@ -224,7 +224,7 @@ const Lobby = dynamic(() => import('./views/Lobby'), { loading: () => null });
 const Bonus = dynamic(() => import('./views/Bonus'), { loading: () => null });
 function PlayLoadingShell() {
   if (typeof window !== 'undefined') {
-    console.info('[PLAY_PANEL_WAITING_FOR]', {
+    playerDevLog('[PLAY_PANEL_WAITING_FOR]', {
       waitingFor: ['play_component_chunk'],
       source: 'dynamic_import_fallback',
     });
@@ -1555,7 +1555,6 @@ export default function PlayerPage() {
       musicEnabledRef.current && audioRef.current && !audioRef.current.paused
     );
 
-    console.log('Opening game modal: attempting play.mp3');
     playAudio.loop = true;
     playAudio.volume = 0.4;
     playAudio.currentTime = 0;
@@ -1563,7 +1562,6 @@ export default function PlayerPage() {
     try {
       // play() must run in this click handler so the browser allows autoplay.
       await playAudio.play();
-      console.log('play.mp3 started');
       if (themeWasPlaying) {
         audioRef.current?.pause();
         resumeThemeAfterTableRef.current = true;
@@ -1591,8 +1589,6 @@ export default function PlayerPage() {
   }, [getActiveTableSound]);
 
   function closeActiveTableSplash(options?: { fromPopState?: boolean }) {
-    console.log('Game modal closed: resuming theme');
-
     const tableAudio = activeTableSoundRef.current;
     if (tableAudio) {
       tableAudio.pause();
@@ -4853,7 +4849,7 @@ export default function PlayerPage() {
 
     if (!playPanelRenderStartLoggedRef.current) {
       playPanelRenderStartLoggedRef.current = true;
-      console.info('[PLAY_PANEL_RENDER_START]', {
+      playerDevLog('[PLAY_PANEL_RENDER_START]', {
         elapsed_ms: startupNow(),
         source: 'active_view_effect',
         activeView,
@@ -4872,7 +4868,7 @@ export default function PlayerPage() {
     const waitingKey = waitingFor.join('|') || 'none';
     if (playPanelLastWaitingForRef.current !== waitingKey) {
       playPanelLastWaitingForRef.current = waitingKey;
-      console.info('[PLAY_PANEL_WAITING_FOR]', {
+      playerDevLog('[PLAY_PANEL_WAITING_FOR]', {
         elapsed_ms: startupNow(),
         waitingFor,
         notWaitingFor: [
@@ -4895,7 +4891,7 @@ export default function PlayerPage() {
       const reason = !isPlayerRole ? 'player_role_not_confirmed' : 'player_uid_missing';
       if (playPanelBlockedLoggedRef.current !== reason) {
         playPanelBlockedLoggedRef.current = reason;
-        console.info('[PLAY_PANEL_RENDER_BLOCKED]', {
+        playerDevLog('[PLAY_PANEL_RENDER_BLOCKED]', {
           reason,
           elapsed_ms: startupNow(),
         });
@@ -4905,7 +4901,7 @@ export default function PlayerPage() {
 
     if (!playPanelShellLoggedRef.current) {
       playPanelShellLoggedRef.current = true;
-      console.info('[PLAY_PANEL_SHELL_VISIBLE]', {
+      playerDevLog('[PLAY_PANEL_SHELL_VISIBLE]', {
         elapsed_ms: startupNow(),
         hasGameLogins: gameLogins.length > 0,
         gameLoginCount: gameLogins.length,
@@ -4915,7 +4911,7 @@ export default function PlayerPage() {
 
     if (!playPanelNoncriticalDeferredLoggedRef.current) {
       playPanelNoncriticalDeferredLoggedRef.current = true;
-      console.info('[PLAY_PANEL_NONCRITICAL_DEFERRED]', {
+      playerDevLog('[PLAY_PANEL_NONCRITICAL_DEFERRED]', {
         elapsed_ms: startupNow(),
         deferred: [
           'referral_rewards',
@@ -5518,7 +5514,7 @@ export default function PlayerPage() {
   const openPlayView = useCallback((source: string) => {
     if (!playPanelRenderStartLoggedRef.current) {
       playPanelRenderStartLoggedRef.current = true;
-      console.info('[PLAY_PANEL_RENDER_START]', {
+      playerDevLog('[PLAY_PANEL_RENDER_START]', {
         elapsed_ms: startupNow(),
         source,
         activeView,
@@ -6514,7 +6510,7 @@ export default function PlayerPage() {
   const handlePlayCardsRendered = useCallback((input: { count: number; state: string }) => {
     if (!playPanelCardsRenderedLoggedRef.current) {
       playPanelCardsRenderedLoggedRef.current = true;
-      console.info('[PLAY_PANEL_CARDS_RENDERED]', {
+      playerDevLog('[PLAY_PANEL_CARDS_RENDERED]', {
         elapsed_ms: startupNow(),
         count: input.count,
         state: input.state,
@@ -6523,7 +6519,7 @@ export default function PlayerPage() {
     }
     if (!playPanelFullyReadyLoggedRef.current) {
       playPanelFullyReadyLoggedRef.current = true;
-      console.info('[PLAY_PANEL_FULLY_READY]', {
+      playerDevLog('[PLAY_PANEL_FULLY_READY]', {
         elapsed_ms: startupNow(),
         definition: 'play shell rendered and play-data card state resolved',
         cardCount: input.count,
@@ -6541,7 +6537,7 @@ export default function PlayerPage() {
   const handlePlayShellRendered = useCallback(() => {
     if (!playPanelShellRenderedLoggedRef.current) {
       playPanelShellRenderedLoggedRef.current = true;
-      console.info('[PLAY_PANEL_SHELL_RENDERED]', {
+      playerDevLog('[PLAY_PANEL_SHELL_RENDERED]', {
         elapsed_ms: startupNow(),
         gameLoginCount: gameLogins.length,
         loadingList,

@@ -32,6 +32,7 @@ import {
   logSqlClientMigration,
 } from '@/lib/client/sqlClientMigration';
 import { resolveSqlSessionUser } from '@/lib/client/carerSessionIdentity';
+import { playerDevLog } from '@/lib/client/playerDebugLogs';
 import { getSqlApiReadHeaders } from '@/lib/client/sqlApiHeaders';
 import { getStaffAppSessionApiHeaders } from '@/lib/client/staffApiHeaders';
 import { isClientSqlReadMode, logClientFirestoreSkipped } from '@/lib/client/sqlReadMode';
@@ -3418,7 +3419,7 @@ export async function getCompletedUsernameCarersByPlayer(playerUid: string) {
   }
 
   if (isClientSqlReadMode()) {
-    console.info('[COMPLETED_USERNAME_CARERS_FIRESTORE_SKIPPED]', {
+    playerDevLog('[COMPLETED_USERNAME_CARERS_FIRESTORE_SKIPPED]', {
       playerUid,
       sqlMode: true,
       reason: 'sql_read_mode',
@@ -3437,18 +3438,20 @@ export async function getCompletedUsernameCarersByPlayer(playerUid: string) {
         mapping?: Record<string, string[]>;
       };
       if (!response.ok) {
-        console.warn('[COMPLETED_USERNAME_CARERS_SQL_READ]', {
-          playerUid,
-          source: 'sql',
-          count: 0,
-          firestoreAttempted: false,
-          ok: false,
-          status: response.status,
-        });
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('[COMPLETED_USERNAME_CARERS_SQL_READ]', {
+            playerUid,
+            source: 'sql',
+            count: 0,
+            firestoreAttempted: false,
+            ok: false,
+            status: response.status,
+          });
+        }
         return {} as Record<string, string[]>;
       }
       const mapping = payload.mapping || {};
-      console.info('[COMPLETED_USERNAME_CARERS_SQL_READ]', {
+      playerDevLog('[COMPLETED_USERNAME_CARERS_SQL_READ]', {
         playerUid,
         source: 'sql',
         count: Object.keys(mapping).length,
@@ -3456,14 +3459,16 @@ export async function getCompletedUsernameCarersByPlayer(playerUid: string) {
       });
       return mapping;
     } catch (error) {
-      console.warn('[COMPLETED_USERNAME_CARERS_SQL_READ]', {
-        playerUid,
-        source: 'sql',
-        count: 0,
-        firestoreAttempted: false,
-        ok: false,
-        error: error instanceof Error ? error.message : String(error),
-      });
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('[COMPLETED_USERNAME_CARERS_SQL_READ]', {
+          playerUid,
+          source: 'sql',
+          count: 0,
+          firestoreAttempted: false,
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
       return {} as Record<string, string[]>;
     }
   }
