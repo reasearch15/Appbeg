@@ -26,7 +26,7 @@ export function playerDebugLog(message: string, details?: Record<string, unknown
   console.info(message);
 }
 
-export function playerDevLog(message: string, details?: Record<string, unknown>) {
+export function playerDevLog(message: string, details?: unknown) {
   if (process.env.NODE_ENV === 'production') {
     return;
   }

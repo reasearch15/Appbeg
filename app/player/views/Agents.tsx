@@ -2,6 +2,7 @@
 
 import { memo, useRef } from 'react';
 import ReachOutView from '@/components/admin/ReachOutView';
+import { playerDevLog } from '@/lib/client/playerDebugLogs';
 import { usePlayerRenderPerf } from '../performance';
 
 type Props = Record<string, any>;
@@ -39,7 +40,7 @@ function Agents(props: Props) {
 
   if (PLAYER_RENDER_DEBUG) {
     renderDebugCountRef.current += 1;
-    console.info('[PLAYER_RENDER_DEBUG]', {
+    playerDevLog('[PLAYER_RENDER_DEBUG]', {
       component: 'Agents',
       count: renderDebugCountRef.current,
       isChatOpen,

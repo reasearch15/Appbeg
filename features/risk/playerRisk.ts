@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore';
 
 import { assertClientFirestoreDisabled } from '@/lib/client/clientFirestoreGuard';
+import { playerDevLog } from '@/lib/client/playerDebugLogs';
 import { auth, db } from '@/lib/firebase/client';
 import { resolveCoadminUid } from '@/lib/coadmin/scope';
 import {
@@ -77,17 +78,17 @@ async function postPlayerTransferApi(input: {
   transferId?: string;
   failureFallback: string;
 }) {
-  console.info('[PLAYER_TRANSFER_FETCH_CREDENTIALS]', {
+  playerDevLog('[PLAYER_TRANSFER_FETCH_CREDENTIALS]', {
     include: true,
     direction: input.direction,
     transferId: input.transferId || null,
   });
-  console.info('[PLAYER_TRANSFER_API_REQUEST]', {
+  playerDevLog('[PLAYER_TRANSFER_API_REQUEST]', {
     direction: input.direction,
     transferId: input.transferId || null,
     ...input.body,
   });
-  console.info('[PLAYER_TRANSFER_CLIENT_FIRESTORE_BLOCKED]', {
+  playerDevLog('[PLAYER_TRANSFER_CLIENT_FIRESTORE_BLOCKED]', {
     direction: input.direction,
     reason: 'server_sql_authority_route',
   });
@@ -98,7 +99,7 @@ async function postPlayerTransferApi(input: {
   } catch (error) {
     const errorMessage =
       mapPlayerTransferAuthError(error) || input.failureFallback;
-    console.info('[PLAYER_TRANSFER_API_ERROR]', {
+    playerDevLog('[PLAYER_TRANSFER_API_ERROR]', {
       direction: input.direction,
       transferId: input.transferId || null,
       status: null,
@@ -116,7 +117,7 @@ async function postPlayerTransferApi(input: {
   });
 
   const payload = (await response.json().catch(() => ({}))) as PlayerTransferApiPayload;
-  console.info('[PLAYER_TRANSFER_API_RESPONSE]', {
+  playerDevLog('[PLAYER_TRANSFER_API_RESPONSE]', {
     direction: input.direction,
     transferId: input.transferId || null,
     ok: response.ok,
@@ -131,7 +132,7 @@ async function postPlayerTransferApi(input: {
       payload,
       input.failureFallback
     );
-    console.info('[PLAYER_TRANSFER_API_ERROR]', {
+    playerDevLog('[PLAYER_TRANSFER_API_ERROR]', {
       direction: input.direction,
       transferId: input.transferId || null,
       status: response.status,

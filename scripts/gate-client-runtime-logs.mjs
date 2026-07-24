@@ -19,7 +19,6 @@ const files = [
   'lib/client/sqlLogoutCleanup.ts',
   'features/player/playerBaseData.ts',
   'lib/pwa/installPromptStore.ts',
-  'components/client/PwaInstallPromptBootstrapScript.tsx',
   'app/player/hooks/usePwaInstall.ts',
   'app/install/InstallPageClient.tsx',
 ];

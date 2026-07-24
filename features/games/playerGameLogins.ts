@@ -19,6 +19,7 @@ import { auth, db } from '@/lib/firebase/client';
 import { getSqlApiReadHeaders } from '@/lib/client/sqlApiHeaders';
 import { getFirebaseApiHeaders } from '@/lib/firebase/apiClient';
 import { assertClientFirestoreDisabled } from '@/lib/client/clientFirestoreGuard';
+import { playerDevLog } from '@/lib/client/playerDebugLogs';
 import {
   logClientFirebaseRuntimeRemoved,
   logSqlClientMigration,
@@ -79,7 +80,7 @@ async function tryReadPlayerGameLoginsCacheByCoadmin(
       }
     );
     if (!response.ok) {
-      console.info('[PLAYER_GAME_LOGINS_CACHE_READ] source=firestore_fallback', {
+      playerDevLog('[PLAYER_GAME_LOGINS_CACHE_READ] source=firestore_fallback', {
         coadminUid: cleanCoadminUid,
         reason: `cache_api_status_${response.status}`,
         durationMs: Date.now() - startedAt,
@@ -92,14 +93,14 @@ async function tryReadPlayerGameLoginsCacheByCoadmin(
       source?: string;
     };
     if (Array.isArray(payload.playerGameLogins)) {
-      console.info(
+      playerDevLog(
         `[PLAYER_GAME_LOGINS_CACHE_READ] source=${payload.source === 'postgres' ? 'postgres' : 'firestore_fallback'} coadminUid=${cleanCoadminUid} count=${payload.playerGameLogins.length} durationMs=${Date.now() - startedAt}`
       );
       return payload.playerGameLogins;
     }
     return null;
   } catch (error) {
-    console.info('[PLAYER_GAME_LOGINS_CACHE_READ] source=firestore_fallback', {
+    playerDevLog('[PLAYER_GAME_LOGINS_CACHE_READ] source=firestore_fallback', {
       coadminUid: cleanCoadminUid,
       reason: 'cache_api_failed',
       durationMs: Date.now() - startedAt,
@@ -432,9 +433,12 @@ export async function getPlayerGameLoginsByCoadminSqlFirst(
 
   const startedAt = Date.now();
   const logins = await getPlayerGameLoginsByCoadmin(coadminUid);
-  console.info(
-    `[PLAYER_GAME_LOGINS_CACHE_READ] source=firestore_fallback coadminUid=${coadminUid.trim()} count=${logins.length} durationMs=${Date.now() - startedAt}`
-  );
+  playerDevLog('[PLAYER_GAME_LOGINS_CACHE_READ]', {
+    source: 'firestore_fallback',
+    coadminUid: coadminUid.trim(),
+    count: logins.length,
+    durationMs: Date.now() - startedAt,
+  });
   return logins;
 }
 

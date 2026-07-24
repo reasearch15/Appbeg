@@ -12,6 +12,17 @@ import {
   toIsoString,
 } from '@/lib/sql/playerMirrorCommon';
 
+function logPlayerCacheInfo(message: string, details?: unknown) {
+  if (process.env.NODE_ENV === 'production') {
+    return;
+  }
+  if (details === undefined) {
+    console.info(message);
+    return;
+  }
+  console.info(message, details);
+}
+
 function booleanOrNull(value: unknown): boolean | null {
   return typeof value === 'boolean' ? value : null;
 }
@@ -140,7 +151,7 @@ export async function upsertPlayerSessionCache(
         source,
       ]
     );
-    console.info('[PLAYER_SESSIONS_CACHE] mirror upsert ok', {
+    logPlayerCacheInfo('[PLAYER_SESSIONS_CACHE] mirror upsert ok', {
       sessionId: cleanSessionId,
       playerUid,
     });
@@ -220,7 +231,7 @@ export async function lookupPlayerSessionOwnerFromSql(sessionId: string) {
       expiresAt: toIsoString(row.expires_at),
     };
   } catch (error) {
-    console.info('[PLAYER_SESSIONS_CACHE] owner_lookup_failed', {
+    logPlayerCacheInfo('[PLAYER_SESSIONS_CACHE] owner_lookup_failed', {
       sessionId: cleanSessionId,
       error: error instanceof Error ? error.message : String(error),
     });

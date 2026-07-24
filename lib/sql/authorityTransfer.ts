@@ -830,14 +830,16 @@ export async function transferPlayerBalancesInSql(input: {
       coin: newCoin,
       updatedAt: nowIso,
     });
-    console.info('[PLAYER_BALANCE_EVENT]', {
-      playerUid,
-      direction,
-      transferId,
-      cash: newCash,
-      coin: newCoin,
-      source: 'authority_transfer',
-    });
+    if (process.env.NODE_ENV !== 'production') {
+      console.info('[PLAYER_BALANCE_EVENT]', {
+        playerUid,
+        direction,
+        transferId,
+        cash: newCash,
+        coin: newCoin,
+        source: 'authority_transfer',
+      });
+    }
 
     const resultPayload = {
       cash: newCash,

@@ -1176,7 +1176,7 @@ export async function upsertCarerTaskForPlayerGameRequest(
     ? toCarerTask(existingSnap.id, existingSnap.data() as Omit<CarerTask, 'id'>)
     : undefined;
   if (existingTask) {
-    console.info('[PLAYER_GAME_REQUEST] client task upsert skipped existing server task', {
+    playerDevLog('[PLAYER_GAME_REQUEST] client task upsert skipped existing server task', {
       requestId: authoritativeRequest.id,
       taskId: taskRef.id,
       type: authoritativeRequest.type,
@@ -2813,7 +2813,7 @@ async function postPlayerCredentialTaskViaSql(values: {
   });
   const hasAppSessionId = Boolean(headers['X-App-Session-Id']);
   const hasPlayerSessionId = Boolean(headers['X-Player-Session-Id']);
-  console.info('[PLAYER_VAULT_RESET_PASSWORD_AUTH_AUDIT]', {
+  playerDevLog('[PLAYER_VAULT_RESET_PASSWORD_AUTH_AUDIT]', {
     file: 'features/games/carerTasks.ts',
     function: 'postPlayerCredentialTaskViaSql',
     authSource: 'app_session_sql',
@@ -2839,7 +2839,7 @@ async function postPlayerCredentialTaskViaSql(values: {
     error?: string;
     taskId?: string;
   };
-  console.info('[PLAYER_VAULT_RESET_PASSWORD_REQUEST]', {
+  playerDevLog('[PLAYER_VAULT_RESET_PASSWORD_REQUEST]', {
     route: '/api/player/credential-tasks',
     method: 'POST',
     status: response.status,
@@ -2871,7 +2871,7 @@ export async function createPlayerCredentialTask(values: {
       replacement: 'POST /api/player/credential-tasks',
     });
     const sqlMode = true;
-    console.info('[PLAYER_VAULT_RESET_PASSWORD_CLICK]', {
+    playerDevLog('[PLAYER_VAULT_RESET_PASSWORD_CLICK]', {
       playerUid: values.playerUid,
       gameLoginId: values.gameLoginId || null,
       gameName: values.gameName,
@@ -2889,7 +2889,7 @@ export async function createPlayerCredentialTask(values: {
       result: 'ok',
       fallbackUsed: false,
     });
-    console.info('[PLAYER_CREDENTIAL_TASK_SQL_SKIP_REFRESH]', {
+    playerDevLog('[PLAYER_CREDENTIAL_TASK_SQL_SKIP_REFRESH]', {
       taskId,
       type: values.taskType,
       reason: 'sql_listener_authority',

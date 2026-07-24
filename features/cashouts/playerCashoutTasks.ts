@@ -23,6 +23,7 @@ import {
   isPlayerCashoutSqlReadEnabled,
 } from '@/features/live/playerCashoutSqlRead';
 import { assertClientFirestoreDisabled } from '@/lib/client/clientFirestoreGuard';
+import { playerDevLog } from '@/lib/client/playerDebugLogs';
 import { getFirebaseApiHeaders } from '@/lib/firebase/apiClient';
 import {
   getStaffAppSessionApiHeaders,
@@ -423,7 +424,7 @@ export async function createPlayerCashoutTask(values: {
     idempotencyKey,
   };
 
-  console.info('[PLAYER_CASHOUT_REQUEST_BODY]', requestBody);
+  playerDevLog('[PLAYER_CASHOUT_REQUEST_BODY]', requestBody);
 
   const response = await fetch('/api/player/cashout-tasks/create', {
     method: 'POST',
@@ -454,7 +455,7 @@ export async function createPlayerCashoutTask(values: {
     throw new Error(readApiError('Failed to create cashout request.', payload));
   }
 
-  console.info('[PLAYER_CASHOUT_RESPONSE]', {
+  playerDevLog('[PLAYER_CASHOUT_RESPONSE]', {
     status: response.status,
     taskId: payload.taskId || null,
     authority: payload.authority || null,

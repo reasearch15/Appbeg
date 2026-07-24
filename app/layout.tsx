@@ -3,8 +3,6 @@ import { Geist, Geist_Mono } from "next/font/google";
 
 import LoginProgressOverlay from "@/components/auth/LoginProgressOverlay";
 import ClientFirestoreRuntimeAudit from "@/components/client/ClientFirestoreRuntimeAudit";
-import PwaInstallPromptBootstrapScript from "@/components/client/PwaInstallPromptBootstrapScript";
-import PwaInstallPromptCapture from "@/components/client/PwaInstallPromptCapture";
 import {
   PWA_APP_NAME,
   PWA_BACKGROUND_COLOR,
@@ -65,8 +63,6 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <PwaInstallPromptBootstrapScript />
-        <PwaInstallPromptCapture />
         <ClientFirestoreRuntimeAudit />
         <LoginProgressOverlay />
         {children}

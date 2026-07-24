@@ -21,6 +21,17 @@ export type PlayerCashoutTaskCacheInput = {
   source?: string;
 } & Record<string, unknown>;
 
+function logPlayerCacheInfo(message: string, details?: unknown) {
+  if (process.env.NODE_ENV === 'production') {
+    return;
+  }
+  if (details === undefined) {
+    console.info(message);
+    return;
+  }
+  console.info(message, details);
+}
+
 function booleanOrNull(value: unknown) {
   return typeof value === 'boolean' ? value : null;
 }
@@ -122,7 +133,7 @@ export async function upsertPlayerCashoutTaskCache(input: PlayerCashoutTaskCache
         JSON.stringify(normalizeJson(input.rawFirestoreData || {}) || {}),
       ]
     );
-    console.info('[PLAYER_CASHOUT_TASKS_CACHE] mirror upsert ok', { firebaseId });
+    logPlayerCacheInfo('[PLAYER_CASHOUT_TASKS_CACHE] mirror upsert ok', { firebaseId });
     return true;
   } catch (error) {
     console.error('[PLAYER_CASHOUT_TASKS_CACHE] mirror failed', { firebaseId, error });
@@ -169,7 +180,7 @@ export async function tombstonePlayerCashoutTaskCache(firebaseId: string, source
       `,
       [cleanId, source]
     );
-    console.info('[PLAYER_CASHOUT_TASKS_CACHE] tombstone ok', { firebaseId: cleanId });
+    logPlayerCacheInfo('[PLAYER_CASHOUT_TASKS_CACHE] tombstone ok', { firebaseId: cleanId });
     return true;
   } catch (error) {
     console.error('[PLAYER_CASHOUT_TASKS_CACHE] mirror failed', { firebaseId: cleanId, error });
@@ -255,7 +266,7 @@ async function readPlayerCashoutTasksBySql(
       .filter((task): task is CachedPlayerCashoutTask => Boolean(task));
     const durationMs = Date.now() - startedAt;
     if (isSqlCacheVerboseLogs() || durationMs >= SQL_QUERY_SLOW_MS) {
-      console.info('[PLAYER_CASHOUT_TASKS_CACHE] read ok', {
+      logPlayerCacheInfo('[PLAYER_CASHOUT_TASKS_CACHE] read ok', {
         label,
         count: tasks.length,
         durationMs,

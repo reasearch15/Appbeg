@@ -4,6 +4,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, MouseEvent, SetStateAction } from 'react';
 import { motion } from 'motion/react';
 import type { PlayerGameLogin } from '@/features/games/playerGameLogins';
+import { playerDevLog } from '@/lib/client/playerDebugLogs';
 import { UNKNOWN_CREATOR_FILTER_KEY } from '../constants';
 import { warmPlayerImages } from '../playerAssetPreload';
 import { usePlayerRenderPerf } from '../performance';
@@ -275,7 +276,7 @@ function Vault(props: VaultProps) {
       return;
     }
     renderDebugCountRef.current += 1;
-    console.info('[PLAYER_RENDER_DEBUG]', {
+    playerDevLog('[PLAYER_RENDER_DEBUG]', {
       component: 'Vault',
       count: renderDebugCountRef.current,
       lowPerformanceMode,

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { playerDevLog } from '@/lib/client/playerDebugLogs';
 
 type PlayerPerfDetail = Record<string, unknown>;
 
@@ -33,7 +34,7 @@ export function markPlayerPerf(name: string, detail: PlayerPerfDetail = {}) {
   }
   const atMs = Math.round(nowMs());
   safeMark(`player:${name}:${atMs}`);
-  console.info('[PLAYER_PERF]', {
+  playerDevLog('[PLAYER_PERF]', {
     name,
     atMs,
     ...detail,

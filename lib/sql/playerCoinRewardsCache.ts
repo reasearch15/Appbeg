@@ -17,6 +17,17 @@ export type PlayerCoinRewardCacheInput = {
   source?: string;
 } & Record<string, unknown>;
 
+function logPlayerCacheInfo(message: string, details?: unknown) {
+  if (process.env.NODE_ENV === 'production') {
+    return;
+  }
+  if (details === undefined) {
+    console.info(message);
+    return;
+  }
+  console.info(message, details);
+}
+
 function toCacheInput(firebaseId: string, data: Record<string, unknown>, source: string) {
   return {
     firebaseId,
@@ -76,7 +87,7 @@ export async function upsertPlayerCoinRewardCache(input: PlayerCoinRewardCacheIn
         JSON.stringify(normalizeJson(input.rawFirestoreData || {}) || {}),
       ]
     );
-    console.info('[PLAYER_COIN_REWARDS_CACHE] mirror upsert ok', { firebaseId });
+    logPlayerCacheInfo('[PLAYER_COIN_REWARDS_CACHE] mirror upsert ok', { firebaseId });
     return true;
   } catch (error) {
     console.error('[PLAYER_COIN_REWARDS_CACHE] mirror failed', { firebaseId, error });
@@ -123,7 +134,7 @@ export async function tombstonePlayerCoinRewardCache(firebaseId: string, source 
       `,
       [cleanId, source]
     );
-    console.info('[PLAYER_COIN_REWARDS_CACHE] tombstone ok', { firebaseId: cleanId });
+    logPlayerCacheInfo('[PLAYER_COIN_REWARDS_CACHE] tombstone ok', { firebaseId: cleanId });
     return true;
   } catch (error) {
     console.error('[PLAYER_COIN_REWARDS_CACHE] mirror failed', { firebaseId: cleanId, error });

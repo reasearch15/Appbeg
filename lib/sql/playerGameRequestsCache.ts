@@ -21,6 +21,17 @@ export type PlayerGameRequestCacheInput = {
   source?: string;
 } & Record<string, unknown>;
 
+function logPlayerCacheInfo(message: string, details?: unknown) {
+  if (process.env.NODE_ENV === 'production') {
+    return;
+  }
+  if (details === undefined) {
+    console.info(message);
+    return;
+  }
+  console.info(message, details);
+}
+
 function normalizeGameName(value: unknown) {
   return cleanText(value).toLowerCase().replace(/[^a-z0-9]+/g, '_');
 }
@@ -192,7 +203,7 @@ export async function upsertPlayerGameRequestCache(input: PlayerGameRequestCache
         JSON.stringify(normalizeJson(input.rawFirestoreData || {}) || {}),
       ]
     );
-    console.info('[PLAYER_GAME_REQUESTS_CACHE] mirror upsert ok', { firebaseId });
+    logPlayerCacheInfo('[PLAYER_GAME_REQUESTS_CACHE] mirror upsert ok', { firebaseId });
     void emitPlayerRequestOutboxEvent({
       firebaseId,
       playerUid: cleanText(input.playerUid || input.playerId),
@@ -271,7 +282,7 @@ export async function tombstonePlayerGameRequestCache(firebaseId: string, source
       `,
       [cleanId, source]
     );
-    console.info('[PLAYER_GAME_REQUESTS_CACHE] tombstone ok', { firebaseId: cleanId });
+    logPlayerCacheInfo('[PLAYER_GAME_REQUESTS_CACHE] tombstone ok', { firebaseId: cleanId });
     if (playerUid) {
       void emitPlayerRequestOutboxEvent({
         firebaseId: cleanId,
@@ -282,7 +293,7 @@ export async function tombstonePlayerGameRequestCache(firebaseId: string, source
         mirroredAt: new Date().toISOString(),
       }).catch(() => undefined);
     } else {
-      console.info('[LIVE_OUTBOX] failed', {
+      logPlayerCacheInfo('[LIVE_OUTBOX] failed', {
         reason: 'tombstone_player_uid_unavailable',
         firebaseId: cleanId,
       });
@@ -366,7 +377,7 @@ export async function hasFirstRechargeMatchAppliedFromSql(
       FIRST_RECHARGE_MATCH_APPLIED_SQL,
       [cleanPlayerUid]
     );
-    console.info('[PLAYER_GAME_REQUESTS_CACHE] first_recharge_match_applied read ok', {
+    logPlayerCacheInfo('[PLAYER_GAME_REQUESTS_CACHE] first_recharge_match_applied read ok', {
       playerUid: cleanPlayerUid,
       hasApplied: rows.length > 0,
       durationMs: Date.now() - startedAt,
@@ -425,7 +436,7 @@ export async function readCompletedRechargeRequestsForPlayer(
       COMPLETED_RECHARGES_BY_PLAYER_SQL,
       [cleanPlayerUid]
     );
-    console.info('[PLAYER_GAME_REQUESTS_CACHE] completed_recharges read ok', {
+    logPlayerCacheInfo('[PLAYER_GAME_REQUESTS_CACHE] completed_recharges read ok', {
       playerUid: cleanPlayerUid,
       count: rows.length,
       durationMs: Date.now() - startedAt,

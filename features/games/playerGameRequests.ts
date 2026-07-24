@@ -30,6 +30,7 @@ import {
 } from '@/lib/coadmin/scope';
 import { completedPlayerGameRequestTtl } from '@/lib/firestore/ttl';
 import { assertClientFirestoreDisabled } from '@/lib/client/clientFirestoreGuard';
+import { playerDevLog } from '@/lib/client/playerDebugLogs';
 import { isClientSqlReadMode, logClientFirestoreSkipped } from '@/lib/client/sqlReadMode';
 
 export type PlayerGameRequestType = 'recharge' | 'redeem';
@@ -284,7 +285,7 @@ async function resolvePlayerActorUid(): Promise<string> {
 }
 
 function logPlayerRechargeRequestAuth(headers: Record<string, string>) {
-  console.info('[PLAYER_RECHARGE_REQUEST_AUTH]', {
+  playerDevLog('[PLAYER_RECHARGE_REQUEST_AUTH]', {
     hasAppSession: Boolean(headers['X-App-Session-Id']),
     hasPlayerSession: Boolean(headers['X-Player-Session-Id']),
     hasFirebaseUser: Boolean(auth.currentUser),
@@ -313,7 +314,7 @@ function readApiError(messageFallback: string, payload: unknown) {
 }
 
 function logPostApiSqlSkip(requestId: string, type: PlayerGameRequestType) {
-  console.info('[PLAYER_GAME_REQUEST_POST_API_SQL_SKIP]', {
+  playerDevLog('[PLAYER_GAME_REQUEST_POST_API_SQL_SKIP]', {
     requestId,
     type,
     reason: 'server_sql_authority_creates_carer_task',
@@ -325,7 +326,7 @@ async function finalizePlayerGameRequestAfterApi(
   requestId: string,
   type: PlayerGameRequestType
 ) {
-  console.info('[PLAYER_GAME_REQUEST] server-created linked task expected', {
+  playerDevLog('[PLAYER_GAME_REQUEST] server-created linked task expected', {
     requestId,
     type,
   });
@@ -692,7 +693,7 @@ export async function createPlayerGameRequest(values: {
       );
     }
   } else {
-    console.info('[PLAYER_REDEEM_CLIENT_SQL_PATH]', {
+    playerDevLog('[PLAYER_REDEEM_CLIENT_SQL_PATH]', {
       playerUid,
       gameName: cleanGameName,
       amount: requestAmount,

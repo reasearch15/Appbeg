@@ -36,6 +36,17 @@ export type PlayerGameLoginCacheInput = {
   source?: string;
 };
 
+function logPlayerCacheInfo(message: string, details?: unknown) {
+  if (process.env.NODE_ENV === 'production') {
+    return;
+  }
+  if (details === undefined) {
+    console.info(message);
+    return;
+  }
+  console.info(message, details);
+}
+
 function normalizeGameName(value: unknown) {
   return cleanText(value).toLowerCase().replace(/[^a-z0-9]+/g, '_');
 }
@@ -166,7 +177,7 @@ export async function upsertPlayerGameLoginCache(input: PlayerGameLoginCacheInpu
         JSON.stringify(normalizeJson(input.rawFirestoreData || {}) || {}),
       ]
     );
-    console.info('[PLAYER_GAME_LOGINS_CACHE] mirror upsert ok', { firebaseId });
+    logPlayerCacheInfo('[PLAYER_GAME_LOGINS_CACHE] mirror upsert ok', { firebaseId });
     return true;
   } catch (error) {
     console.error('[PLAYER_GAME_LOGINS_CACHE] mirror failed', { firebaseId, error });
@@ -220,7 +231,7 @@ export async function tombstonePlayerGameLoginCache(firebaseId: string, source =
       `,
       [cleanId, source]
     );
-    console.info('[PLAYER_GAME_LOGINS_CACHE] tombstone ok', { firebaseId: cleanId });
+    logPlayerCacheInfo('[PLAYER_GAME_LOGINS_CACHE] tombstone ok', { firebaseId: cleanId });
     return true;
   } catch (error) {
     console.error('[PLAYER_GAME_LOGINS_CACHE] mirror failed', { firebaseId: cleanId, error });

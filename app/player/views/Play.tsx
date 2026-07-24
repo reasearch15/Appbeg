@@ -3,6 +3,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import type { PlayerGameLogin } from '@/features/games/playerGameLogins';
+import { playerDevLog } from '@/lib/client/playerDebugLogs';
 import { warmPlayerImages } from '../playerAssetPreload';
 import { usePlayerRenderPerf } from '../performance';
 import { getGameBackgroundImage } from '../utils';
@@ -52,7 +53,7 @@ function Play(props: Props) {
 
   if (PLAYER_RENDER_DEBUG) {
     renderDebugCountRef.current += 1;
-    console.info('[PLAYER_RENDER_DEBUG]', {
+    playerDevLog('[PLAYER_RENDER_DEBUG]', {
       component: 'Play',
       count: renderDebugCountRef.current,
       lowPerformanceMode,

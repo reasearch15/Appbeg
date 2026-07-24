@@ -694,7 +694,7 @@ export default function PlayerPage() {
 
   if (PLAYER_RENDER_DEBUG) {
     renderDebugCountRef.current += 1;
-    console.info('[PLAYER_RENDER_DEBUG]', {
+    playerDevLog('[PLAYER_RENDER_DEBUG]', {
       component: 'PlayerPage',
       count: renderDebugCountRef.current,
       activeView,
@@ -709,7 +709,7 @@ export default function PlayerPage() {
     });
     if (showCashoutModal) {
       cashoutModalRenderDebugCountRef.current += 1;
-      console.info('[PLAYER_RENDER_DEBUG]', {
+      playerDevLog('[PLAYER_RENDER_DEBUG]', {
         component: 'CashoutModal',
         count: cashoutModalRenderDebugCountRef.current,
         lowPerformanceMode,
@@ -718,7 +718,7 @@ export default function PlayerPage() {
     }
     if (showActiveTableSplash) {
       activeTableRenderDebugCountRef.current += 1;
-      console.info('[PLAYER_RENDER_DEBUG]', {
+      playerDevLog('[PLAYER_RENDER_DEBUG]', {
         component: 'ActiveTableModal',
         count: activeTableRenderDebugCountRef.current,
         lowPerformanceMode,
@@ -1603,7 +1603,7 @@ export default function PlayerPage() {
     if (!options?.fromPopState && hasActiveTableSplashHistoryState()) {
       activeTableHistoryOpenRef.current = false;
       pwaBackHandledByOverlayRef.current = true;
-      console.info('[PLAYER_HISTORY_BACK]', {
+      playerDevLog('[PLAYER_HISTORY_BACK]', {
         reason: 'close_active_table_splash',
         currentPath: window.location.pathname,
       });
@@ -1887,7 +1887,7 @@ export default function PlayerPage() {
         return false;
       }
 
-      console.info('[PLAYER_BACK_NAVIGATION]', {
+      playerDevLog('[PLAYER_BACK_NAVIGATION]', {
         fromSection,
         toSection,
       });
@@ -2170,7 +2170,7 @@ export default function PlayerPage() {
         return false;
       }
       if (baseDataLoadedRef.current) {
-        console.info('[PLAYER_INDIVIDUAL_LOADER_SKIP]', {
+        playerDevLog('[PLAYER_INDIVIDUAL_LOADER_SKIP]', {
           loader,
           reason: 'base_data_loaded',
         });
@@ -2521,7 +2521,7 @@ export default function PlayerPage() {
           previousStatus !== 'completed';
 
         if (justCompleted && !seenCompletedRechargeSplashIdsRef.current.has(request.id)) {
-          console.info('[PLAYER_RECHARGE_SUCCESS_TOAST_SHOW]', {
+          playerDevLog('[PLAYER_RECHARGE_SUCCESS_TOAST_SHOW]', {
             requestId: request.id,
             source: 'request_history_transition',
           });
@@ -2541,7 +2541,7 @@ export default function PlayerPage() {
           !seenDismissedRechargeSplashIdsRef.current.has(request.id)
         ) {
           if (requestMatchesPlayerInGameDismiss(request)) {
-            console.info('[PLAYER_IN_GAME_SPLASH_SHOW]', {
+            playerDevLog('[PLAYER_IN_GAME_SPLASH_SHOW]', {
               requestId: request.id,
               source: 'request_history_transition',
               message: playerInGameDismissSplashMessage({
@@ -2552,7 +2552,7 @@ export default function PlayerPage() {
               }),
             });
           } else {
-            console.info('[PLAYER_TOAST_SHOW]', {
+            playerDevLog('[PLAYER_TOAST_SHOW]', {
               requestId: request.id,
               source: 'request_history_transition',
               pokeMessage: request.pokeMessage || null,
@@ -2576,7 +2576,7 @@ export default function PlayerPage() {
         previousStatus !== 'completed';
 
       if (justCompleted && !seenCompletedRedeemSplashIdsRef.current.has(request.id)) {
-        console.info('[PLAYER_REQUEST_OUTCOME_TOAST_SHOW]', {
+        playerDevLog('[PLAYER_REQUEST_OUTCOME_TOAST_SHOW]', {
           requestId: request.id,
           source: 'request_history_transition',
           outcomeType: 'redeem_completed',
@@ -2595,13 +2595,13 @@ export default function PlayerPage() {
 
       if (shouldShowDismissSplash) {
         if (requestMatchesFakeRedeemDismiss(request)) {
-          console.info('[PLAYER_REDEEM_DISMISS_TOAST_SHOW]', {
+          playerDevLog('[PLAYER_REDEEM_DISMISS_TOAST_SHOW]', {
             requestId: request.id,
             source: 'request_history_transition',
             message: fakeRedeemDismissSplashMessage(request),
           });
         } else if (requestMatchesPlayerInGameDismiss(request)) {
-          console.info('[PLAYER_IN_GAME_SPLASH_SHOW]', {
+          playerDevLog('[PLAYER_IN_GAME_SPLASH_SHOW]', {
             requestId: request.id,
             source: 'request_history_transition',
             message: playerInGameDismissSplashMessage({
@@ -3197,7 +3197,7 @@ export default function PlayerPage() {
       });
       if (!response.ok) {
         setAgentsIfChanged([]);
-        console.info('[PLAYER_STAFF_LIST]', {
+        playerDevLog('[PLAYER_STAFF_LIST]', {
           ok: false,
           status: response.status,
           durationMs: Date.now() - startedAt,
@@ -3211,7 +3211,7 @@ export default function PlayerPage() {
       };
       const staff = Array.isArray(payload.staff) ? payload.staff : [];
       setAgentsIfChanged(staff);
-      console.info('[PLAYER_STAFF_LIST]', {
+      playerDevLog('[PLAYER_STAFF_LIST]', {
         ok: true,
         count: staff.length,
         source: payload.source || 'unknown',
@@ -3219,7 +3219,7 @@ export default function PlayerPage() {
       });
     } catch (error) {
       if (error instanceof PlayerSessionStaleError) {
-        console.info('[PLAYER_STAFF_LIST]', {
+        playerDevLog('[PLAYER_STAFF_LIST]', {
           ok: false,
           reason: error.message,
           stale_ignored: true,
@@ -3229,7 +3229,7 @@ export default function PlayerPage() {
       }
       setAgentsIfChanged([]);
       reportPlayerUiError('player_staff_list', error, setMessage, 'Failed to load agents.');
-      console.info('[PLAYER_STAFF_LIST]', {
+      playerDevLog('[PLAYER_STAFF_LIST]', {
         ok: false,
         reason: error instanceof Error ? error.message : 'load_failed',
         durationMs: Date.now() - startedAt,
@@ -3421,7 +3421,7 @@ export default function PlayerPage() {
 
       if (!sessionUser || sessionUser.role !== 'player') {
         if (sessionUser && sessionUser.role !== 'player') {
-          console.info('[PLAYER_FETCH_BLOCKED_ROLE]', {
+          playerDevLog('[PLAYER_FETCH_BLOCKED_ROLE]', {
             route: '/player',
             uid: sessionUser.uid,
             role: sessionUser.role,
@@ -3532,7 +3532,7 @@ export default function PlayerPage() {
               : null;
 
       if (sessionUser && sessionUser.role !== 'player') {
-        console.info('[PLAYER_FETCH_BLOCKED_ROLE]', {
+        playerDevLog('[PLAYER_FETCH_BLOCKED_ROLE]', {
           route: '/player',
           uid: sessionUser.uid,
           role: sessionUser.role,
@@ -3793,7 +3793,7 @@ export default function PlayerPage() {
           return;
         }
         markOutcomeSeen(playerUid, outcomeKey);
-        console.info('[PLAYER_REQUEST_OUTCOME_TOAST_SHOW]', {
+        playerDevLog('[PLAYER_REQUEST_OUTCOME_TOAST_SHOW]', {
           requestId: event.requestId,
           source: `sse_event:${event.sourceEvent}`,
           outcomeType: event.outcomeType,
@@ -3822,7 +3822,7 @@ export default function PlayerPage() {
               return;
             }
             if (requestMatchesPlayerInGameDismiss(event)) {
-              console.info('[PLAYER_IN_GAME_SPLASH_SHOW]', {
+              playerDevLog('[PLAYER_IN_GAME_SPLASH_SHOW]', {
                 requestId: event.requestId,
                 source: `sse_event:${event.sourceEvent}`,
                 message: playerInGameDismissSplashMessage({
@@ -3857,7 +3857,7 @@ export default function PlayerPage() {
               return;
             }
             if (requestMatchesPlayerInGameDismiss(event)) {
-              console.info('[PLAYER_IN_GAME_SPLASH_SHOW]', {
+              playerDevLog('[PLAYER_IN_GAME_SPLASH_SHOW]', {
                 requestId: event.requestId,
                 source: `sse_event:${event.sourceEvent}`,
                 message: playerInGameDismissSplashMessage({
@@ -3900,7 +3900,7 @@ export default function PlayerPage() {
           markRechargeSplashSeen(playerUid, event.requestId);
           return;
         }
-        console.info('[PLAYER_RECHARGE_SUCCESS_TOAST_SHOW]', {
+        playerDevLog('[PLAYER_RECHARGE_SUCCESS_TOAST_SHOW]', {
           requestId: event.requestId,
           source: `sse_event:${event.sourceEvent}`,
           message: event.message,
@@ -3934,7 +3934,7 @@ export default function PlayerPage() {
               refunded: event.refunded,
             })
           : fakeRedeemDismissSplashMessage(event);
-        console.info(
+        playerDevLog(
           requestMatchesPlayerInGameDismiss(event)
             ? '[PLAYER_IN_GAME_SPLASH_SHOW]'
             : '[PLAYER_REDEEM_DISMISS_TOAST_SHOW]',
@@ -3978,7 +3978,7 @@ export default function PlayerPage() {
           markRechargeSplashSeen(playerUid, event.requestId);
           return;
         }
-        console.info(
+        playerDevLog(
           requestMatchesPlayerInGameDismiss(event)
             ? '[PLAYER_IN_GAME_SPLASH_SHOW]'
             : '[PLAYER_TOAST_SHOW]',
@@ -4035,7 +4035,7 @@ export default function PlayerPage() {
             setMessage('');
           },
           (reason) => {
-            console.info('[PLAYER_REQUESTS_SQL_READ] ui_fallback_blocked', {
+            playerDevLog('[PLAYER_REQUESTS_SQL_READ] ui_fallback_blocked', {
               reason,
               sqlMode: isClientSqlReadMode(),
             });
@@ -4068,14 +4068,14 @@ export default function PlayerPage() {
                   updatedCashBalance: profile?.cash ?? null,
                 });
               }
-              console.info('[PLAYER_BALANCE_EVENT] profile_refreshed', {
+              playerDevLog('[PLAYER_BALANCE_EVENT] profile_refreshed', {
                 reason,
                 playerUid,
               });
               });
           },
           onFreeplayGivenEvent: (event: PlayerFreeplayGivenLiveEvent) => {
-            console.info('[PLAYER_FREEPLAY_REFETCH_START]', {
+            playerDevLog('[PLAYER_FREEPLAY_REFETCH_START]', {
               playerUid,
               freeplayGiftId: event.freeplayGiftId,
               source: `sse_event:${event.sourceEvent}`,
@@ -4084,7 +4084,7 @@ export default function PlayerPage() {
               .then((pendingGift) => {
                 setHasPendingFreeplayGift(pendingGift.hasPendingGift);
                 setPendingFreeplayGiftId(pendingGift.giftId);
-                console.info('[PLAYER_FREEPLAY_REFETCH_DONE]', {
+                playerDevLog('[PLAYER_FREEPLAY_REFETCH_DONE]', {
                   ok: true,
                   playerUid,
                   freeplayGiftId: event.freeplayGiftId,
@@ -4093,7 +4093,7 @@ export default function PlayerPage() {
                   source: `sse_event:${event.sourceEvent}`,
                 });
                 if (!isStaleLivePopupEvent(event.outboxId, event.eventAtMs)) {
-                  console.info('[PLAYER_FREEPLAY_TOAST_SHOW]', {
+                  playerDevLog('[PLAYER_FREEPLAY_TOAST_SHOW]', {
                     playerUid,
                     freeplayGiftId: event.freeplayGiftId,
                     message: event.message || 'You received freeplay.',
@@ -4102,7 +4102,7 @@ export default function PlayerPage() {
                 }
               })
               .catch((error) => {
-                console.info('[PLAYER_FREEPLAY_REFETCH_DONE]', {
+                playerDevLog('[PLAYER_FREEPLAY_REFETCH_DONE]', {
                   ok: false,
                   playerUid,
                   freeplayGiftId: event.freeplayGiftId,
@@ -4119,18 +4119,18 @@ export default function PlayerPage() {
                 : meta?.updateReason === 'create_username'
                   ? 'Your game account has been created.'
                   : 'Your game credentials have been updated.');
-            console.info('[PLAYER_PLAYTAB_GAMES_REFETCH]', {
+            playerDevLog('[PLAYER_PLAYTAB_GAMES_REFETCH]', {
               playerUid,
               reason,
               updateReason: meta?.updateReason || null,
               gameName: meta?.gameName || null,
             });
-            console.info('[PLAYER_VAULT_REFETCH]', {
+            playerDevLog('[PLAYER_VAULT_REFETCH]', {
               playerUid,
               reason,
               updateReason: meta?.updateReason || null,
             });
-            console.info('[PLAYER_GAME_LOGINS_REFETCH_START]', {
+            playerDevLog('[PLAYER_GAME_LOGINS_REFETCH_START]', {
               playerUid,
               reason,
             });
@@ -4150,19 +4150,19 @@ export default function PlayerPage() {
                   arePlayerGameLoginsEqual(current, sortedLogins) ? current : sortedLogins
                 );
                 void syncCredentialSidecarsForPlayer(playerUid, sortedLogins);
-                console.info('[PLAYER_PLAYTAB_GAMES_SQL_READ]', {
+                playerDevLog('[PLAYER_PLAYTAB_GAMES_SQL_READ]', {
                   playerUid,
                   count: logins.length,
                   reason,
                 });
-                console.info('[PLAYER_GAME_LOGINS_REFETCH_DONE]', {
+                playerDevLog('[PLAYER_GAME_LOGINS_REFETCH_DONE]', {
                   playerUid,
                   count: logins.length,
                   reason,
                 });
               })
               .catch((error) => {
-                console.info('[PLAYER_GAME_LOGINS_REFETCH_DONE]', {
+                playerDevLog('[PLAYER_GAME_LOGINS_REFETCH_DONE]', {
                   playerUid,
                   ok: false,
                   reason,
@@ -4971,7 +4971,7 @@ export default function PlayerPage() {
     }
     requestProgressTimeoutsRef.current = [];
     if (logAbort && clientRequestId) {
-      console.info('[PLAYER_REQUEST_PROGRESS_ABORTED]', {
+      playerDevLog('[PLAYER_REQUEST_PROGRESS_ABORTED]', {
         clientRequestId,
         reason: reason || 'aborted',
       });
@@ -5006,7 +5006,7 @@ export default function PlayerPage() {
             }
           : current
       );
-      console.info('[PLAYER_REQUEST_PROGRESS_PHASE]', {
+      playerDevLog('[PLAYER_REQUEST_PROGRESS_PHASE]', {
         clientRequestId,
         phase: phase.phase,
         progress: phase.progress,
@@ -5046,7 +5046,7 @@ export default function PlayerPage() {
     clickEvent?.preventDefault();
     clickEvent?.stopPropagation();
     if (requestSubmitInFlightRef.current) {
-      console.info('[PLAYER_REQUEST_ERROR_SHOWN]', {
+      playerDevLog('[PLAYER_REQUEST_ERROR_SHOWN]', {
         requestType: type,
         clientRequestId: requestIdempotencyKeyRef.current || null,
         reason: 'duplicate_submit_blocked',
@@ -5063,11 +5063,11 @@ export default function PlayerPage() {
           : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     }
     const clientRequestId = requestIdempotencyKeyRef.current;
-    console.info('[PLAYER_ACTION_CLICK]', {
+    playerDevLog('[PLAYER_ACTION_CLICK]', {
       action: type,
       defaultPrevented: clickEvent?.defaultPrevented ?? false,
     });
-    console.info('[PLAYER_REQUEST_CLICK]', {
+    playerDevLog('[PLAYER_REQUEST_CLICK]', {
       requestType: type,
       gameName: selectedGameName || null,
       clientRequestId,
@@ -5086,7 +5086,7 @@ export default function PlayerPage() {
         progress: 15,
       });
     });
-    console.info('[PLAYER_REQUEST_PENDING_VISIBLE]', {
+    playerDevLog('[PLAYER_REQUEST_PENDING_VISIBLE]', {
       requestType: type,
       clientRequestId,
       clickToPendingVisibleMs: Math.round(nowMs() - clickStartedAt),
@@ -5099,7 +5099,7 @@ export default function PlayerPage() {
       setPlayRequestSplash(null);
       requestSubmitInFlightRef.current = false;
       requestIdempotencyKeyRef.current = '';
-      console.info('[PLAYER_REQUEST_ERROR_SHOWN]', {
+      playerDevLog('[PLAYER_REQUEST_ERROR_SHOWN]', {
         requestType: type,
         clientRequestId,
         reason,
@@ -5187,7 +5187,7 @@ export default function PlayerPage() {
         idempotencyKey,
         onApiStart: ({ route }) => {
           apiStartedAt = nowMs();
-          console.info('[PLAYER_REQUEST_API_START]', {
+          playerDevLog('[PLAYER_REQUEST_API_START]', {
             requestType: type,
             route,
             clientRequestId: idempotencyKey,
@@ -5196,7 +5196,7 @@ export default function PlayerPage() {
         },
       });
       const responseAt = nowMs();
-      console.info('[PLAYER_REQUEST_API_RESPONSE]', {
+      playerDevLog('[PLAYER_REQUEST_API_RESPONSE]', {
         requestType: type,
         clientRequestId: idempotencyKey,
         requestId: result.requestId,
@@ -5230,12 +5230,12 @@ export default function PlayerPage() {
             : current
         );
       });
-      console.info('[PLAYER_REQUEST_PROGRESS_COMPLETE]', {
+      playerDevLog('[PLAYER_REQUEST_PROGRESS_COMPLETE]', {
         clientRequestId: idempotencyKey,
         apiDurationMs: apiStartedAt > 0 ? Math.round(responseAt - apiStartedAt) : null,
         finalProgress: 100,
       });
-      console.info('[PLAYER_REQUEST_SUCCESS_TOAST_SHOWN]', {
+      playerDevLog('[PLAYER_REQUEST_SUCCESS_TOAST_SHOWN]', {
         requestType: type,
         clientRequestId: idempotencyKey,
         requestId: result.requestId,
@@ -5253,7 +5253,7 @@ export default function PlayerPage() {
       );
       reportPlayerUiError('player_game_request', error, setMessage, 'Request failed.');
       const errorMeta = error as { status?: unknown; errorCode?: unknown };
-      console.info('[PLAYER_REQUEST_ERROR_SHOWN]', {
+      playerDevLog('[PLAYER_REQUEST_ERROR_SHOWN]', {
         requestType: type,
         clientRequestId: requestIdempotencyKeyRef.current || clientRequestId,
         reason: error instanceof Error ? error.message : String(error),
@@ -5310,7 +5310,7 @@ export default function PlayerPage() {
       if (!response.ok) {
         throw new Error(payload.error || 'Failed to retry redeem request.');
       }
-      console.info('[PLAYER_EXIT_CONFIRMED_RETRY_REQUESTED]', { requestId: request.id });
+      playerDevLog('[PLAYER_EXIT_CONFIRMED_RETRY_REQUESTED]', { requestId: request.id });
       setRequestHistory((current) => {
         const nextRequests = sortByNewest(
           current.map((item) =>
@@ -5358,7 +5358,7 @@ export default function PlayerPage() {
   ) => {
     event?.preventDefault();
     event?.stopPropagation();
-    console.info('[PLAYER_ACTION_CLICK]', {
+    playerDevLog('[PLAYER_ACTION_CLICK]', {
       action: taskType === 'reset_password' ? 'game_reset_password' : 'recreate_username',
       defaultPrevented: event?.defaultPrevented ?? false,
       gameLoginId: gameLogin.id,
@@ -5461,7 +5461,7 @@ export default function PlayerPage() {
       return;
     }
 
-    console.info('[PLAYER_MESSAGE_SEND_CLICK]', {
+    playerDevLog('[PLAYER_MESSAGE_SEND_CLICK]', {
       playerUid: playerUid || auth.currentUser?.uid || null,
       coadminUid: playerCoadminUid || null,
       peerUid: selectedAgent.uid,
@@ -5658,7 +5658,7 @@ export default function PlayerPage() {
   function openPlayerPasswordResetModal(event?: MouseEvent<HTMLButtonElement>) {
     event?.preventDefault();
     event?.stopPropagation();
-    console.info('[PLAYER_ACTION_CLICK]', {
+    playerDevLog('[PLAYER_ACTION_CLICK]', {
       action: 'reset_password',
       defaultPrevented: event?.defaultPrevented ?? false,
     });
@@ -5829,7 +5829,7 @@ export default function PlayerPage() {
     try {
       const transferId = cashToCoinTransferId || createCashToCoinTransferId();
       setCashToCoinTransferId(transferId);
-      console.info('[PLAYER_TRANSFER_CLICK]', {
+      playerDevLog('[PLAYER_TRANSFER_CLICK]', {
         direction: isCashToCoinTransfer ? 'cash_to_coin' : 'coin_to_cash',
         transferId,
         amount: parsedAmount,
@@ -5859,7 +5859,7 @@ export default function PlayerPage() {
           updatedCashBalance,
         });
         setMessage('Cash converted to coins successfully.');
-        console.info('[PLAYER_TRANSFER_SUCCESS_TOAST_SHOW]', {
+        playerDevLog('[PLAYER_TRANSFER_SUCCESS_TOAST_SHOW]', {
           direction: 'cash_to_coin',
           transferId,
           message: 'Cash converted to coins successfully.',
@@ -5885,7 +5885,7 @@ export default function PlayerPage() {
           updatedCashBalance,
         });
         setMessage('Coins converted to cash successfully.');
-        console.info('[PLAYER_TRANSFER_SUCCESS_TOAST_SHOW]', {
+        playerDevLog('[PLAYER_TRANSFER_SUCCESS_TOAST_SHOW]', {
           direction: 'coin_to_cash',
           transferId,
           message: 'Coins converted to cash successfully.',
@@ -5911,7 +5911,7 @@ export default function PlayerPage() {
           : isCashToCoinTransfer
             ? 'Failed to transfer cash to coin.'
             : 'Failed to transfer coin to cash.';
-      console.info('[PLAYER_TRANSFER_API_ERROR]', {
+      playerDevLog('[PLAYER_TRANSFER_API_ERROR]', {
         direction: isCashToCoinTransfer ? 'cash_to_coin' : 'coin_to_cash',
         transferId: cashToCoinTransferId || null,
         error: errorMessage,
@@ -5943,7 +5943,7 @@ export default function PlayerPage() {
     const rawError = error instanceof Error ? error.message : String(error || '');
 
     if (isPossibleBonusAbuseCashoutError(error)) {
-      console.info('[PLAYER_CASHOUT_FRIENDLY_ERROR]', {
+      playerDevLog('[PLAYER_CASHOUT_FRIENDLY_ERROR]', {
         source,
         rawError,
         friendlyMessage: PLAYER_SAFE_BONUS_ABUSE_CASHOUT_ERROR,
@@ -5953,7 +5953,7 @@ export default function PlayerPage() {
     }
 
     if (isMissingPreviousPaymentDetailsCashoutError(error)) {
-      console.info('[PLAYER_CASHOUT_FRIENDLY_ERROR]', {
+      playerDevLog('[PLAYER_CASHOUT_FRIENDLY_ERROR]', {
         source,
         rawError,
         friendlyMessage:
@@ -5965,7 +5965,7 @@ export default function PlayerPage() {
       return;
     }
 
-    console.info('[PLAYER_CASHOUT_FRIENDLY_ERROR]', {
+    playerDevLog('[PLAYER_CASHOUT_FRIENDLY_ERROR]', {
       source,
       rawError,
       friendlyMessage: fallbackMessage,
@@ -5978,7 +5978,7 @@ export default function PlayerPage() {
     if (profile) {
       applyPlayerProfileSnapshot(profile, playerUid || auth.currentUser?.uid || '');
     }
-    console.info('[PLAYER_CASHOUT_PROFILE_REFRESH_DONE]', {
+    playerDevLog('[PLAYER_CASHOUT_PROFILE_REFRESH_DONE]', {
       source,
       taskId: taskId || null,
       playerUid: playerUid || auth.currentUser?.uid || null,
@@ -5989,7 +5989,7 @@ export default function PlayerPage() {
   }
 
   async function handlePlayerCashoutRequest() {
-    console.info('[PLAYER_CASHOUT_CLICK]', {
+    playerDevLog('[PLAYER_CASHOUT_CLICK]', {
       playerUid: playerUid || auth.currentUser?.uid || null,
       coadminUid: playerCoadminUid || null,
       payoutMethod: cashoutPayoutMethod,
@@ -6057,7 +6057,7 @@ export default function PlayerPage() {
           cashoutPayoutMethod === 'app' ? cashoutAccountName.trim() : '',
       });
 
-      console.info('[PLAYER_CASHOUT_RESPONSE]', {
+      playerDevLog('[PLAYER_CASHOUT_RESPONSE]', {
         taskId: result.taskId || null,
         authority: result.authority || null,
         duplicate: result.duplicate ?? false,
@@ -6088,7 +6088,7 @@ export default function PlayerPage() {
   }
 
   async function handlePlayerCashoutUsingLastDetails() {
-    console.info('[PLAYER_CASHOUT_REUSE_LAST_CLICK]', {
+    playerDevLog('[PLAYER_CASHOUT_REUSE_LAST_CLICK]', {
       playerUid: playerUid || auth.currentUser?.uid || null,
       coadminUid: playerCoadminUid || null,
       amountNpr: cashoutThisRequestNpr,
@@ -6129,7 +6129,7 @@ export default function PlayerPage() {
         idempotencyKey,
       });
 
-      console.info('[PLAYER_CASHOUT_REUSE_LAST_RESPONSE]', {
+      playerDevLog('[PLAYER_CASHOUT_REUSE_LAST_RESPONSE]', {
         taskId: result.taskId || null,
         authority: result.authority || null,
         duplicate: result.duplicate ?? false,
@@ -6247,7 +6247,7 @@ export default function PlayerPage() {
   async function performLogout(options: { userConfirmed: boolean; source: string }) {
     const logoutContext = readPlayerLogoutContext();
     if (options.userConfirmed !== true) {
-      console.info('[PLAYER_LOGOUT_BLOCKED]', {
+      playerDevLog('[PLAYER_LOGOUT_BLOCKED]', {
         source: options.source,
         reason: 'missing_user_confirmation',
         currentPath: logoutContext.currentPath,
@@ -6259,7 +6259,7 @@ export default function PlayerPage() {
       return;
     }
 
-    console.info('[PLAYER_LOGOUT_CONFIRMED]', {
+    playerDevLog('[PLAYER_LOGOUT_CONFIRMED]', {
       source: options.source,
       currentPath: logoutContext.currentPath,
       uid: logoutContext.uid,
@@ -8243,7 +8243,7 @@ export default function PlayerPage() {
           aria-labelledby="player-pwa-exit-title"
           className={`${PLAYER_SPLASH_BACKDROP_CENTER} z-[128] bg-black/88 px-4 backdrop-blur-2xl`}
           onClick={() => {
-            console.info('[PLAYER_BACK_EXIT_CANCELLED]');
+            playerDevLog('[PLAYER_BACK_EXIT_CANCELLED]');
             setShowPwaExitConfirm(false);
           }}
         >
@@ -8261,7 +8261,7 @@ export default function PlayerPage() {
               <button
                 type="button"
                 onClick={() => {
-                  console.info('[PLAYER_BACK_EXIT_CANCELLED]');
+                  playerDevLog('[PLAYER_BACK_EXIT_CANCELLED]');
                   setShowPwaExitConfirm(false);
                 }}
                 className="flex-1 rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-bold text-white hover:bg-white/15"
