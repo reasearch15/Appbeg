@@ -83,6 +83,10 @@ import {
 import { usePresenceOnlineMap } from '@/features/presence/userPresence';
 import { OnlineIndicator } from '@/components/presence/OnlineIndicator';
 import ImageUploadField from '@/components/common/ImageUploadField';
+import {
+  logStaffCashoutAlertClaimReceived,
+  useStaffCashoutAlerts,
+} from '@/lib/pwa/staffCashoutAlert';
 
 import { giveFreeplayGift } from '@/features/freeplay/coadminFreeplay';
 import {
@@ -325,6 +329,11 @@ export default function StaffPage() {
   const [completedCashoutTasks, setCompletedCashoutTasks] = useState<PlayerCashoutTask[]>([]);
   const [playerCashoutTasksLoading, setPlayerCashoutTasksLoading] = useState(true);
   const [cashoutTasksError, setCashoutTasksError] = useState<string | null>(null);
+  const pendingCashoutAlertIds = useMemo(
+    () => pendingCashoutTasks.map((task) => task.id),
+    [pendingCashoutTasks]
+  );
+  const cashoutAlerts = useStaffCashoutAlerts(pendingCashoutAlertIds);
   const [staffSession, setStaffSession] = useState<StaffSessionContext | null>(null);
   const [playerCashoutTaskLoadingId, setPlayerCashoutTaskLoadingId] = useState<string | null>(
     null
@@ -1256,6 +1265,9 @@ export default function StaffPage() {
     setMessage('');
     try {
       await startPlayerCashoutTask(taskId);
+      logStaffCashoutAlertClaimReceived(taskId);
+      setPendingCashoutTasks((prev) => prev.filter((task) => task.id !== taskId));
+      refetchCashoutTasksRef.current?.();
       setMessage('Cashout task claimed.');
     } catch (error: unknown) {
       if (CashoutClaimConflictError.is(error)) {
@@ -1800,7 +1812,36 @@ export default function StaffPage() {
         </div>
 
         <div className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 p-5">
-          <h3 className="text-lg font-bold text-cyan-200">Pending Cashout Tasks</h3>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <h3 className="text-lg font-bold text-cyan-200">Pending Cashout Tasks</h3>
+            <button
+              type="button"
+              disabled={cashoutAlerts.busy || cashoutAlerts.unsupported || cashoutAlerts.enabled}
+              onClick={() => {
+                void cashoutAlerts.enableAlerts().then(
+                  () => {
+                    setMessage('Cash-out alerts enabled for this device.');
+                  },
+                  (error: unknown) => {
+                    setMessage(
+                      error instanceof Error
+                        ? error.message
+                        : 'Failed to enable cash-out alerts.'
+                    );
+                  }
+                );
+              }}
+              className="rounded-lg border border-cyan-300/40 bg-cyan-500/15 px-3 py-1.5 text-xs font-semibold text-cyan-50 hover:bg-cyan-500/25 disabled:opacity-60"
+            >
+              {cashoutAlerts.unsupported
+                ? 'Alerts unsupported'
+                : cashoutAlerts.enabled
+                  ? 'Cash-out alerts on'
+                  : cashoutAlerts.busy
+                    ? 'Enabling...'
+                    : 'Enable cash-out alerts'}
+            </button>
+          </div>
           {playerCashoutTasksLoading ? (
             <p className="mt-3 text-sm text-cyan-100/70">Loading cashout tasks...</p>
           ) : pendingCashoutTasks.length === 0 ? (

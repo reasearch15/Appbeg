@@ -117,6 +117,10 @@ import {
   startPlayerCashoutTask,
 } from '@/features/cashouts/playerCashoutTasks';
 import {
+  logStaffCashoutAlertClaimReceived,
+  useStaffCashoutAlerts,
+} from '@/lib/pwa/staffCashoutAlert';
+import {
   PLAYER_GAME_REDEEM_MAX_PER_24H,
   getPlayerGameRedeemLimitSummary,
   resetPlayerGameRedeemLimitForCoadmin,
@@ -699,6 +703,11 @@ export default function CoadminPage() {
   const [pendingCashoutTasks, setPendingCashoutTasks] = useState<PlayerCashoutTask[]>([]);
   const [activeCashoutTasks, setActiveCashoutTasks] = useState<PlayerCashoutTask[]>([]);
   const [completedCashoutTasks, setCompletedCashoutTasks] = useState<PlayerCashoutTask[]>([]);
+  const pendingCashoutAlertIds = useMemo(
+    () => pendingCashoutTasks.map((task) => task.id),
+    [pendingCashoutTasks]
+  );
+  const cashoutAlerts = useStaffCashoutAlerts(pendingCashoutAlertIds);
   const [playerCashoutTaskLoadingId, setPlayerCashoutTaskLoadingId] = useState<string | null>(
     null
   );
@@ -3233,6 +3242,8 @@ export default function CoadminPage() {
     setMessage('');
     try {
       await startPlayerCashoutTask(taskId);
+      logStaffCashoutAlertClaimReceived(taskId);
+      setPendingCashoutTasks((prev) => prev.filter((task) => task.id !== taskId));
       refetchCashoutTasksRef.current?.();
     } catch (error: any) {
       setMessage(error.message || 'Failed to start player cashout task.');
@@ -3260,6 +3271,8 @@ export default function CoadminPage() {
     setMessage('');
     try {
       await declinePlayerCashoutTaskByCoadmin(taskId);
+      setPendingCashoutTasks((prev) => prev.filter((task) => task.id !== taskId));
+      refetchCashoutTasksRef.current?.();
       setMessage('Player cashout task declined.');
     } catch (error: any) {
       setMessage(error.message || 'Failed to decline player cashout task.');
@@ -4506,7 +4519,36 @@ export default function CoadminPage() {
           {activeView === 'view-tasks' && (
             <div className="space-y-6">
               <div className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 p-5">
-                <h3 className="text-lg font-bold text-cyan-200">Pending Cashout Tasks</h3>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <h3 className="text-lg font-bold text-cyan-200">Pending Cashout Tasks</h3>
+                  <button
+                    type="button"
+                    disabled={cashoutAlerts.busy || cashoutAlerts.unsupported || cashoutAlerts.enabled}
+                    onClick={() => {
+                      void cashoutAlerts.enableAlerts().then(
+                        () => {
+                          setMessage('Cash-out alerts enabled for this device.');
+                        },
+                        (error: unknown) => {
+                          setMessage(
+                            error instanceof Error
+                              ? error.message
+                              : 'Failed to enable cash-out alerts.'
+                          );
+                        }
+                      );
+                    }}
+                    className="rounded-lg border border-cyan-300/40 bg-cyan-500/15 px-3 py-1.5 text-xs font-semibold text-cyan-50 hover:bg-cyan-500/25 disabled:opacity-60"
+                  >
+                    {cashoutAlerts.unsupported
+                      ? 'Alerts unsupported'
+                      : cashoutAlerts.enabled
+                        ? 'Cash-out alerts on'
+                        : cashoutAlerts.busy
+                          ? 'Enabling...'
+                          : 'Enable cash-out alerts'}
+                  </button>
+                </div>
                 {pendingCashoutTasks.length === 0 ? (
                   <p className="mt-3 text-sm text-cyan-100/70">No pending cashout tasks.</p>
                 ) : (

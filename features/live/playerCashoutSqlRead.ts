@@ -41,6 +41,8 @@ const CASHOUT_LIVE_EVENTS = [
   'cashout_start',
   'cashout_complete',
   'cashout_decline',
+  'cashout_release',
+  'cashout_timeout_release',
 ] as const;
 
 function cleanText(value: unknown) {
