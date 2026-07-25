@@ -159,6 +159,157 @@ function buildPaymentDetails(input: {
   return '';
 }
 
+function normalizePayoutMethod(value: unknown): 'qr' | 'app' | null {
+  const raw = cleanText(value).toLowerCase();
+  if (raw === 'qr') return 'qr';
+  if (raw === 'app' || raw === 'payment app' || raw === 'payment_app') return 'app';
+  return null;
+}
+
+function parsePaymentDetailsText(rawText: string): {
+  payoutMethod: 'qr' | 'app' | null;
+  qrImageUrl: string | null;
+  paymentAppName: string | null;
+  paymentAppCashTag: string | null;
+  paymentAppAccountName: string | null;
+} {
+  const text = cleanText(rawText);
+  if (/Payout method:\s*QR/i.test(text)) {
+    const qrMatch = text.match(/QR image:\s*(.+)/i);
+    return {
+      payoutMethod: 'qr',
+      qrImageUrl: cleanText(qrMatch?.[1]) || null,
+      paymentAppName: null,
+      paymentAppCashTag: null,
+      paymentAppAccountName: null,
+    };
+  }
+  if (/Payout method:\s*Payment app/i.test(text)) {
+    const appNameMatch = text.match(/App name:\s*(.+)/i);
+    const cashTagMatch = text.match(/Cash tag:\s*(.+)/i);
+    const accountNameMatch = text.match(/Name on app:\s*(.+)/i);
+    return {
+      payoutMethod: 'app',
+      qrImageUrl: null,
+      paymentAppName: cleanText(appNameMatch?.[1]) || null,
+      paymentAppCashTag: cleanText(cashTagMatch?.[1]) || null,
+      paymentAppAccountName: cleanText(accountNameMatch?.[1]) || null,
+    };
+  }
+  return {
+    payoutMethod: null,
+    qrImageUrl: null,
+    paymentAppName: null,
+    paymentAppCashTag: null,
+    paymentAppAccountName: null,
+  };
+}
+
+function resolveUsablePaymentDetails(input: {
+  payoutMethod?: unknown;
+  qrImageUrl?: unknown;
+  paymentAppName?: unknown;
+  paymentAppCashTag?: unknown;
+  paymentAppAccountName?: unknown;
+  paymentDetails?: unknown;
+}): ResolvedCashoutPaymentDetails | null {
+  let payoutMethod = normalizePayoutMethod(input.payoutMethod);
+  let qrImageUrl = cleanText(input.qrImageUrl) || null;
+  let paymentAppName = cleanText(input.paymentAppName) || null;
+  let paymentAppCashTag = cleanText(input.paymentAppCashTag) || null;
+  let paymentAppAccountName = cleanText(input.paymentAppAccountName) || null;
+  const parsed = parsePaymentDetailsText(String(input.paymentDetails || ''));
+
+  if (!payoutMethod) {
+    payoutMethod = parsed.payoutMethod;
+  }
+  if (payoutMethod === 'qr') {
+    qrImageUrl = qrImageUrl || parsed.qrImageUrl;
+  }
+  if (payoutMethod === 'app') {
+    paymentAppName = paymentAppName || parsed.paymentAppName;
+    paymentAppCashTag = paymentAppCashTag || parsed.paymentAppCashTag;
+    paymentAppAccountName = paymentAppAccountName || parsed.paymentAppAccountName;
+  }
+
+  if (payoutMethod === 'qr' && qrImageUrl) {
+    const paymentDetails = buildPaymentDetails({
+      payoutMethod: 'qr',
+      qrImageUrl,
+      paymentAppName: null,
+      paymentAppCashTag: null,
+      paymentAppAccountName: null,
+    });
+    if (paymentDetails.length < 5) return null;
+    return {
+      paymentDetails,
+      payoutMethod: 'qr',
+      qrImageUrl,
+      paymentAppName: null,
+      paymentAppCashTag: null,
+      paymentAppAccountName: null,
+      reusedFromCashoutTaskId: null,
+    };
+  }
+
+  if (
+    payoutMethod === 'app' &&
+    paymentAppName &&
+    paymentAppCashTag &&
+    paymentAppAccountName
+  ) {
+    const paymentDetails = buildPaymentDetails({
+      payoutMethod: 'app',
+      qrImageUrl: null,
+      paymentAppName,
+      paymentAppCashTag,
+      paymentAppAccountName,
+    });
+    if (paymentDetails.length < 5) return null;
+    return {
+      paymentDetails,
+      payoutMethod: 'app',
+      qrImageUrl: null,
+      paymentAppName,
+      paymentAppCashTag,
+      paymentAppAccountName,
+      reusedFromCashoutTaskId: null,
+    };
+  }
+
+  return null;
+}
+
+function assertPaymentDetailsForPayoutMethod(input: {
+  payoutMethod: string | null;
+  qrImageUrl: string | null;
+  paymentAppName: string | null;
+  paymentAppCashTag: string | null;
+  paymentAppAccountName: string | null;
+  paymentDetails: string;
+}) {
+  const method = normalizePayoutMethod(input.payoutMethod);
+  if (method === 'qr') {
+    if (!cleanText(input.qrImageUrl)) {
+      throw new Error('Upload your QR before sending cashout.');
+    }
+    return;
+  }
+  if (method === 'app') {
+    if (
+      !cleanText(input.paymentAppName) ||
+      !cleanText(input.paymentAppCashTag) ||
+      !cleanText(input.paymentAppAccountName)
+    ) {
+      throw new Error('Enter your payment app name, cash tag, and name on the app.');
+    }
+    return;
+  }
+  if (cleanText(input.paymentDetails).length < 5) {
+    throw new Error('Please provide clear payment details.');
+  }
+}
+
 async function resolveLastCashoutPaymentDetailsWithClient(
   client: PoolClient,
   playerUid: string
@@ -171,59 +322,37 @@ async function resolveLastCashoutPaymentDetailsWithClient(
         qr_image_url,
         payment_app_name,
         payment_app_cash_tag,
-        payment_app_account_name
+        payment_app_account_name,
+        payment_details
       FROM public.player_cashout_tasks_cache
       WHERE deleted_at IS NULL
         AND player_uid = $1::text
-        AND LOWER(COALESCE(status, '')) = 'completed'
-        AND (
-          (
-            LOWER(COALESCE(payout_method, '')) = 'qr'
-            AND NULLIF(BTRIM(COALESCE(qr_image_url, '')), '') IS NOT NULL
-          )
-          OR (
-            LOWER(COALESCE(payout_method, '')) = 'app'
-            AND NULLIF(BTRIM(COALESCE(payment_app_name, '')), '') IS NOT NULL
-            AND NULLIF(BTRIM(COALESCE(payment_app_cash_tag, '')), '') IS NOT NULL
-            AND NULLIF(BTRIM(COALESCE(payment_app_account_name, '')), '') IS NOT NULL
-          )
-        )
-      ORDER BY completed_at DESC NULLS LAST, created_at DESC NULLS LAST
-      LIMIT 1
+        AND LOWER(COALESCE(status, '')) NOT IN ('declined', 'cancelled', 'failed')
+      ORDER BY COALESCE(completed_at, created_at) DESC NULLS LAST, created_at DESC NULLS LAST
+      LIMIT 25
     `,
     [playerUid]
   );
-  const row = result.rows[0] as Record<string, unknown> | undefined;
-  if (!row) {
-    return null;
+
+  for (const row of result.rows as Array<Record<string, unknown>>) {
+    const resolved = resolveUsablePaymentDetails({
+      payoutMethod: row.payout_method,
+      qrImageUrl: row.qr_image_url,
+      paymentAppName: row.payment_app_name,
+      paymentAppCashTag: row.payment_app_cash_tag,
+      paymentAppAccountName: row.payment_app_account_name,
+      paymentDetails: row.payment_details,
+    });
+    if (!resolved) {
+      continue;
+    }
+    return {
+      ...resolved,
+      reusedFromCashoutTaskId: cleanText(row.firebase_id) || null,
+    };
   }
 
-  const payoutMethod = cleanText(row.payout_method).toLowerCase();
-  const qrImageUrl = cleanText(row.qr_image_url) || null;
-  const paymentAppName = cleanText(row.payment_app_name) || null;
-  const paymentAppCashTag = cleanText(row.payment_app_cash_tag) || null;
-  const paymentAppAccountName = cleanText(row.payment_app_account_name) || null;
-  const paymentDetails = buildPaymentDetails({
-    payoutMethod,
-    qrImageUrl,
-    paymentAppName,
-    paymentAppCashTag,
-    paymentAppAccountName,
-  });
-
-  if (paymentDetails.length < 5 || (payoutMethod !== 'qr' && payoutMethod !== 'app')) {
-    return null;
-  }
-
-  return {
-    paymentDetails,
-    payoutMethod,
-    qrImageUrl: payoutMethod === 'qr' ? qrImageUrl : null,
-    paymentAppName: payoutMethod === 'app' ? paymentAppName : null,
-    paymentAppCashTag: payoutMethod === 'app' ? paymentAppCashTag : null,
-    paymentAppAccountName: payoutMethod === 'app' ? paymentAppAccountName : null,
-    reusedFromCashoutTaskId: cleanText(row.firebase_id) || null,
-  };
+  return null;
 }
 
 function readRawField(raw: unknown, field: string) {
@@ -540,16 +669,12 @@ export async function createPlayerCashoutTaskInSql(
 ): Promise<AuthorityCashoutCreateResult> {
   const playerUid = cleanText(input.playerUid);
   const reuseLastPaymentDetails = input.reuseLastPaymentDetails === true;
-  let paymentDetails = reuseLastPaymentDetails ? '' : cleanText(input.paymentDetails);
-  let payoutMethod = reuseLastPaymentDetails ? null : cleanText(input.payoutMethod) || null;
-  let qrImageUrl = reuseLastPaymentDetails ? null : cleanText(input.qrImageUrl) || null;
-  let paymentAppName = reuseLastPaymentDetails ? null : cleanText(input.paymentAppName) || null;
-  let paymentAppCashTag = reuseLastPaymentDetails
-    ? null
-    : cleanText(input.paymentAppCashTag) || null;
-  let paymentAppAccountName = reuseLastPaymentDetails
-    ? null
-    : cleanText(input.paymentAppAccountName) || null;
+  let paymentDetails = cleanText(input.paymentDetails);
+  let payoutMethod = cleanText(input.payoutMethod) || null;
+  let qrImageUrl = cleanText(input.qrImageUrl) || null;
+  let paymentAppName = cleanText(input.paymentAppName) || null;
+  let paymentAppCashTag = cleanText(input.paymentAppCashTag) || null;
+  let paymentAppAccountName = cleanText(input.paymentAppAccountName) || null;
   let reusedFromCashoutTaskId: string | null = null;
   const idempotencyKey = cleanText(input.idempotencyKey);
   console.info('[CASHOUT_CREATE_START]', {
@@ -595,7 +720,16 @@ export async function createPlayerCashoutTaskInSql(
     }
 
     if (reuseLastPaymentDetails) {
-      const resolved = await resolveLastCashoutPaymentDetailsWithClient(client, playerUid);
+      const fromClient = resolveUsablePaymentDetails({
+        payoutMethod: input.payoutMethod,
+        qrImageUrl: input.qrImageUrl,
+        paymentAppName: input.paymentAppName,
+        paymentAppCashTag: input.paymentAppCashTag,
+        paymentAppAccountName: input.paymentAppAccountName,
+        paymentDetails: input.paymentDetails,
+      });
+      const resolved =
+        fromClient || (await resolveLastCashoutPaymentDetailsWithClient(client, playerUid));
       if (!resolved) {
         throw new Error(
           'No previous payment details found. Please upload a QR or enter payment app details first.'
@@ -612,11 +746,38 @@ export async function createPlayerCashoutTaskInSql(
         playerUid,
         reusedFromCashoutTaskId,
         payoutMethod,
+        source: fromClient ? 'client_payload' : 'sql_history',
       });
     }
 
-    if (paymentDetails.length < 5) {
-      throw new Error('Please provide clear payment details.');
+    assertPaymentDetailsForPayoutMethod({
+      payoutMethod,
+      qrImageUrl,
+      paymentAppName,
+      paymentAppCashTag,
+      paymentAppAccountName,
+      paymentDetails,
+    });
+
+    const normalizedMethod = normalizePayoutMethod(payoutMethod);
+    if (normalizedMethod === 'qr') {
+      payoutMethod = 'qr';
+      paymentAppName = null;
+      paymentAppCashTag = null;
+      paymentAppAccountName = null;
+    } else if (normalizedMethod === 'app') {
+      payoutMethod = 'app';
+      qrImageUrl = null;
+    }
+
+    if (!paymentDetails) {
+      paymentDetails = buildPaymentDetails({
+        payoutMethod,
+        qrImageUrl,
+        paymentAppName,
+        paymentAppCashTag,
+        paymentAppAccountName,
+      });
     }
 
     const [rollingUsed, completedCashoutCount, lastRechargeAmountNpr] = await Promise.all([

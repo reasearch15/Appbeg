@@ -190,16 +190,42 @@ function getSnapshotMs(value?: unknown) {
 
 export function getPlayerCashoutPaymentDisplay(task: PlayerCashoutTask) {
   const rawText = String(task.paymentDetails || '').trim();
-  const method = task.payoutMethod || null;
+  const method = String(task.payoutMethod || '').trim().toLowerCase() || null;
   const qrImageUrl = String(task.qrImageUrl || '').trim() || null;
-  const paymentAppName = String(task.paymentAppName || '').trim() || null;
-  const paymentAppCashTag = String(task.paymentAppCashTag || '').trim() || null;
-  const paymentAppAccountName = String(task.paymentAppAccountName || '').trim() || null;
+  let paymentAppName = String(task.paymentAppName || '').trim() || null;
+  let paymentAppCashTag = String(task.paymentAppCashTag || '').trim() || null;
+  let paymentAppAccountName = String(task.paymentAppAccountName || '').trim() || null;
 
-  if (method === 'qr' || qrImageUrl) {
+  const parsedFromText = (() => {
+    if (/Payout method:\s*QR/i.test(rawText)) {
+      const qrMatch = rawText.match(/QR image:\s*(.+)/i);
+      return {
+        method: 'qr' as const,
+        qrImageUrl: qrMatch?.[1]?.trim() || null,
+        paymentAppName: null as string | null,
+        paymentAppCashTag: null as string | null,
+        paymentAppAccountName: null as string | null,
+      };
+    }
+    if (/Payout method:\s*Payment app/i.test(rawText)) {
+      const appNameMatch = rawText.match(/App name:\s*(.+)/i);
+      const cashTagMatch = rawText.match(/Cash tag:\s*(.+)/i);
+      const accountNameMatch = rawText.match(/Name on app:\s*(.+)/i);
+      return {
+        method: 'app' as const,
+        qrImageUrl: null as string | null,
+        paymentAppName: appNameMatch?.[1]?.trim() || null,
+        paymentAppCashTag: cashTagMatch?.[1]?.trim() || null,
+        paymentAppAccountName: accountNameMatch?.[1]?.trim() || null,
+      };
+    }
+    return null;
+  })();
+
+  if (method === 'qr' || (qrImageUrl && method !== 'app')) {
     return {
       method: 'qr' as const,
-      qrImageUrl,
+      qrImageUrl: qrImageUrl || parsedFromText?.qrImageUrl || null,
       paymentAppName: null,
       paymentAppCashTag: null,
       paymentAppAccountName: null,
@@ -207,12 +233,12 @@ export function getPlayerCashoutPaymentDisplay(task: PlayerCashoutTask) {
     };
   }
 
-  if (
-    method === 'app' ||
-    paymentAppName ||
-    paymentAppCashTag ||
-    paymentAppAccountName
-  ) {
+  if (method === 'app' || paymentAppName || paymentAppCashTag || paymentAppAccountName) {
+    if (parsedFromText?.method === 'app') {
+      paymentAppName = paymentAppName || parsedFromText.paymentAppName;
+      paymentAppCashTag = paymentAppCashTag || parsedFromText.paymentAppCashTag;
+      paymentAppAccountName = paymentAppAccountName || parsedFromText.paymentAppAccountName;
+    }
     return {
       method: 'app' as const,
       qrImageUrl: null,
@@ -223,11 +249,10 @@ export function getPlayerCashoutPaymentDisplay(task: PlayerCashoutTask) {
     };
   }
 
-  if (/Payout method:\s*QR/i.test(rawText)) {
-    const qrMatch = rawText.match(/QR image:\s*(.+)/i);
+  if (parsedFromText?.method === 'qr') {
     return {
       method: 'qr' as const,
-      qrImageUrl: qrMatch?.[1]?.trim() || null,
+      qrImageUrl: parsedFromText.qrImageUrl,
       paymentAppName: null,
       paymentAppCashTag: null,
       paymentAppAccountName: null,
@@ -235,16 +260,13 @@ export function getPlayerCashoutPaymentDisplay(task: PlayerCashoutTask) {
     };
   }
 
-  if (/Payout method:\s*Payment app/i.test(rawText)) {
-    const appNameMatch = rawText.match(/App name:\s*(.+)/i);
-    const cashTagMatch = rawText.match(/Cash tag:\s*(.+)/i);
-    const accountNameMatch = rawText.match(/Name on app:\s*(.+)/i);
+  if (parsedFromText?.method === 'app') {
     return {
       method: 'app' as const,
       qrImageUrl: null,
-      paymentAppName: appNameMatch?.[1]?.trim() || null,
-      paymentAppCashTag: cashTagMatch?.[1]?.trim() || null,
-      paymentAppAccountName: accountNameMatch?.[1]?.trim() || null,
+      paymentAppName: parsedFromText.paymentAppName,
+      paymentAppCashTag: parsedFromText.paymentAppCashTag,
+      paymentAppAccountName: parsedFromText.paymentAppAccountName,
       rawText,
     };
   }

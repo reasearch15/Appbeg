@@ -2252,6 +2252,29 @@ export default function PlayerPage() {
       );
   }, [playerCashoutTasks]);
 
+  const lastUsableSavedCashout = useMemo(() => {
+    const candidates = [lastUsedQrCashout, lastUsedAppCashout].filter(
+      (
+        entry
+      ): entry is NonNullable<typeof lastUsedQrCashout> | NonNullable<typeof lastUsedAppCashout> =>
+        Boolean(entry)
+    );
+    if (candidates.length === 0) {
+      return null;
+    }
+    return candidates.reduce((best, entry) => {
+      const bestMs = Math.max(
+        getTimestampMs(best.task.completedAt),
+        getTimestampMs(best.task.createdAt)
+      );
+      const entryMs = Math.max(
+        getTimestampMs(entry.task.completedAt),
+        getTimestampMs(entry.task.createdAt)
+      );
+      return entryMs >= bestMs ? entry : best;
+    });
+  }, [lastUsedAppCashout, lastUsedQrCashout]);
+
   const rollingCashoutUsedNpr = useMemo(
     () => rolling24hCashoutUsageNprFromTasks(playerCashoutTasks),
     [playerCashoutTasks]
@@ -6092,7 +6115,8 @@ export default function PlayerPage() {
       playerUid: playerUid || auth.currentUser?.uid || null,
       coadminUid: playerCoadminUid || null,
       amountNpr: cashoutThisRequestNpr,
-      hasClientLastDetails: Boolean(lastUsedQrCashout || lastUsedAppCashout),
+      hasClientLastDetails: Boolean(lastUsableSavedCashout),
+      lastMethod: lastUsableSavedCashout?.payment.method || null,
     });
 
     if (maintenanceBreak.enabled) {
@@ -6115,6 +6139,30 @@ export default function PlayerPage() {
       return;
     }
 
+    const saved = lastUsableSavedCashout?.payment || null;
+    if (
+      !saved ||
+      (saved.method !== 'qr' && saved.method !== 'app') ||
+      (saved.method === 'qr' && !saved.qrImageUrl) ||
+      (saved.method === 'app' &&
+        (!saved.paymentAppName || !saved.paymentAppCashTag || !saved.paymentAppAccountName))
+    ) {
+      setMessage(
+        'No previous payment details found. Please upload a QR or enter payment app details first.'
+      );
+      return;
+    }
+
+    const composedPaymentDetails =
+      saved.method === 'qr'
+        ? `Payout method: QR\nQR image: ${saved.qrImageUrl}`
+        : [
+            'Payout method: Payment app',
+            `App name: ${saved.paymentAppName}`,
+            `Cash tag: ${saved.paymentAppCashTag}`,
+            `Name on app: ${saved.paymentAppAccountName}`,
+          ].join('\n');
+
     setCashoutLoading(true);
     setMessage('');
 
@@ -6125,6 +6173,13 @@ export default function PlayerPage() {
           : `cashout-reuse-last:${Date.now()}`;
       const result = await createPlayerCashoutTask({
         coadminUid: playerCoadminUid,
+        paymentDetails: composedPaymentDetails,
+        payoutMethod: saved.method,
+        qrImageUrl: saved.method === 'qr' ? saved.qrImageUrl || '' : '',
+        paymentAppName: saved.method === 'app' ? saved.paymentAppName || '' : '',
+        paymentAppCashTag: saved.method === 'app' ? saved.paymentAppCashTag || '' : '',
+        paymentAppAccountName:
+          saved.method === 'app' ? saved.paymentAppAccountName || '' : '',
         reuseLastPaymentDetails: true,
         idempotencyKey,
       });
@@ -6133,6 +6188,7 @@ export default function PlayerPage() {
         taskId: result.taskId || null,
         authority: result.authority || null,
         duplicate: result.duplicate ?? false,
+        payoutMethod: saved.method,
       });
 
       await refreshPlayerWalletAfterCashout('player_cashout_reuse_last', result.taskId || null);
