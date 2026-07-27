@@ -482,7 +482,7 @@ export async function GET(
       });
       return included;
     });
-    const tasks = await attachVendorAwarenessToPlayers(sortByNewest(visible), { client });
+    const tasks = await attachVendorAwarenessToPlayers(sortByNewest(visible));
     const mergeMs = Date.now() - mergeStartedAt;
     const totalMs = Date.now() - totalStartedAt;
     const snapshotCounts = countSnapshotStatuses(tasks);

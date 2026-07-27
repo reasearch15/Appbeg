@@ -352,7 +352,7 @@ export async function readPlayersCacheByCoadminWithClient(
     PLAYERS_BY_COADMIN_SQL,
     [cleanCoadminUid]
   );
-  return attachVendorAwarenessToPlayers(mapCachedPlayerRows(rows, cleanCoadminUid), { client });
+  return attachVendorAwarenessToPlayers(mapCachedPlayerRows(rows, cleanCoadminUid));
 }
 
 const PLAYERS_BY_REFERRER_SQL = `
@@ -437,7 +437,7 @@ export async function readPlayersCacheByCoadmin(
       PLAYERS_BY_COADMIN_SQL,
       [cleanCoadminUid]
     );
-    return attachVendorAwarenessToPlayers(mapCachedPlayerRows(rows, cleanCoadminUid), { pool: db });
+    return attachVendorAwarenessToPlayers(mapCachedPlayerRows(rows, cleanCoadminUid));
   } catch (error) {
     console.warn('[PLAYERS_CACHE] postgres read failed', {
       coadminUid: cleanCoadminUid,
