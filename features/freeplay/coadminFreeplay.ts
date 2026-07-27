@@ -3,6 +3,7 @@ import { getFirebaseApiHeaders } from '@/lib/firebase/apiClient';
 export type GiveFreeplayGiftInput = {
   targetPlayerUid?: string;
   reason?: string;
+  idempotencyKey?: string;
 };
 
 export async function giveFreeplayGift(input?: GiveFreeplayGiftInput) {
@@ -11,6 +12,7 @@ export async function giveFreeplayGift(input?: GiveFreeplayGiftInput) {
     ? {
         targetPlayerUid,
         reason: String(input?.reason || 'manual_specific_player').trim(),
+        idempotencyKey: String(input?.idempotencyKey || '').trim(),
       }
     : {};
 
@@ -31,6 +33,8 @@ export async function giveFreeplayGift(input?: GiveFreeplayGiftInput) {
     error?: string;
     playerUsername?: string;
     playerUid?: string;
+    staffWalletBalanceCoin?: number | null;
+    duplicate?: boolean;
   };
   if (!response.ok) {
     throw new Error(payload.error || 'Failed to give FreePlay gift.');
@@ -38,5 +42,8 @@ export async function giveFreeplayGift(input?: GiveFreeplayGiftInput) {
   return {
     playerUsername: String(payload.playerUsername || 'Player'),
     playerUid: String(payload.playerUid || targetPlayerUid || '').trim(),
+    staffWalletBalanceCoin:
+      payload.staffWalletBalanceCoin == null ? null : Number(payload.staffWalletBalanceCoin),
+    duplicate: Boolean(payload.duplicate),
   };
 }

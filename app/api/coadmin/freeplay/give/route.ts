@@ -160,6 +160,10 @@ export async function POST(request: Request) {
     const idempotencyKey =
       String(body.idempotencyKey || request.headers.get('Idempotency-Key') || '').trim() || null;
 
+    if (auth.user.role === 'staff' && !isAuthoritySqlWriteEnabled()) {
+      return apiError('Staff Free Play requires Staff Coins to be available.', 503);
+    }
+
     if (isAuthoritySqlWriteEnabled()) {
       const result = await giveFreeplayGiftInSql({
         coadminUid: scopeUid,
@@ -195,6 +199,7 @@ export async function POST(request: Request) {
         playerUid: result.playerUid,
         giftId: result.giftId,
         duplicate: result.duplicate,
+        staffWalletBalanceCoin: result.staffWalletBalanceCoin ?? null,
         authority: 'sql',
       });
     }
@@ -265,11 +270,16 @@ export async function POST(request: Request) {
       authority: 'firestore',
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to give FreePlay gift.';
+    const rawMessage = error instanceof Error ? error.message : 'Failed to give FreePlay gift.';
+    const message = /insufficient_staff_freeplay_coins/i.test(rawMessage)
+      ? 'You need at least 3 Staff Coins to give Free Play.'
+      : rawMessage;
     const status = /authorization|token/i.test(message)
       ? 401
       : /forbidden|outside your scope/i.test(message)
         ? 403
+        : /at least 3 Staff Coins/i.test(message)
+          ? 409
         : /pending/i.test(message)
           ? 409
           : /player|eligible|active/i.test(message)

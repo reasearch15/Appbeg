@@ -9,32 +9,23 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react';
-import { collection, doc, getDoc, getDocs, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 
-import { assertClientFirestoreDisabled } from '@/lib/client/clientFirestoreGuard';
 import {
   readErrorMessage,
   shouldSuppressInternalSqlFirestoreUiError,
 } from '@/lib/client/sqlFirestoreError';
-import { isClientSqlReadMode } from '@/lib/client/sqlReadMode';
-import { onAuthStateChanged, type User } from 'firebase/auth';
 
 import ProtectedRoute from '../../components/auth/ProtectedRoute';
 import LogoutButton from '../../components/auth/LogoutButton';
 import DashboardView from '../../components/admin/DashboardView';
-import CreateUserForm from '../../components/admin/CreateUserForm';
 import ReachOutView from '../../components/admin/ReachOutView';
-import UserManagementView from '../../components/admin/UserManagementView';
 import RoleSidebarLayout, { type NavigationItem } from '@/components/navigation/RoleSidebarLayout';
 
 import { auth, db } from '@/lib/firebase/client';
 import { belongsToCoadmin, getCurrentUserCoadminUid } from '@/lib/coadmin/scope';
 import {
   blockPlayer,
-  CoadminUser,
-  createCoadmin,
-  createPlayer,
-  getCoadmins,
   getPlayers,
   getStaff,
   PlayerUser,
@@ -66,7 +57,6 @@ import {
   releasePlayerCashoutTask,
   startPlayerCashoutTask,
 } from '@/features/cashouts/playerCashoutTasks';
-import { createCarerCashoutRequest } from '@/features/cashouts/carerCashouts';
 import {
   getPlayerRiskSnapshot,
   listenPlayerRiskSnapshotsByCoadmin,
@@ -82,7 +72,6 @@ import {
 } from '@/features/shifts/userShifts';
 import { usePresenceOnlineMap } from '@/features/presence/userPresence';
 import { OnlineIndicator } from '@/components/presence/OnlineIndicator';
-import ImageUploadField from '@/components/common/ImageUploadField';
 import {
   logStaffCashoutAlertClaimReceived,
   useStaffCashoutAlerts,
@@ -103,12 +92,8 @@ import { AdminUser, ChatMessage } from '../../components/admin/types';
 type StaffView =
   | 'dashboard'
   | 'view-tasks'
-  | 'create-player'
   | 'view-players'
-  | 'reach-out'
-  | 'claim-pay'
-  | 'create-coadmin'
-  | 'view-coadmins';
+  | 'reach-out';
 
 type StaffSessionContext = {
   uid: string;
@@ -116,11 +101,9 @@ type StaffSessionContext = {
   coadminUid: string;
 };
 
-const AED_TO_USD = 0.2723;
-const NPR_TO_USD = 0.0075;
-const NPR_TO_AED = NPR_TO_USD / AED_TO_USD;
 const STAFF_PLAYER_CHAT_PAGE_SIZE = 25;
 const CHAT_BOTTOM_THRESHOLD_PX = 80;
+const STAFF_FREEPLAY_COST_COINS = 3;
 
 function isNearChatBottom(el: HTMLElement | null) {
   if (!el) {
@@ -192,16 +175,8 @@ function formatDateTime(value: unknown, fallback = 'N/A') {
   return ms ? new Date(ms).toLocaleString() : fallback;
 }
 
-function formatNpr(value: number) {
-  return `NPR ${Math.round(value || 0).toLocaleString()}`;
-}
-
-function formatAed(value: number) {
-  return `USD ${Math.round(value || 0).toLocaleString()}`;
-}
-
 function formatUsdFromNpr(value: number) {
-  return formatAed(Number(value || 0));
+  return `USD ${Math.round(Number(value || 0)).toLocaleString()}`;
 }
 
 function renderVendorTaskBadge(vendor: VendorAwareness | null | undefined) {
@@ -347,14 +322,7 @@ export default function StaffPage() {
   );
   const [activeView, setActiveView] = useState<StaffView>('dashboard');
   const [creatorRole, setCreatorRole] = useState<'admin' | 'coadmin' | null>(null);
-  const [playerUsername, setPlayerUsername] = useState('');
-  const [playerPassword, setPlayerPassword] = useState('');
-  const [playerReferralCodeInput, setPlayerReferralCodeInput] = useState('');
-  const [coadminUsername, setCoadminUsername] = useState('');
-  const [coadminPassword, setCoadminPassword] = useState('');
   const [players, setPlayers] = useState<PlayerUser[]>([]);
-  const [coadmins, setCoadmins] = useState<CoadminUser[]>([]);
-  const [allStaffUsers, setAllStaffUsers] = useState<StaffUser[]>([]);
   const [chatUsers, setChatUsers] = useState<AdminUser[]>([]);
   const [selectedChatUser, setSelectedChatUser] = useState<AdminUser | null>(null);
   const [selectedViewPlayer, setSelectedViewPlayer] = useState<PlayerUser | null>(null);
@@ -371,15 +339,7 @@ export default function StaffPage() {
   const [showStaffPlayerNewMessagePill, setShowStaffPlayerNewMessagePill] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [message, setMessage] = useState('');
-  const [loading, setLoading] = useState(false);
   const [loadingList, setLoadingList] = useState(false);
-  const [claimPayMethod, setClaimPayMethod] = useState<'qr' | 'app'>('qr');
-  const [claimPayQrUrl, setClaimPayQrUrl] = useState('');
-  const [claimPayAppName, setClaimPayAppName] = useState('');
-  const [claimPayCashTag, setClaimPayCashTag] = useState('');
-  const [claimPayAccountName, setClaimPayAccountName] = useState('');
-  const [claimPayLoading, setClaimPayLoading] = useState(false);
-  const [staffCashBoxNpr, setStaffCashBoxNpr] = useState(0);
   const [staffWallet, setStaffWallet] = useState<StaffWalletBalance | null>(null);
   const [staffWalletLoading, setStaffWalletLoading] = useState(false);
   const [staffWalletLoadAmountInput, setStaffWalletLoadAmountInput] = useState('');
@@ -420,6 +380,7 @@ export default function StaffPage() {
   const hasSyncedPlayerChatUnreadRef = useRef(false);
   const shiftSessionIdRef = useRef<string | null>(null);
   const refetchCashoutTasksRef = useRef<(() => void) | null>(null);
+  const freeplayGiveInFlightRef = useRef(new Set<string>());
   const [playerBlockActionUid, setPlayerBlockActionUid] = useState<string | null>(null);
   const [freeplayGiveTargetUid, setFreeplayGiveTargetUid] = useState<string | null>(null);
 
@@ -503,7 +464,6 @@ export default function StaffPage() {
     (alert) => !dismissedCarerEscalationIds.includes(alert.id)
   );
   const currentUserUid = staffAuthUid || auth.currentUser?.uid || '';
-  const staffCashBoxUsdAmount = Number(staffCashBoxNpr || 0);
   const dashboardStaffWalletCoinBalance = Math.max(
     0,
     Math.floor(Number(staffWallet?.balanceCoin || 0))
@@ -641,9 +601,8 @@ export default function StaffPage() {
     const s = new Set<string>();
     for (const p of players) s.add(p.uid);
     for (const u of chatUsers) s.add(u.uid);
-    for (const c of coadmins) s.add(c.uid);
     return Array.from(s);
-  }, [players, chatUsers, coadmins]);
+  }, [players, chatUsers]);
   const staffOnlineByUid = usePresenceOnlineMap(staffPresenceUids);
 
   useEffect(() => {
@@ -707,20 +666,6 @@ export default function StaffPage() {
       setMessage(error instanceof Error ? error.message : 'Failed to load Staff Wallet.');
     } finally {
       setStaffWalletLoading(false);
-    }
-  }
-
-  async function loadCoadminsAndStaff() {
-    setLoadingList(true);
-
-    try {
-      const [coadminList, staffList] = await Promise.all([getCoadmins(), getStaff()]);
-      setCoadmins(sortByNewest(coadminList));
-      setAllStaffUsers(sortByNewest(staffList));
-    } catch (error: any) {
-      setMessage(error.message || 'Failed to load coadmins and staff.');
-    } finally {
-      setLoadingList(false);
     }
   }
 
@@ -832,38 +777,6 @@ export default function StaffPage() {
     hasSyncedPlayerChatUnreadRef.current = false;
     previousPlayerChatUnreadRef.current = 0;
   }, [creatorRole]);
-
-  useEffect(() => {
-    if (!staffAuthUid) {
-      setStaffCashBoxNpr(0);
-      return;
-    }
-
-    if (
-      isClientSqlReadMode() ||
-      assertClientFirestoreDisabled('staff_cash_box_listener', 'onSnapshot', { staffAuthUid })
-    ) {
-      return;
-    }
-
-    const unsubscribe = onSnapshot(
-      doc(db, 'users', staffAuthUid),
-      (userSnap) => {
-        if (!userSnap.exists()) {
-          setStaffCashBoxNpr(0);
-          return;
-        }
-
-        const userData = userSnap.data() as { cashBoxNpr?: number };
-        setStaffCashBoxNpr(Number(userData.cashBoxNpr || 0));
-      },
-      () => {
-        setStaffCashBoxNpr(0);
-      }
-    );
-
-    return () => unsubscribe();
-  }, [staffAuthUid]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -1160,9 +1073,6 @@ export default function StaffPage() {
       void loadReachOutUsers();
     }
 
-    if (activeView === 'view-coadmins') {
-      void loadCoadminsAndStaff();
-    }
   }, [activeView]);
 
   useEffect(() => {
@@ -1286,29 +1196,6 @@ export default function StaffPage() {
       unsubscribe?.();
     };
   }, [creatorRole]);
-
-  async function handleCreatePlayer(event: React.FormEvent) {
-    event.preventDefault();
-    setLoading(true);
-    setMessage('');
-
-    try {
-      const result = await createPlayer(playerUsername, playerPassword, playerReferralCodeInput);
-      setPlayerUsername('');
-      setPlayerPassword('');
-      setPlayerReferralCodeInput('');
-      setMessage(
-        result?.referralApplied
-          ? 'Referral was successful. Referral bonus has been added.'
-          : 'Player created successfully.'
-      );
-      await loadPlayers();
-    } catch (error: any) {
-      setMessage(error.message || 'Failed to create player.');
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function handleDismissCarerEscalation(alertId: string) {
     try {
@@ -1444,24 +1331,6 @@ export default function StaffPage() {
     }
   }
 
-  async function handleCreateCoadmin(event: React.FormEvent) {
-    event.preventDefault();
-    setLoading(true);
-    setMessage('');
-
-    try {
-      await createCoadmin(coadminUsername, coadminPassword);
-      setCoadminUsername('');
-      setCoadminPassword('');
-      setMessage('Coadmin created successfully.');
-      await loadCoadminsAndStaff();
-    } catch (error: any) {
-      setMessage(error.message || 'Failed to create coadmin.');
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function handleSendMessage(event: React.FormEvent) {
     event.preventDefault();
 
@@ -1496,98 +1365,6 @@ export default function StaffPage() {
       });
     } catch (error: any) {
       setMessage(error.message || 'Failed to send player message.');
-    }
-  }
-
-  async function handleSendClaimPayRequest() {
-    const currentUser =
-      auth.currentUser ||
-      (await new Promise<User | null>((resolve) => {
-        const timeoutId = window.setTimeout(() => {
-          unsubscribe();
-          resolve(null);
-        }, 1500);
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
-          window.clearTimeout(timeoutId);
-          unsubscribe();
-          resolve(user);
-        });
-      }));
-
-    if (!currentUser) {
-      setMessage('Session is loading. Please try again.');
-      return;
-    }
-
-    if (staffCashBoxNpr <= 0) {
-      setMessage('No claimable amount available right now.');
-      return;
-    }
-
-    const paymentDetails =
-      claimPayMethod === 'qr'
-        ? claimPayQrUrl.trim()
-          ? `Payout method: QR\nQR image: ${claimPayQrUrl.trim()}`
-          : ''
-        : [
-            'Payout method: Payment app',
-            claimPayAppName.trim() ? `App name: ${claimPayAppName.trim()}` : '',
-            claimPayCashTag.trim() ? `Cash tag: ${claimPayCashTag.trim()}` : '',
-            claimPayAccountName.trim() ? `Name on app: ${claimPayAccountName.trim()}` : '',
-          ]
-            .filter(Boolean)
-            .join('\n');
-
-    if (!paymentDetails) {
-      setMessage(
-        claimPayMethod === 'qr'
-          ? 'Upload your payment QR before sending Claim Pay.'
-          : 'Enter your payment app details before sending Claim Pay.'
-      );
-      return;
-    }
-
-    if (
-      claimPayMethod === 'app' &&
-      (!claimPayAppName.trim() || !claimPayCashTag.trim() || !claimPayAccountName.trim())
-    ) {
-      setMessage('Enter app name, cash tag, and account name.');
-      return;
-    }
-
-    setClaimPayLoading(true);
-    setMessage('');
-    try {
-      const requestedAmount = Number(staffCashBoxNpr || 0);
-      const coadminUid = await getCurrentUserCoadminUid();
-      const userSnap = await getDoc(doc(db, 'users', currentUser.uid));
-      const username =
-        (userSnap.exists()
-          ? String((userSnap.data() as { username?: string }).username || '').trim()
-          : '') || 'Staff';
-
-      await createCarerCashoutRequest({
-        coadminUid,
-        carerUid: currentUser.uid,
-        carerUsername: username,
-        amountNpr: requestedAmount,
-        paymentQrUrl: claimPayMethod === 'qr' ? claimPayQrUrl.trim() : '',
-        paymentDetails,
-      });
-
-      setActiveView('reach-out');
-      setClaimPayMethod('qr');
-      setClaimPayQrUrl('');
-      setClaimPayAppName('');
-      setClaimPayCashTag('');
-      setClaimPayAccountName('');
-      setMessage(
-        `Claim Pay request sent to your coadmin for ${formatAed(requestedAmount)}. Cash box updated.`
-      );
-    } catch (error: any) {
-      setMessage(error?.message || 'Failed to send Claim Pay request.');
-    } finally {
-      setClaimPayLoading(false);
     }
   }
 
@@ -1631,6 +1408,15 @@ export default function StaffPage() {
         ? cryptoApi.randomUUID()
         : `${playerUid}-${amount}`;
     return `staff-wallet-load:${playerUid}:${amount}:${randomId}`;
+  }
+
+  function buildStaffFreeplayIdempotencyKey(playerUid: string) {
+    const cryptoApi = typeof window !== 'undefined' ? window.crypto : undefined;
+    const randomId =
+      cryptoApi && typeof cryptoApi.randomUUID === 'function'
+        ? cryptoApi.randomUUID()
+        : `${playerUid}-${Date.now()}`;
+    return `staff-freeplay:${playerUid}:${randomId}`;
   }
 
   function staffWalletLoadErrorMessage(error: unknown) {
@@ -1718,7 +1504,12 @@ export default function StaffPage() {
   }
 
   async function handleGiveFreeplayToPlayer(player: PlayerUser) {
-    if (freeplayGiveTargetUid || !player.uid) {
+    if (freeplayGiveTargetUid || !player.uid || freeplayGiveInFlightRef.current.has(player.uid)) {
+      return;
+    }
+    const currentWalletBalance = Math.max(0, Math.floor(Number(staffWallet?.balanceCoin || 0)));
+    if (currentWalletBalance < STAFF_FREEPLAY_COST_COINS) {
+      setMessage('You need at least 3 Staff Coins to give Free Play.');
       return;
     }
     console.info('[FREEPLAY_GIVE_BUTTON_CLICK]', {
@@ -1726,16 +1517,30 @@ export default function StaffPage() {
       targetPlayerUid: player.uid,
     });
     setFreeplayGiveTargetUid(player.uid);
+    freeplayGiveInFlightRef.current.add(player.uid);
     setMessage('');
     try {
       const result = await giveFreeplayGift({
         targetPlayerUid: player.uid,
         reason: 'manual_specific_player',
+        idempotencyKey: buildStaffFreeplayIdempotencyKey(player.uid),
       });
+      if (result.staffWalletBalanceCoin != null && Number.isFinite(result.staffWalletBalanceCoin)) {
+        setStaffWallet((current) => ({
+          staffUid: current?.staffUid || staffAuthUid,
+          coadminUid: current?.coadminUid || '',
+          balanceCoin: Math.max(0, Math.floor(Number(result.staffWalletBalanceCoin))),
+          totalAllocatedCoin: current?.totalAllocatedCoin || 0,
+          totalLoadedCoin: current?.totalLoadedCoin || 0,
+        }));
+      } else {
+        void loadMyStaffWalletBalance();
+      }
       setMessage(`FreePlay gift sent to ${result.playerUsername}.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Failed to give FreePlay gift.');
     } finally {
+      freeplayGiveInFlightRef.current.delete(player.uid);
       setFreeplayGiveTargetUid(null);
     }
   }
@@ -1788,24 +1593,12 @@ export default function StaffPage() {
     }
   }
 
-  const isAdminCreatedStaff = creatorRole === 'admin';
-  const menuItems: (NavigationItem & { view: StaffView })[] = isAdminCreatedStaff
-    ? [
-        { label: 'Dashboard', view: 'dashboard' },
-        { label: 'View Tasks', view: 'view-tasks' },
-        { label: 'Create Coadmin', view: 'create-coadmin' },
-        { label: 'View Coadmins', view: 'view-coadmins' },
-        { label: 'Reach Out', view: 'reach-out', unread: reachOutUnread },
-        { label: 'Claim Pay', view: 'claim-pay' },
-      ]
-    : [
-        { label: 'Dashboard', view: 'dashboard' },
-        { label: 'View Tasks', view: 'view-tasks' },
-        { label: 'Create User', view: 'create-player' },
-        { label: 'View Users', view: 'view-players', unread: playerChatUnreadTotal },
-        { label: 'Reach Out', view: 'reach-out', unread: reachOutUnread },
-        { label: 'Claim Pay', view: 'claim-pay' },
-      ];
+  const menuItems: (NavigationItem & { view: StaffView })[] = [
+    { label: 'Dashboard', view: 'dashboard' },
+    { label: 'Cashout Tasks', view: 'view-tasks' },
+    { label: 'View Players', view: 'view-players', unread: playerChatUnreadTotal },
+    { label: 'Reach Out', view: 'reach-out', unread: reachOutUnread },
+  ];
   const sidebarItems = menuItems.map((item) => ({
     ...item,
     onClick: () => handleChangeView(item.view as StaffView),
@@ -2050,24 +1843,6 @@ export default function StaffPage() {
         items={sidebarItems}
         footer={<LogoutButton />}
       >
-          {!(
-            isMobilePlayerWorkspace &&
-            activeView === 'view-players' &&
-            selectedViewPlayer
-          ) ? (
-            <div className="mb-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4">
-              <p className="text-xs uppercase tracking-[0.2em] text-emerald-200/80">
-                USD Cash Box
-              </p>
-              <p className="mt-1 text-2xl font-bold text-emerald-100">
-                {formatAed(staffCashBoxUsdAmount)}
-              </p>
-              <p className="mt-1 text-xs text-emerald-100/70">
-                Includes 5% reward from each completed player cashout.
-              </p>
-            </div>
-          ) : null}
-
           {message && (
             <div className="mb-4 rounded-2xl bg-white/10 p-3 text-sm text-neutral-300">
               {message}
@@ -2077,18 +1852,16 @@ export default function StaffPage() {
           {activeView === 'dashboard' && (
             <div className="space-y-6">
               <DashboardView
-                coadminCount={isAdminCreatedStaff ? coadmins.length : 1}
+                coadminCount={1}
                 staffCount={players.length}
                 unreadCount={reachOutUnread}
               />
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {!isAdminCreatedStaff && (
-                  <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-                    <p className="text-sm text-neutral-400">Players Created</p>
-                    <p className="mt-2 text-3xl font-bold">{players.length}</p>
-                  </div>
-                )}
+                <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+                  <p className="text-sm text-neutral-400">Players</p>
+                  <p className="mt-2 text-3xl font-bold">{players.length}</p>
+                </div>
                 <div className="rounded-3xl border border-violet-400/25 bg-violet-500/10 p-5">
                   <p className="text-sm text-violet-100/75">Staff Wallet</p>
                   <p className="mt-2 text-3xl font-bold tabular-nums text-violet-50">
@@ -2097,7 +1870,7 @@ export default function StaffPage() {
                       : `${dashboardStaffWalletCoinBalance.toLocaleString()} coins`}
                   </p>
                   <p className="mt-2 text-xs text-violet-100/65">
-                    Coins available to load to players.
+                    Coins available for loading players and Free Play.
                   </p>
                 </div>
                 <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
@@ -2201,25 +1974,7 @@ export default function StaffPage() {
             </div>
           )}
 
-          {!isAdminCreatedStaff && activeView === 'create-player' && (
-            <CreateUserForm
-              title="Create User"
-              buttonLabel="Create User"
-              loadingLabel="Creating..."
-              username={playerUsername}
-              password={playerPassword}
-              referralCode={playerReferralCodeInput}
-              onReferralCodeChange={setPlayerReferralCodeInput}
-              showReferralCodeInput
-              loading={loading}
-              onUsernameChange={setPlayerUsername}
-              onPasswordChange={setPlayerPassword}
-              validatePlayerUsername
-              onSubmit={handleCreatePlayer}
-            />
-          )}
-
-          {!isAdminCreatedStaff && activeView === 'view-players' && (
+          {activeView === 'view-players' && (
             <div
               className={
                 isMobilePlayerWorkspace
@@ -2463,7 +2218,16 @@ export default function StaffPage() {
                             <button
                               type="button"
                               onClick={() => void handleGiveFreeplayToPlayer(user)}
-                              disabled={Boolean(freeplayGiveTargetUid) || user.status === 'disabled'}
+                              disabled={
+                                Boolean(freeplayGiveTargetUid) ||
+                                user.status === 'disabled' ||
+                                staffWalletBalance < STAFF_FREEPLAY_COST_COINS
+                              }
+                              title={
+                                staffWalletBalance < STAFF_FREEPLAY_COST_COINS
+                                  ? 'You need at least 3 Staff Coins to give Free Play.'
+                                  : undefined
+                              }
                               className="rounded-xl border border-fuchsia-400/30 bg-fuchsia-500/15 px-3 py-2 text-xs font-semibold text-fuchsia-100 hover:bg-fuchsia-500/25 disabled:opacity-60"
                             >
                               {freeplayGiveTargetUid === user.uid ? 'Sending...' : 'Give Freeplay'}
@@ -2502,7 +2266,8 @@ export default function StaffPage() {
                                   <p className="mt-1 text-[11px] text-violet-100/70">
                                     Available: {staffWalletBalance.toLocaleString()} coins / Loaded:{' '}
                                     {staffWalletTotalLoaded.toLocaleString()} / Allocated:{' '}
-                                    {staffWalletTotalAllocated.toLocaleString()}
+                                    {staffWalletTotalAllocated.toLocaleString()} / Free Play cost:{' '}
+                                    {STAFF_FREEPLAY_COST_COINS}
                                   </p>
                                 </div>
                                 <label className="min-w-0 text-xs text-neutral-300 md:w-40">
@@ -2681,478 +2446,6 @@ export default function StaffPage() {
             </div>
           )}
 
-          {false && !isAdminCreatedStaff && activeView === 'view-players' && (
-            <div>
-              {playerChatUnreadTotal > 0 && (
-                <div className="mb-4 flex justify-end">
-                  <span className="rounded-full bg-red-500 px-3 py-1 text-xs font-bold text-white">
-                    {playerChatUnreadTotal} unread
-                  </span>
-                </div>
-              )}
-
-              <UserManagementView<PlayerUser>
-                title="Players"
-                emptyText="No players found."
-                selectText="Select a player to manage."
-                deleteTitle="Delete player?"
-                deleteMessage="Are you sure you want to delete"
-                users={playersSortedByUnread}
-                selectedUser={selectedViewPlayer}
-                deleteTarget={null}
-                loadingList={loadingList}
-                loading={loading}
-                unreadCounts={unreadCounts}
-                onSelectUser={setSelectedViewPlayer}
-                onSetDeleteTarget={() => {}}
-                onToggleBlock={handleTogglePlayerStatus}
-                blocking={playerBlockActionUid !== null}
-                onGiveFreeplay={(player) => void handleGiveFreeplayToPlayer(player)}
-                freeplayGiveBusyUid={freeplayGiveTargetUid}
-                onlineByUid={staffOnlineByUid}
-                nameMode="coadmin"
-                onStartChat={handleOpenPlayerChat}
-                renderSelectedExtras={(user) => {
-                  const playerRisk = riskByPlayerUid.get(user.uid);
-                  const staffWalletBalance = Math.max(
-                    0,
-                    Math.floor(Number(staffWallet?.balanceCoin || 0))
-                  );
-                  const staffWalletTotalAllocated = Math.max(
-                    0,
-                    Math.floor(Number(staffWallet?.totalAllocatedCoin || 0))
-                  );
-                  const staffWalletTotalLoaded = Math.max(
-                    0,
-                    Math.floor(Number(staffWallet?.totalLoadedCoin || 0))
-                  );
-                  const requestedWalletLoadAmount = Number(staffWalletLoadAmountInput || 0);
-                  const walletLoadAmountTooHigh =
-                    Number.isFinite(requestedWalletLoadAmount) &&
-                    requestedWalletLoadAmount > staffWalletBalance;
-                  return (
-                    <div className="mt-5 space-y-4">
-                      {playerRisk ? (
-                        <p className="text-sm font-semibold text-orange-200/90">
-                          Risk: {String(playerRisk.riskLevel).toUpperCase()} (
-                          {playerRisk.riskScore || 0})
-                        </p>
-                      ) : null}
-                      <p className="text-sm text-neutral-300">
-                        Coin:{' '}
-                        <span className="font-bold tabular-nums text-amber-200">
-                          {Math.max(0, Math.floor(Number(user.coin || 0))).toLocaleString()}
-                        </span>
-                      </p>
-                      <div className="rounded-2xl border border-violet-400/35 bg-violet-950/20 p-4">
-                        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                          <div>
-                            <p className="text-xs font-black uppercase tracking-wide text-violet-100">
-                              Load Coins From My Staff Wallet
-                            </p>
-                            <p className="mt-2 text-2xl font-black text-white tabular-nums">
-                              {staffWalletLoading
-                                ? 'Loading...'
-                                : `${staffWalletBalance.toLocaleString()} coins`}
-                            </p>
-                            <p className="mt-1 text-[11px] text-violet-100/70">
-                              Total allocated: {staffWalletTotalAllocated.toLocaleString()} coins
-                              {' · '}
-                              Total loaded: {staffWalletTotalLoaded.toLocaleString()} coins
-                            </p>
-                          </div>
-                          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-end lg:w-auto">
-                            <label className="min-w-0 flex-1 text-sm text-neutral-300 lg:w-48">
-                              Amount
-                              <input
-                                type="number"
-                                min={1}
-                                step={1}
-                                inputMode="numeric"
-                                value={staffWalletLoadAmountInput}
-                                onChange={(event) =>
-                                  setStaffWalletLoadAmountInput(event.target.value)
-                                }
-                                disabled={staffWalletLoadBusy}
-                                placeholder="0"
-                                className="mt-1 w-full rounded-xl border border-white/15 bg-black/40 px-3 py-2 text-white outline-none focus:border-violet-400/60 disabled:opacity-50"
-                              />
-                            </label>
-                            <button
-                              type="button"
-                              onClick={() => void handleLoadPlayerFromStaffWallet(user)}
-                              disabled={
-                                staffWalletLoadBusy ||
-                                staffWalletLoading ||
-                                staffWalletBalance <= 0 ||
-                                walletLoadAmountTooHigh
-                              }
-                              className="whitespace-nowrap rounded-xl bg-violet-400 px-4 py-2.5 text-sm font-black text-black hover:bg-violet-300 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              {staffWalletLoadBusy ? 'Loading...' : 'Load Coins'}
-                            </button>
-                          </div>
-                        </div>
-                        <p className="mt-2 text-[11px] text-violet-100/65">
-                          Loads coins to this player by spending from your own Staff Wallet
-                          allowance.
-                        </p>
-                        {walletLoadAmountTooHigh ? (
-                          <p className="mt-1 text-[11px] font-semibold text-rose-200">
-                            Amount is higher than your available Staff Wallet balance.
-                          </p>
-                        ) : null}
-                      </div>
-                      {user.cash != null && (
-                        <p className="text-xs text-neutral-500">
-                          Cash (view only):{' '}
-                          {Math.max(0, Math.floor(Number(user.cash || 0))).toLocaleString()}
-                        </p>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => void handleOpenRiskPanel(user.uid)}
-                        disabled={riskActionLoading === `open-${user.uid}`}
-                        className="rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/20 disabled:opacity-60"
-                      >
-                        {riskActionLoading === `open-${user.uid}`
-                          ? 'Loading...'
-                          : 'View Player Risk Data'}
-                      </button>
-                    </div>
-                  );
-                }}
-              />
-
-              {selectedPlayerChatUser && (
-                <div className="mt-6 flex max-h-[min(80dvh,42rem)] flex-col overflow-hidden rounded-2xl border border-cyan-500/30 bg-cyan-500/10 p-4 sm:max-h-[min(85dvh,46rem)]">
-                  <div className="shrink-0 border-b border-cyan-400/20 pb-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        <OnlineIndicator
-                          online={Boolean(staffOnlineByUid[selectedPlayerChatUser?.uid || ''])}
-                          sizeClassName="h-3 w-3"
-                        />
-                        <div>
-                          <h3 className="text-lg font-bold text-cyan-100">
-                            Chat with {selectedPlayerChatUser?.username || 'player'}
-                          </h3>
-                          <p className="text-xs text-cyan-100/70">Player support conversation</p>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedPlayerChatUser(null)}
-                        className="rounded-lg bg-white/15 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/25"
-                      >
-                        Close
-                      </button>
-                    </div>
-                  </div>
-
-                  <div
-                    ref={staffPlayerScrollRef}
-                    onScroll={(event) => {
-                      const nearBottom = isNearChatBottom(event.currentTarget);
-                      staffPlayerNearBottomRef.current = nearBottom;
-                      if (nearBottom) {
-                        setShowStaffPlayerNewMessagePill(false);
-                      }
-                    }}
-                    className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto overflow-x-hidden overscroll-contain rounded-xl bg-black/25 p-3"
-                  >
-                    {pagedStaffPlayerChat.hasMoreOlder ? (
-                      <div className="sticky top-0 z-10 -mt-0.5 mb-2 flex justify-center">
-                        <button
-                          type="button"
-                          disabled={pagedStaffPlayerChat.loadingOlder}
-                          onClick={() => void pagedStaffPlayerChat.loadOlder()}
-                          className="rounded-full border border-cyan-400/35 bg-black/50 px-4 py-1.5 text-xs font-semibold text-cyan-100/90 shadow-sm hover:border-cyan-300/50 disabled:opacity-50"
-                        >
-                          {pagedStaffPlayerChat.loadingOlder
-                            ? 'Loading…'
-                            : 'Load previous messages'}
-                        </button>
-                      </div>
-                    ) : null}
-                    {playerMessages.length === 0 ? (
-                      <p className="text-sm text-cyan-100/60">
-                        No messages yet. Send first message to player.
-                      </p>
-                    ) : (
-                      playerMessages.map((msg) => (
-                        <div
-                          key={msg.id}
-                          className={`flex ${msg.sender === 'admin' ? 'justify-end' : 'justify-start'}`}
-                        >
-                          <div
-                            className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${
-                              msg.sender === 'admin'
-                                ? 'bg-white text-black'
-                                : 'bg-cyan-950/70 text-cyan-50'
-                            }`}
-                          >
-                            {msg.text ? <p>{msg.text}</p> : null}
-                            {msg.imageUrl ? (
-                              <a
-                                className="mt-1 block text-xs underline"
-                                href={msg.imageUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                View image
-                              </a>
-                            ) : null}
-                            <p className="mt-1 text-[11px] opacity-70">
-                              {msg.timestamp.toLocaleTimeString()}
-                            </p>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                    <div ref={staffPlayerMessagesEndRef} />
-                    {showStaffPlayerNewMessagePill ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          scrollChatToBottom(
-                            staffPlayerScrollRef.current,
-                            staffPlayerMessagesEndRef.current,
-                            'smooth'
-                          );
-                          staffPlayerNearBottomRef.current = true;
-                          setShowStaffPlayerNewMessagePill(false);
-                        }}
-                        className="sticky bottom-2 z-10 mx-auto block rounded-full border border-cyan-200/70 bg-cyan-100 px-3 py-1 text-xs font-bold text-black shadow-lg shadow-black/30"
-                      >
-                        New message
-                      </button>
-                    ) : null}
-                  </div>
-
-                  <form
-                    onSubmit={handleSendPlayerMessage}
-                    className="mt-3 flex shrink-0 gap-2"
-                  >
-                    <input
-                      value={newPlayerMessage}
-                      onChange={(event) => setNewPlayerMessage(event.target.value)}
-                      placeholder="Type message to player..."
-                      className="min-w-0 flex-1 rounded-xl border border-cyan-400/25 bg-black/30 px-4 py-3 text-sm text-white outline-none focus:border-cyan-300"
-                    />
-                    <button
-                      type="submit"
-                      disabled={!newPlayerMessage.trim()}
-                      className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-neutral-200 disabled:opacity-50"
-                    >
-                      Send
-                    </button>
-                  </form>
-                </div>
-              )}
-            </div>
-          )}
-
-          {isAdminCreatedStaff && activeView === 'create-coadmin' && (
-            <CreateUserForm
-              title="Create Coadmin"
-              buttonLabel="Create Coadmin"
-              loadingLabel="Creating..."
-              username={coadminUsername}
-              password={coadminPassword}
-              loading={loading}
-              onUsernameChange={setCoadminUsername}
-              onPasswordChange={setCoadminPassword}
-              onSubmit={handleCreateCoadmin}
-            />
-          )}
-
-          {isAdminCreatedStaff && activeView === 'view-coadmins' && (
-            <div>
-              <h2 className="mb-6 text-3xl font-bold">Coadmins</h2>
-
-              {loadingList ? (
-                <p className="text-sm text-neutral-400">Loading...</p>
-              ) : coadmins.length === 0 ? (
-                <p className="text-sm text-neutral-400">No coadmins found.</p>
-              ) : (
-                <div className="space-y-4">
-                  {coadmins.map((coadmin) => {
-                    const coadminStaff = allStaffUsers.filter((staff) =>
-                      belongsToCoadmin(staff, coadmin.uid)
-                    );
-
-                    return (
-                      <div
-                        key={coadmin.uid}
-                        className="rounded-2xl border border-white/10 bg-white/5 p-5"
-                      >
-                        <h3 className="flex flex-wrap items-center gap-2 text-2xl font-bold">
-                          <OnlineIndicator
-                            online={Boolean(staffOnlineByUid[coadmin.uid])}
-                            sizeClassName="h-3 w-3"
-                          />
-                          <span className="text-white">Co-admin</span>
-                        </h3>
-                        <p className="mt-2 text-sm text-neutral-400">
-                          Status: <span className="text-white">{coadmin.status}</span>
-                        </p>
-
-                        <div className="mt-4 rounded-xl border border-white/10 bg-black/30 p-4">
-                          <p className="text-sm font-semibold text-white">
-                            Staff under this coadmin ({coadminStaff.length})
-                          </p>
-
-                          {coadminStaff.length === 0 ? (
-                            <p className="mt-2 text-sm text-neutral-400">
-                              No staff linked yet.
-                            </p>
-                          ) : (
-                            <div className="mt-3 space-y-2">
-                              {coadminStaff.map((staff) => (
-                                <div
-                                  key={staff.uid}
-                                  className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
-                                >
-                                  <OnlineIndicator
-                                    online={Boolean(staffOnlineByUid[staff.uid])}
-                                    sizeClassName="h-2.5 w-2.5"
-                                    ringClassName="ring-black/30"
-                                  />
-                                  <span className="font-mono font-semibold text-white">
-                                    {staff.username || '—'}
-                                  </span>
-                                  <span className="text-neutral-400">· {staff.status}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeView === 'reach-out' && (
-            <ReachOutView
-              chatUsers={chatUsers}
-              selectedChatUser={selectedChatUser}
-              messages={messages}
-              newMessage={newMessage}
-              unreadCounts={reachOutUnreadCounts}
-              messagesScrollRef={staffReachOutScrollRef}
-              hasMoreOlderMessages={pagedStaffAgentChat.hasMoreOlder}
-              loadingOlderMessages={pagedStaffAgentChat.loadingOlder}
-              onLoadOlderMessages={pagedStaffAgentChat.loadOlder}
-              onSelectUser={handleSelectReachOutUser}
-              onMessageChange={setNewMessage}
-              onSendMessage={handleSendMessage}
-              onlineByUid={staffOnlineByUid}
-              nameMode="staff"
-            />
-          )}
-
-          {activeView === 'claim-pay' && (
-            <div className="mx-auto w-full max-w-md rounded-3xl border border-cyan-400/25 bg-neutral-900 p-5 text-white">
-            <h3 className="text-2xl font-black">Claim Pay</h3>
-            <p className="mt-2 text-sm text-cyan-100/75">
-              Submit your payout details. This request will be sent to your coadmin as a task.
-            </p>
-            <div className="mt-3 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-3 text-sm leading-relaxed text-amber-50/95">
-              <p className="font-semibold text-amber-100">When you get paid</p>
-              <p className="mt-2 text-amber-50/90">
-                Payment usually arrives right away, but it can sometimes take up to <strong>24 hours</strong>.
-                It may arrive in <strong>separate smaller amounts</strong> instead of one transfer—this is
-                normal. If nothing has arrived yet, wait up to 24 hours before worrying. If it stays
-                stuck for <strong>more than 24 hours</strong>, use <strong>Reach out</strong> to contact admin.
-              </p>
-            </div>
-            <p className="mt-3 rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 font-semibold text-cyan-100">
-              Claiming full amount: {formatAed(staffCashBoxUsdAmount)}
-            </p>
-
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setClaimPayMethod('qr')}
-                className={`rounded-xl border px-3 py-2 text-sm font-bold ${
-                  claimPayMethod === 'qr'
-                    ? 'border-cyan-300 bg-cyan-500/20 text-cyan-100'
-                    : 'border-white/15 bg-black/35 text-white/80'
-                }`}
-              >
-                QR
-              </button>
-              <button
-                type="button"
-                onClick={() => setClaimPayMethod('app')}
-                className={`rounded-xl border px-3 py-2 text-sm font-bold ${
-                  claimPayMethod === 'app'
-                    ? 'border-cyan-300 bg-cyan-500/20 text-cyan-100'
-                    : 'border-white/15 bg-black/35 text-white/80'
-                }`}
-              >
-                Payment App
-              </button>
-            </div>
-
-            {claimPayMethod === 'qr' ? (
-              <div className="mt-4 rounded-2xl border border-white/10 bg-black/25 p-3">
-                <ImageUploadField
-                  label="Upload payment QR"
-                  valueUrl={claimPayQrUrl || undefined}
-                  onUploaded={(uploaded) => {
-                    setClaimPayQrUrl(uploaded.url);
-                    setMessage('Payment QR uploaded.');
-                  }}
-                  onError={(errorMessage) => setMessage(errorMessage)}
-                />
-              </div>
-            ) : (
-              <div className="mt-4 space-y-2">
-                <input
-                  value={claimPayAppName}
-                  onChange={(event) => setClaimPayAppName(event.target.value)}
-                  placeholder="Payment app name"
-                  className="w-full rounded-xl border border-white/15 bg-black/35 px-3 py-2 text-sm text-white"
-                />
-                <input
-                  value={claimPayCashTag}
-                  onChange={(event) => setClaimPayCashTag(event.target.value)}
-                  placeholder="Cash tag / username"
-                  className="w-full rounded-xl border border-white/15 bg-black/35 px-3 py-2 text-sm text-white"
-                />
-                <input
-                  value={claimPayAccountName}
-                  onChange={(event) => setClaimPayAccountName(event.target.value)}
-                  placeholder="Name on app account"
-                  className="w-full rounded-xl border border-white/15 bg-black/35 px-3 py-2 text-sm text-white"
-                />
-              </div>
-            )}
-
-            <div className="mt-4 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setActiveView('reach-out')}
-                className="flex-1 rounded-xl border border-white/15 bg-white/10 py-2 text-sm font-semibold"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={claimPayLoading}
-                onClick={() => void handleSendClaimPayRequest()}
-                className="flex-1 rounded-xl bg-cyan-400 py-2 text-sm font-black text-black disabled:opacity-60"
-              >
-                {claimPayLoading ? 'Sending...' : 'Send Claim Pay'}
-              </button>
-            </div>
-            </div>
-          )}
       </RoleSidebarLayout>
 
       {showRiskPanel && selectedRiskSnapshot && (

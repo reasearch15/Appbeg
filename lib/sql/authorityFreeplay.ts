@@ -16,6 +16,8 @@ import {
   playerRequestLiveChannel,
 } from '@/lib/sql/liveOutbox';
 
+const STAFF_FREEPLAY_COST_COINS = 3;
+
 function isFreeplaySqlParameterError(message: string) {
   return /could not determine data type of parameter|invalid input syntax for type/i.test(
     message
@@ -44,6 +46,7 @@ export type AuthorityFreeplayGiveResult = {
   playerUid: string;
   playerUsername: string;
   giftId: string;
+  staffWalletBalanceCoin?: number | null;
 };
 
 export type AuthorityFreeplayClaimResult = {
@@ -68,6 +71,99 @@ function belongsToCoadmin(row: Record<string, unknown>, coadminUid: string) {
   return (
     cleanText(row.coadmin_uid) === scopeUid || cleanText(row.created_by) === scopeUid
   );
+}
+
+function numberFromDb(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+async function debitStaffWalletForFreeplay(
+  client: PoolClient,
+  input: {
+    staffUid: string;
+    coadminUid: string;
+    playerUid: string;
+    giftId: string;
+    nowIso: string;
+    idempotencyKey: string | null;
+  }
+) {
+  const wallet = await client.query<Record<string, unknown>>(
+    `
+      SELECT staff_uid, coadmin_uid, balance_coin
+      FROM public.staff_coin_wallets
+      WHERE staff_uid = $1::text
+        AND deleted_at IS NULL
+      FOR UPDATE
+    `,
+    [input.staffUid]
+  );
+  if (!wallet.rows.length) {
+    throw new Error('insufficient_staff_freeplay_coins');
+  }
+
+  const row = wallet.rows[0];
+  if (cleanText(row.coadmin_uid) !== input.coadminUid) {
+    throw new Error('Forbidden: this staff wallet is outside your scope.');
+  }
+
+  const beforeBalance = numberFromDb(row.balance_coin);
+  if (beforeBalance < STAFF_FREEPLAY_COST_COINS) {
+    throw new Error('insufficient_staff_freeplay_coins');
+  }
+  const afterBalance = beforeBalance - STAFF_FREEPLAY_COST_COINS;
+
+  await client.query(
+    `
+      UPDATE public.staff_coin_wallets
+      SET balance_coin = $2::numeric,
+          updated_at = $3::timestamptz
+      WHERE staff_uid = $1::text
+        AND deleted_at IS NULL
+    `,
+    [input.staffUid, afterBalance, input.nowIso]
+  );
+
+  await insertAuthorityLedgerEvent(client, {
+    eventKey: `staffCoinWallets:${input.giftId}:${input.staffUid}:coin:staff_freeplay_give_debit`,
+    userUid: input.staffUid,
+    username: null,
+    role: 'staff',
+    coadminUid: input.coadminUid,
+    balanceType: 'coin',
+    direction: 'debit',
+    delta: -STAFF_FREEPLAY_COST_COINS,
+    absoluteAfter: afterBalance,
+    eventType: 'staff_freeplay_give_debit',
+    sourceCollection: 'freeplay_gifts_cache',
+    sourceId: input.giftId,
+    actorUid: input.staffUid,
+    actorRole: 'staff',
+    confidence: 'high',
+    sourceCreatedAt: input.nowIso,
+    rawSourceData: {
+      staffUid: input.staffUid,
+      coadminUid: input.coadminUid,
+      playerUid: input.playerUid,
+      giftId: input.giftId,
+      costCoins: STAFF_FREEPLAY_COST_COINS,
+      beforeBalance,
+      afterBalance,
+      idempotencyKey: input.idempotencyKey,
+    },
+    sourceFields: {
+      staffUid: input.staffUid,
+      playerUid: input.playerUid,
+      giftId: input.giftId,
+      costCoins: STAFF_FREEPLAY_COST_COINS,
+      beforeBalance,
+      afterBalance,
+      idempotencyKey: input.idempotencyKey,
+    },
+  });
+
+  return afterBalance;
 }
 
 function rollFreeplayAmount() {
@@ -494,6 +590,7 @@ export async function giveFreeplayGiftInSql(input: {
   const operationKey = idempotencyKey
     ? `freeplay_give:${coadminUid}:${idempotencyKey}`
     : null;
+  let staffWalletBalanceCoin: number | null = null;
 
   if (operationKey) {
     logAuthPayloadPreTxnRemoved('freeplay_give');
@@ -578,6 +675,17 @@ export async function giveFreeplayGiftInSql(input: {
       }
     }
 
+    if (actorRole.toLowerCase() === 'staff') {
+      staffWalletBalanceCoin = await debitStaffWalletForFreeplay(client, {
+        staffUid: actorUid,
+        coadminUid,
+        playerUid: selectedPlayer.uid,
+        giftId,
+        nowIso,
+        idempotencyKey,
+      });
+    }
+
     await upsertFreeplayGiftCache(client, {
       giftId,
       playerUid: selectedPlayer.uid,
@@ -623,6 +731,7 @@ export async function giveFreeplayGiftInSql(input: {
       playerUid: selectedPlayer.uid,
       playerUsername: selectedPlayer.username,
       giftId,
+      staffWalletBalanceCoin,
     };
   } catch (error) {
     await client.query('ROLLBACK');
