@@ -117,6 +117,10 @@ import {
   returnTaskToPendingAndCancelAutomation,
   type AutomationUiStatus,
 } from '@/features/automation/automationJobs';
+import {
+  hasVendorAwareness,
+  type VendorAwareness,
+} from '@/features/vendors/vendorAwareness';
 
 type CarerView =
   | 'dashboard'
@@ -337,6 +341,30 @@ function formatTaskTimelineTime(value: unknown) {
     minute: '2-digit',
     second: '2-digit',
   }).format(new Date(ms));
+}
+
+function renderVendorTaskBadge(vendor: VendorAwareness | null | undefined) {
+  if (vendor?.configured === false) {
+    return (
+      <span className="rounded-full border border-amber-300/20 bg-amber-300/10 px-3 py-1 text-xs text-amber-100/85">
+        Vendor data unavailable
+      </span>
+    );
+  }
+  if (!hasVendorAwareness(vendor)) {
+    return (
+      <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-neutral-400">
+        No Vendor
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs text-cyan-50/85">
+      <span className="font-mono text-cyan-100">[{vendor.code}]</span>
+      <span className="truncate">Vendor: {vendor.name}</span>
+      <span className="text-cyan-100/55">· {vendor.status}</span>
+    </span>
+  );
 }
 
 type CleanTaskTimeline = {
@@ -5185,6 +5213,7 @@ export default function CarerPage() {
               <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-white">
                 {statusLabel}
               </span>
+              {renderVendorTaskBadge(task.vendor)}
               {automationStatus && (
                 <span className="rounded-full bg-violet-500/20 px-3 py-1 text-xs font-bold uppercase text-violet-200">
                   Automation:{' '}

@@ -13,6 +13,7 @@ import {
   resolveCoadminUid,
 } from '@/lib/coadmin/scope';
 import { assertValidGameUsername } from '@/lib/games/gameUsernameRule';
+import type { VendorAwareness } from '@/features/vendors/vendorAwareness';
 
 export type CoadminUser = {
   id: string;
@@ -82,6 +83,7 @@ export type PlayerUser = {
   totalRechargeCount?: number;
   /** Aggregated total redeem count (from player requests). */
   totalRedeemCount?: number;
+  vendor?: VendorAwareness | null;
   createdAt?: any;
 };
 

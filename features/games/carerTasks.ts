@@ -42,6 +42,7 @@ import {
   getCurrentUserCoadminUid as getScopedCurrentUserCoadminUid,
   resolveCoadminUid,
 } from '@/lib/coadmin/scope';
+import type { VendorAwareness } from '@/features/vendors/vendorAwareness';
 
 function isCarerTaskDebugLoggingEnabled() {
   if (typeof window === 'undefined') {
@@ -135,6 +136,7 @@ export type CarerTask = {
   baseUrl?: string | null;
   gameCredentialUsername?: string | null;
   gameCredentialPassword?: string | null;
+  vendor?: VendorAwareness | null;
 };
 
 function buildPendingTaskResetFields(): Record<string, unknown> {

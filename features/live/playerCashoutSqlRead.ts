@@ -21,6 +21,7 @@ import {
   subscribePlayerCashoutLiveFromPlayerStream,
   subscribePlayerCashoutLiveHealthFromPlayerStream,
 } from '@/features/live/playerRequestSqlRead';
+import { normalizeVendorAwareness } from '@/features/vendors/vendorAwareness';
 
 const POLL_MS = 30_000;
 const SAFETY_REFETCH_MS = 60_000;
@@ -121,6 +122,7 @@ function mapCachedTask(row: Record<string, unknown>): PlayerCashoutTask {
     expiresAt: isoToTimestamp(String(row.expiresAt || '') || null),
     createdAt: isoToTimestamp(String(row.createdAt || '') || null),
     completedAt: isoToTimestamp(String(row.completedAt || '') || null),
+    vendor: normalizeVendorAwareness(row.vendor),
   };
 }
 

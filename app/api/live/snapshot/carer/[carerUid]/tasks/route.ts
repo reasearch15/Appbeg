@@ -20,6 +20,8 @@ import {
   toIsoString,
 } from '@/lib/sql/playerMirrorCommon';
 import { logSqlExplainSummary } from '@/lib/sql/sqlExplainSummary';
+import { attachVendorAwarenessToPlayers } from '@/lib/sql/vendorOwnershipRead';
+import type { VendorAwareness } from '@/features/vendors/vendorAwareness';
 
 export const runtime = 'nodejs';
 
@@ -82,6 +84,7 @@ type SnapshotTask = {
   completedAt: string | null;
   completedByCarerUid: string | null;
   completedByCarerUsername: string | null;
+  vendor?: VendorAwareness | null;
 };
 
 function mapSnapshotRow(row: Record<string, unknown>): SnapshotTask {
@@ -479,7 +482,7 @@ export async function GET(
       });
       return included;
     });
-    const tasks = sortByNewest(visible);
+    const tasks = await attachVendorAwarenessToPlayers(sortByNewest(visible), { client });
     const mergeMs = Date.now() - mergeStartedAt;
     const totalMs = Date.now() - totalStartedAt;
     const snapshotCounts = countSnapshotStatuses(tasks);

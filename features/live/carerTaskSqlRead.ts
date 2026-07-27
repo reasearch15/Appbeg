@@ -33,6 +33,7 @@ import {
   type CarerTaskFastDispatchSignal,
   shouldFastDispatchForCarerTaskLiveEvent,
 } from '@/features/live/carerTaskFastDispatch';
+import { normalizeVendorAwareness } from '@/features/vendors/vendorAwareness';
 
 export const CARER_TASKS_SQL_READ_ENABLED = isPublicCarerTasksSqlReadEnabled();
 
@@ -62,6 +63,7 @@ type SqlSnapshotTask = {
   completedAt?: string | null;
   completedByCarerUid?: string | null;
   completedByCarerUsername?: string | null;
+  vendor?: unknown;
 };
 
 type SqlSnapshotResponse = {
@@ -314,6 +316,7 @@ function mapSnapshotRowToCarerTask(row: SqlSnapshotTask, fallbackCoadminUid: str
     completedAt: isoToTimestamp(row.completedAt),
     completedByCarerUid: cleanText(row.completedByCarerUid) || null,
     completedByCarerUsername: cleanText(row.completedByCarerUsername) || null,
+    vendor: normalizeVendorAwareness(row.vendor),
   };
 }
 

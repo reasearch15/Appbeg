@@ -22,6 +22,8 @@ import {
   deactivateGameUsernameForPlayerInTxn,
   upsertGameUsernameForPlayer,
 } from '@/lib/sql/gameUsernameRegistrySql';
+import { attachVendorAwarenessToPlayers } from '@/lib/sql/vendorOwnershipRead';
+import type { VendorAwareness } from '@/features/vendors/vendorAwareness';
 
 export async function mirrorPlayerCache(uid: string, data: Record<string, unknown>, source = 'appbeg') {
   const db = getPlayerMirrorPool();
@@ -263,6 +265,7 @@ export type CachedPlayer = {
   coadminUid?: string | null;
   coin?: number;
   cash?: number;
+  vendor?: VendorAwareness | null;
   createdAt?: string | null;
 };
 
@@ -349,7 +352,7 @@ export async function readPlayersCacheByCoadminWithClient(
     PLAYERS_BY_COADMIN_SQL,
     [cleanCoadminUid]
   );
-  return mapCachedPlayerRows(rows, cleanCoadminUid);
+  return attachVendorAwarenessToPlayers(mapCachedPlayerRows(rows, cleanCoadminUid), { client });
 }
 
 const PLAYERS_BY_REFERRER_SQL = `
@@ -434,7 +437,7 @@ export async function readPlayersCacheByCoadmin(
       PLAYERS_BY_COADMIN_SQL,
       [cleanCoadminUid]
     );
-    return mapCachedPlayerRows(rows, cleanCoadminUid);
+    return attachVendorAwarenessToPlayers(mapCachedPlayerRows(rows, cleanCoadminUid), { pool: db });
   } catch (error) {
     console.warn('[PLAYERS_CACHE] postgres read failed', {
       coadminUid: cleanCoadminUid,

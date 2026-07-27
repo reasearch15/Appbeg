@@ -14,6 +14,8 @@ import {
   toIsoString,
 } from '@/lib/sql/playerMirrorCommon';
 import { isCacheSqlAuthoritative } from '@/lib/server/cacheSqlRead';
+import { attachVendorAwarenessToPlayers } from '@/lib/sql/vendorOwnershipRead';
+import type { VendorAwareness } from '@/features/vendors/vendorAwareness';
 
 export type PlayerCashoutTaskCacheInput = {
   firebaseId: string;
@@ -209,6 +211,7 @@ export type CachedPlayerCashoutTask = {
   expiresAt: string | null;
   createdAt: string | null;
   completedAt: string | null;
+  vendor?: VendorAwareness | null;
 };
 
 function mapCachedPlayerCashoutTaskRow(row: Record<string, unknown>): CachedPlayerCashoutTask | null {
@@ -264,15 +267,16 @@ async function readPlayerCashoutTasksBySql(
     const tasks = rows
       .map((row) => mapCachedPlayerCashoutTaskRow(row))
       .filter((task): task is CachedPlayerCashoutTask => Boolean(task));
+    const enrichedTasks = await attachVendorAwarenessToPlayers(tasks);
     const durationMs = Date.now() - startedAt;
     if (isSqlCacheVerboseLogs() || durationMs >= SQL_QUERY_SLOW_MS) {
       logPlayerCacheInfo('[PLAYER_CASHOUT_TASKS_CACHE] read ok', {
         label,
-        count: tasks.length,
+        count: enrichedTasks.length,
         durationMs,
       });
     }
-    return tasks;
+    return enrichedTasks;
   } catch (error) {
     const pg = extractPgErrorDetails(error);
     console.error('[PLAYER_CASHOUT_TASKS_CACHE_ERROR]', {

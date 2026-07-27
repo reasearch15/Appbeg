@@ -36,6 +36,7 @@ import {
   parseCashoutClaimConflictSnapshot,
   type CashoutClaimConflictSnapshot,
 } from '@/lib/cashouts/playerCashoutClaimConflict';
+import type { VendorAwareness } from '@/features/vendors/vendorAwareness';
 
 export type PlayerCashoutTaskStatus = 'pending' | 'in_progress' | 'completed' | 'declined';
 export type PlayerCashoutPayoutMethod = 'qr' | 'app';
@@ -61,6 +62,7 @@ export type PlayerCashoutTask = {
   expiresAt?: Date | null;
   createdAt?: Date | null;
   completedAt?: Date | null;
+  vendor?: VendorAwareness | null;
 };
 
 const CASHOUT_ACTIVE_LISTENER_LIMIT = 100;

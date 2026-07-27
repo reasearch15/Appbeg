@@ -94,6 +94,10 @@ import {
   loadPlayerCoinsFromStaffWallet,
   type StaffWalletBalance,
 } from '@/features/users/staffWallet';
+import {
+  hasVendorAwareness,
+  type VendorAwareness,
+} from '@/features/vendors/vendorAwareness';
 import { AdminUser, ChatMessage } from '../../components/admin/types';
 
 type StaffView =
@@ -198,6 +202,72 @@ function formatAed(value: number) {
 
 function formatUsdFromNpr(value: number) {
   return formatAed(Number(value || 0));
+}
+
+function renderVendorTaskBadge(vendor: VendorAwareness | null | undefined) {
+  if (vendor?.configured === false) {
+    return (
+      <div className="mt-2 inline-flex rounded-full border border-amber-300/20 bg-amber-300/10 px-2.5 py-1 text-xs text-amber-100/85">
+        Vendor data unavailable
+      </div>
+    );
+  }
+  if (!hasVendorAwareness(vendor)) {
+    return (
+      <div className="mt-2 inline-flex rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs text-neutral-400">
+        No Vendor
+      </div>
+    );
+  }
+  return (
+    <div className="mt-2 inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2.5 py-1 text-xs text-cyan-50/85">
+      <span className="font-mono text-cyan-100">[{vendor.code}]</span>
+      <span className="truncate">Vendor: {vendor.name}</span>
+      <span className="text-cyan-100/55">· {vendor.status}</span>
+    </div>
+  );
+}
+
+function renderVendorDetailSection(vendor: VendorAwareness | null | undefined) {
+  if (vendor?.configured === false) {
+    return (
+      <div className="rounded-2xl border border-amber-300/20 bg-amber-300/10 p-4">
+        <p className="text-xs font-black uppercase tracking-wide text-amber-100">Vendor</p>
+        <p className="mt-2 text-sm font-semibold text-amber-100">Vendor data unavailable</p>
+      </div>
+    );
+  }
+  if (!hasVendorAwareness(vendor)) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
+        <p className="text-xs font-black uppercase tracking-wide text-neutral-400">Vendor</p>
+        <p className="mt-2 text-sm font-semibold text-neutral-300">No Vendor</p>
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-4">
+      <p className="text-xs font-black uppercase tracking-wide text-cyan-100">Vendor</p>
+      <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+        <p className="text-cyan-100/70">
+          Name <span className="block font-semibold text-white">{vendor.name}</span>
+        </p>
+        <p className="text-cyan-100/70">
+          Vendor Code <span className="block font-mono font-semibold text-white">{vendor.code}</span>
+        </p>
+        <p className="text-cyan-100/70">
+          Status <span className="block font-semibold text-white">{vendor.status}</span>
+        </p>
+        <p className="text-cyan-100/70">
+          Linked Staff <span className="block font-semibold text-white">{vendor.linkedStaffUid || 'Not linked'}</span>
+          <span className="block text-[11px] text-cyan-100/55">Reporting Only</span>
+        </p>
+        <p className="text-cyan-100/70">
+          Ownership Date <span className="block font-semibold text-white">{formatDateTime(vendor.ownershipDate, '—')}</span>
+        </p>
+      </div>
+    </div>
+  );
 }
 
 function staffRiskErrorMessage(error: unknown) {
@@ -1861,6 +1931,7 @@ export default function StaffPage() {
                       <p className="text-sm text-cyan-100/85">
                         Amount: {formatUsdFromNpr(task.amountNpr || 0)}
                       </p>
+                      {renderVendorTaskBadge(task.vendor)}
                       {renderPlayerCashoutPayment(task)}
                     </div>
                     <button
@@ -1901,6 +1972,7 @@ export default function StaffPage() {
                         <p className="text-sm text-amber-100/85">
                           Amount: {formatUsdFromNpr(task.amountNpr || 0)}
                         </p>
+                        {renderVendorTaskBadge(task.vendor)}
                         <p className="mt-1 text-xs text-amber-100/70">
                           Time left: {formatCountdownMs(remainingMs + countdownTick * 0)}
                         </p>
@@ -1953,6 +2025,7 @@ export default function StaffPage() {
                   <p className="text-sm text-emerald-100/85">
                     Amount: {formatUsdFromNpr(task.amountNpr || 0)}
                   </p>
+                  {renderVendorTaskBadge(task.vendor)}
                   {renderPlayerCashoutPayment(task)}
                   <p className="mt-1 text-xs text-emerald-100/70">
                     Completed: {formatDateTime(task.completedAt, 'Done')}
@@ -2361,6 +2434,10 @@ export default function StaffPage() {
                                 </span>
                               </span>
                             </div>
+                          </div>
+
+                          <div className="mt-3">
+                            {renderVendorDetailSection(user.vendor)}
                           </div>
 
                           <div className="mt-3 flex flex-wrap items-center gap-2">
