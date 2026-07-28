@@ -30,8 +30,10 @@ import {
   playerRequestLiveChannel,
 } from '@/lib/sql/liveOutbox';
 import { cleanText, getPlayerMirrorPool, toIsoString } from '@/lib/sql/playerMirrorCommon';
+import { buildPlayerBalanceUpdatedOutboxRows } from '@/lib/sql/playerBalanceUpdatedEvent';
 import { RechargeSqlWaterfall } from '@/lib/server/rechargeSqlWaterfall';
 import { hasFirstRechargeMatchAppliedFromSqlWithClient } from '@/lib/sql/playerGameRequestsCache';
+import { invalidateSessionMePlayerExtras } from '@/lib/server/sessionMeExtras';
 
 const MIN_REDEEM_AMOUNT = 50;
 const MAX_REDEEM_AMOUNT = 350;
@@ -1588,11 +1590,14 @@ export async function completeRechargeRedeemTaskInSql(
     const nowIso = new Date().toISOString();
     const eventId = randomUUID();
     let totalAwardNpr = 0;
+    let committedCashBalance: number | null = null;
+    const committedCoinBalance = readPlayerCoin(player);
 
     if (requestType === 'redeem') {
       const currentCash = readPlayerCash(player);
       const newCash = currentCash + amount;
       await updatePlayerBalancesInTxn(client, playerUid, { cash: newCash });
+      committedCashBalance = newCash;
       const financialRaw = {
         playerUid,
         coadminUid,
@@ -1766,6 +1771,21 @@ export async function completeRechargeRedeemTaskInSql(
       eventType: 'task.completed',
       updatedAt: nowIso,
     });
+    const balanceOutboxRows =
+      requestType === 'redeem' && committedCashBalance != null
+        ? (buildPlayerBalanceUpdatedOutboxRows({
+            playerUid,
+            cashBalance: committedCashBalance,
+            coinBalance: committedCoinBalance,
+            reason: 'redeem_completed',
+            eventId,
+            occurredAt: nowIso,
+            taskId,
+            requestId,
+            source: 'authority_game_request_complete',
+          }) as LiveOutboxInsertInput[])
+        : [];
+
     await emitPlayerRequestOutcomeMessage(client, {
       playerUid,
       coadminUid,
@@ -1779,24 +1799,7 @@ export async function completeRechargeRedeemTaskInSql(
       message: playerSuccessMessage,
       toastVariant: 'success',
       source: 'authority_game_request_complete',
-      additionalOutboxRows: [
-        ...completeCarerOutbox.rows,
-        {
-          channel: playerRequestLiveChannel(playerUid),
-          eventType: 'balance_update',
-          entityType: 'player_balance',
-          entityId: playerUid,
-          source: 'authority_game_request_complete',
-          mirroredAt: nowIso,
-          payload: {
-            entityId: playerUid,
-            playerUid,
-            requestId,
-            updatedAt: nowIso,
-            source: 'authority',
-          },
-        },
-      ],
+      additionalOutboxRows: [...completeCarerOutbox.rows, ...balanceOutboxRows],
       outboxFlowName: 'complete_recharge_redeem',
     });
     console.info('[TASK_OUTBOX_EMITTED]', {
@@ -1804,10 +1807,21 @@ export async function completeRechargeRedeemTaskInSql(
       requestId,
       phase: 'complete',
       flowName: 'complete_recharge_redeem',
-      rowCount: completeCarerOutbox.rows.length,
+      rowCount: completeCarerOutbox.rows.length + balanceOutboxRows.length,
       channels: completeCarerOutbox.channels,
       eventType: 'task.completed',
     });
+    if (balanceOutboxRows.length) {
+      console.info('[PLAYER_BALANCE_UPDATED_OUTBOX_QUEUED]', {
+        taskId,
+        requestId,
+        playerUid,
+        eventId,
+        cashBalance: committedCashBalance,
+        reason: 'redeem_completed',
+        eventTypes: balanceOutboxRows.map((row) => row.eventType),
+      });
+    }
     console.info('[PLAYER_RECHARGE_SUCCESS_TOAST_QUEUED]', {
       requestId,
       playerUid,
@@ -1827,9 +1841,13 @@ export async function completeRechargeRedeemTaskInSql(
         requestId,
         alreadyCompleted: false,
         totalAwardNpr,
+        eventId,
+        cashBalance: committedCashBalance,
       }),
     ]);
     await client.query('COMMIT');
+    // Session/me extras are process-local; clear only after the credit has committed.
+    invalidateSessionMePlayerExtras({ uid: playerUid });
     logTaskLifecycleDuration({
       taskId,
       createdAt: task.created_at,
@@ -1844,6 +1862,7 @@ export async function completeRechargeRedeemTaskInSql(
       requestType,
       totalAwardNpr,
       alreadyCompleted: false,
+      cashBalance: committedCashBalance,
     });
     return {
       success: true,

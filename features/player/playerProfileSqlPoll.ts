@@ -2,6 +2,7 @@
 
 import {
   getSessionMeOnce,
+  patchCachedSessionMeBalances,
   subscribeSessionMe,
   type SessionMePayload,
 } from '@/features/auth/sessionUser';
@@ -75,11 +76,20 @@ export function attachPlayerProfileSqlPoll(
 
 export async function loadPlayerProfileSnapshotOnce(options?: {
   force?: boolean;
+  bypassCache?: boolean;
 }): Promise<PlayerProfileSqlSnapshot | null> {
   logClientFirestoreSkipped('player_profile_once', { route: '/api/auth/session/me' });
   const payload = await getSessionMeOnce({
-    maxAgeMs: options?.force ? 0 : 1_000,
-    force: options?.force,
+    maxAgeMs: options?.force || options?.bypassCache ? 0 : 1_000,
+    force: options?.force || options?.bypassCache,
+    bypassCache: options?.bypassCache,
   });
   return payload ? mapSessionMeToProfile(payload) : null;
+}
+
+export function applyAuthoritativeWalletToProfileCache(input: {
+  cash?: number | null;
+  coin?: number | null;
+}) {
+  patchCachedSessionMeBalances(input);
 }

@@ -116,6 +116,7 @@ import {
 } from '@/features/freeplay/playerFreeplay';
 import { loadPlayerBaseData } from '@/features/player/playerBaseData';
 import {
+  applyAuthoritativeWalletToProfileCache,
   attachPlayerProfileSqlPoll,
   loadPlayerProfileSnapshotOnce,
   type PlayerProfileSqlSnapshot,
@@ -4079,7 +4080,54 @@ export default function PlayerPage() {
           onRechargeSuccessEvent: showRechargeSuccessFromLiveEvent,
           onRedeemDismissEvent: showRedeemDismissFromLiveEvent,
           onBalanceUpdate: (reason, meta) => {
-            void loadPlayerProfileSnapshotOnce().then((profile) => {
+            const hasAuthoritativeCash =
+              meta?.cashBalance !== undefined &&
+              meta?.cashBalance !== null &&
+              Number.isFinite(Number(meta.cashBalance));
+            const hasAuthoritativeCoin =
+              meta?.coinBalance !== undefined &&
+              meta?.coinBalance !== null &&
+              Number.isFinite(Number(meta.coinBalance));
+
+            if (hasAuthoritativeCash || hasAuthoritativeCoin) {
+              setWallet((current) => {
+                const nextWallet = {
+                  cash: hasAuthoritativeCash
+                    ? Math.max(0, Number(meta?.cashBalance))
+                    : current.cash,
+                  coin: hasAuthoritativeCoin
+                    ? Math.max(0, Number(meta?.coinBalance))
+                    : current.coin,
+                };
+                return areWalletsEqual(current, nextWallet) ? current : nextWallet;
+              });
+              applyAuthoritativeWalletToProfileCache({
+                cash: hasAuthoritativeCash ? Number(meta?.cashBalance) : undefined,
+                coin: hasAuthoritativeCoin ? Number(meta?.coinBalance) : undefined,
+              });
+              playerDevLog('[PLAYER_BALANCE_EVENT] applied_authoritative', {
+                reason,
+                playerUid,
+                cashBalance: hasAuthoritativeCash ? Number(meta?.cashBalance) : null,
+                coinBalance: hasAuthoritativeCoin ? Number(meta?.coinBalance) : null,
+                eventId: meta?.eventId || null,
+                taskId: meta?.taskId || null,
+              });
+              if (meta?.direction === 'cash_to_coin' || meta?.direction === 'coin_to_cash') {
+                console.info('[CONVERSION_SSE_RECONCILED]', {
+                  type: meta.direction,
+                  reason,
+                  updatedCoinBalance: hasAuthoritativeCoin ? Number(meta?.coinBalance) : null,
+                  updatedCashBalance: hasAuthoritativeCash ? Number(meta?.cashBalance) : null,
+                });
+              }
+              return;
+            }
+
+            void loadPlayerProfileSnapshotOnce({
+              force: true,
+              bypassCache: true,
+            }).then((profile) => {
               if (profile) {
                 applyPlayerProfileSnapshot(profile, playerUid);
               }
@@ -4094,8 +4142,9 @@ export default function PlayerPage() {
               playerDevLog('[PLAYER_BALANCE_EVENT] profile_refreshed', {
                 reason,
                 playerUid,
+                needsAuthoritativeRefetch: meta?.needsAuthoritativeRefetch === true,
               });
-              });
+            });
           },
           onFreeplayGivenEvent: (event: PlayerFreeplayGivenLiveEvent) => {
             playerDevLog('[PLAYER_FREEPLAY_REFETCH_START]', {

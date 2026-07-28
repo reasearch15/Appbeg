@@ -71,6 +71,7 @@ const PLAYER_IMMEDIATE_REFETCH_EVENTS = new Set([
   'game_request_complete',
   'player_message',
   'balance_update',
+  'player.balance.updated',
   'freeplay.given',
   'freeplay_pending',
   'request.upserted',
@@ -88,6 +89,7 @@ const PLAYER_LIVE_SSE_EVENTS = [
   'game_request_complete',
   'player_message',
   'balance_update',
+  'player.balance.updated',
   'freeplay.given',
   'freeplay_pending',
   'player_game_login.updated',
@@ -345,6 +347,27 @@ type SqlRequestPayload = {
   completedAt?: unknown;
   freeplayGiftId?: unknown;
   giftId?: unknown;
+  cashBalance?: unknown;
+  coinBalance?: unknown;
+  cash?: unknown;
+  coin?: unknown;
+  reason?: unknown;
+  eventId?: unknown;
+  taskId?: unknown;
+  occurredAt?: unknown;
+};
+
+export type PlayerBalanceUpdateMeta = {
+  direction?: 'cash_to_coin' | 'coin_to_cash' | null;
+  cashBalance?: number | null;
+  coinBalance?: number | null;
+  reason?: string | null;
+  eventId?: string | null;
+  taskId?: string | null;
+  requestId?: string | null;
+  outboxId?: number | null;
+  authoritative?: boolean;
+  needsAuthoritativeRefetch?: boolean;
 };
 
 export type PlayerRequestToastVariant = 'success' | 'info' | 'error' | 'warning';
@@ -484,11 +507,69 @@ function resolveEntityId(payload: SqlRequestPayload, eventName: string) {
   if (entityId) {
     return entityId;
   }
-  if (eventName === 'balance_update') {
+  if (eventName === 'balance_update' || eventName === 'player.balance.updated') {
     return cleanText(payload.playerUid);
   }
   if (eventName === 'freeplay.given' || eventName === 'freeplay_pending') {
     return cleanText(payload.freeplayGiftId) || cleanText(payload.giftId);
+  }
+  return '';
+}
+
+function readFiniteBalance(value: unknown): number | null {
+  const n = Number(value);
+  if (!Number.isFinite(n)) {
+    return null;
+  }
+  return Math.max(0, n);
+}
+
+function buildBalanceUpdateMeta(
+  eventName: string,
+  payload: SqlRequestPayload,
+  outboxId: number
+): PlayerBalanceUpdateMeta {
+  const direction = cleanText(payload.direction);
+  const transferDirection =
+    direction === 'cash_to_coin' || direction === 'coin_to_cash' ? direction : null;
+  const cashBalance =
+    readFiniteBalance(payload.cashBalance) ?? readFiniteBalance(payload.cash);
+  const coinBalance =
+    readFiniteBalance(payload.coinBalance) ?? readFiniteBalance(payload.coin);
+  const authoritative = cashBalance != null || coinBalance != null;
+  return {
+    direction: transferDirection,
+    cashBalance,
+    coinBalance,
+    reason: cleanText(payload.reason) || null,
+    eventId: cleanText(payload.eventId) || null,
+    taskId: cleanText(payload.taskId) || null,
+    requestId: cleanText(payload.requestId) || null,
+    outboxId: outboxId > 0 ? outboxId : null,
+    authoritative,
+    needsAuthoritativeRefetch: !authoritative,
+  };
+}
+
+function balanceEventDedupeKeyFromPayload(
+  eventName: string,
+  payload: SqlRequestPayload,
+  outboxId: number
+) {
+  const eventId = cleanText(payload.eventId);
+  if (eventId) {
+    return `event:${eventId}`;
+  }
+  const taskId = cleanText(payload.taskId);
+  if (taskId) {
+    return `task:${taskId}`;
+  }
+  const requestId = cleanText(payload.requestId);
+  if (requestId && (eventName === 'balance_update' || eventName === 'player.balance.updated')) {
+    return `request:${requestId}:balance`;
+  }
+  if (outboxId > 0) {
+    return `outbox:${outboxId}`;
   }
   return '';
 }
@@ -715,13 +796,15 @@ function buildOutcomeEventFromPayload(
 
 function outcomeEventNeedsBalanceRefetch(eventName: string, payload: SqlRequestPayload) {
   const outcomeType = normalizeOutcomeType(eventName, payload);
+  // redeem_completed balance is pushed via player.balance.updated with the committed cash.
+  // Avoid a racing session/me refetch that can overwrite the authoritative SSE apply.
   return (
     outcomeType === 'recharge_sent' ||
     outcomeType === 'recharge_completed' ||
     outcomeType === 'recharge_dismissed' ||
-    outcomeType === 'redeem_completed' ||
     payload.refunded === true ||
-    eventName === 'balance_update'
+    eventName === 'balance_update' ||
+    eventName === 'player.balance.updated'
   );
 }
 
@@ -808,10 +891,7 @@ export function attachPlayerRequestSqlReadListener(
     onRechargeSuccessEvent?: (event: PlayerRechargeSuccessLiveEvent) => void;
     onRedeemDismissEvent?: (event: PlayerRedeemDismissLiveEvent) => void;
     onFreeplayGivenEvent?: (event: PlayerFreeplayGivenLiveEvent) => void;
-    onBalanceUpdate?: (
-      reason: string,
-      meta?: { direction?: 'cash_to_coin' | 'coin_to_cash' | null }
-    ) => void;
+    onBalanceUpdate?: (reason: string, meta?: PlayerBalanceUpdateMeta) => void;
     onPlayerGameLoginUpdated?: (
       reason: string,
       meta?: {
@@ -857,6 +937,8 @@ export function attachPlayerRequestSqlReadListener(
   let streamConnectResolve: (() => void) | null = null;
   let activeLiveStreamKey: string | null = null;
   const requestsById = new Map<string, PlayerGameRequest>();
+  const seenBalanceEventKeys = new Set<string>();
+  const MAX_SEEN_BALANCE_EVENT_KEYS = 200;
 
   const emitRequests = () => {
     if (fellBack || disposed) {
@@ -1159,7 +1241,7 @@ export function attachPlayerRequestSqlReadListener(
     }
 
     const entityId = resolveEntityId(payload, eventName);
-    if (!entityId && eventName !== 'balance_update') {
+    if (!entityId && eventName !== 'balance_update' && eventName !== 'player.balance.updated') {
       return;
     }
 
@@ -1186,22 +1268,52 @@ export function attachPlayerRequestSqlReadListener(
       return;
     }
 
-    if (eventName === 'balance_update') {
-      const direction = cleanText(payload.direction);
-      const transferDirection =
-        direction === 'cash_to_coin' || direction === 'coin_to_cash'
-          ? direction
-          : null;
+    if (eventName === 'balance_update' || eventName === 'player.balance.updated') {
+      const payloadPlayerUid = cleanText(payload.playerUid);
+      if (payloadPlayerUid && payloadPlayerUid !== cleanPlayerUid) {
+        playerDebugLog('[PLAYER_BALANCE_EVENT_IGNORED_OTHER_PLAYER]', {
+          playerUid: cleanPlayerUid,
+          payloadPlayerUid,
+          eventName,
+        });
+        return;
+      }
+      const dedupeKey = balanceEventDedupeKeyFromPayload(eventName, payload, outboxId);
+      if (dedupeKey && seenBalanceEventKeys.has(dedupeKey)) {
+        playerDebugLog('[PLAYER_BALANCE_EVENT_DEDUPED]', {
+          playerUid: cleanPlayerUid,
+          eventName,
+          dedupeKey,
+        });
+        return;
+      }
+      if (dedupeKey) {
+        seenBalanceEventKeys.add(dedupeKey);
+        if (seenBalanceEventKeys.size > MAX_SEEN_BALANCE_EVENT_KEYS) {
+          const oldest = seenBalanceEventKeys.values().next().value;
+          if (oldest) {
+            seenBalanceEventKeys.delete(oldest);
+          }
+        }
+      }
+      const meta = buildBalanceUpdateMeta(eventName, payload, outboxId);
       playerDebugLog('[PLAYER_BALANCE_EVENT]', {
         playerUid: cleanPlayerUid,
-        requestId: cleanText(payload.requestId) || null,
-        direction: transferDirection,
+        eventName,
+        requestId: meta.requestId,
+        taskId: meta.taskId,
+        eventId: meta.eventId,
+        direction: meta.direction,
+        cashBalance: meta.cashBalance,
+        coinBalance: meta.coinBalance,
+        authoritative: meta.authoritative,
         refunded: payload.refunded === true,
       });
-      options?.onBalanceUpdate?.(`sse_event:${eventName}`, {
-        direction: transferDirection,
-      });
-      void refetchSnapshotNow(`sse_event:${eventName}`, true);
+      options?.onBalanceUpdate?.(`sse_event:${eventName}`, meta);
+      // Authoritative wallet payloads update UI directly; skip snapshot-driven refetch loops.
+      if (!meta.authoritative) {
+        void refetchSnapshotNow(`sse_event:${eventName}`, true);
+      }
       return;
     }
 
@@ -1368,6 +1480,11 @@ export function attachPlayerRequestSqlReadListener(
       lastEventId,
     });
     try {
+      // One authoritative balance refetch after reconnect — no polling.
+      options?.onBalanceUpdate?.(reason, {
+        needsAuthoritativeRefetch: true,
+        reason: 'reconnect',
+      });
       return await refetchSnapshotNow(reason, true);
     } finally {
       reconnectBootstrapInFlight = false;

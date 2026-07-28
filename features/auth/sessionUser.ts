@@ -263,6 +263,8 @@ export function getCachedSessionMePayload(maxAgeMs = 1_000): SessionMePayload | 
 export async function getSessionMeOnce(options?: {
   maxAgeMs?: number;
   force?: boolean;
+  /** When true, always hit the network (ignore auth-health reuse of stale balances). */
+  bypassCache?: boolean;
 }): Promise<SessionMePayload | null> {
   const maxAgeMs = Math.max(0, Number(options?.maxAgeMs ?? 1_000));
   const sessionId = readLocalAppSessionId();
@@ -271,7 +273,12 @@ export async function getSessionMeOnce(options?: {
     return null;
   }
 
-  if (!options?.force && cachedSessionMePayload && Date.now() - cachedSessionMeAt <= maxAgeMs) {
+  if (
+    !options?.bypassCache &&
+    !options?.force &&
+    cachedSessionMePayload &&
+    Date.now() - cachedSessionMeAt <= maxAgeMs
+  ) {
     playerDebugLog('[SESSION_ME_POLLER_REUSED]', {
       source: 'cached_payload',
       ageMs: Date.now() - cachedSessionMeAt,
@@ -281,6 +288,7 @@ export async function getSessionMeOnce(options?: {
   }
 
   if (
+    !options?.bypassCache &&
     options?.force &&
     cachedSessionMePayload?.ok &&
     cachedSessionMePayload.role === 'player' &&
@@ -301,7 +309,7 @@ export async function getSessionMeOnce(options?: {
     return cachedSessionMePayload;
   }
 
-  if (sessionMeInflightPromise) {
+  if (sessionMeInflightPromise && !options?.bypassCache) {
     playerDebugLog('[SESSION_ME_POLLER_REUSED]', {
       source: 'inflight_fetch',
       subscriberCount: sessionMeSubscribers.size,
@@ -512,6 +520,39 @@ export function clearCachedSessionUser(reason: string) {
   cachedSessionMeAt = 0;
   sessionMeInflightPromise = null;
   playerDebugLog('[SESSION_USER_CACHE] clear', { reason });
+}
+
+/** Patch authoritative cash/coin into the in-memory session/me cache without a network round-trip. */
+export function patchCachedSessionMeBalances(input: {
+  cash?: number | null;
+  coin?: number | null;
+}) {
+  if (!cachedSessionMePayload?.ok || !cachedSessionMePayload.player) {
+    return false;
+  }
+  const nextCash =
+    input.cash === undefined || input.cash === null
+      ? Number(cachedSessionMePayload.player.cash || 0)
+      : Math.max(0, Number(input.cash) || 0);
+  const nextCoin =
+    input.coin === undefined || input.coin === null
+      ? Number(cachedSessionMePayload.player.coin || 0)
+      : Math.max(0, Number(input.coin) || 0);
+  cachedSessionMePayload = {
+    ...cachedSessionMePayload,
+    player: {
+      ...cachedSessionMePayload.player,
+      cash: nextCash,
+      coin: nextCoin,
+    },
+  };
+  cachedSessionMeAt = Date.now();
+  notifySessionMeSubscribers(cachedSessionMePayload);
+  playerDebugLog('[SESSION_ME_BALANCE_PATCHED]', {
+    cash: nextCash,
+    coin: nextCoin,
+  });
+  return true;
 }
 
 export function getSessionUserOnce(): Promise<SessionUser | null> {

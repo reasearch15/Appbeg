@@ -17,6 +17,7 @@
     "verify:ledger-create-player": "node scripts/verify-ledger-create-player.cjs",
     "test:cash-to-coin-limits": "node scripts/test-cash-to-coin-limits.cjs",
     "test:coin-to-cash-rules": "node scripts/test-coin-to-cash-rules.cjs",
+    "test:player-balance-updated": "node scripts/test-player-balance-updated-event.cjs",
     "backfill:cache-tables": "node scripts/backfill-bonus-events-cache.cjs --only-missing && node scripts/backfill-user-presence-cache.cjs --only-missing && node scripts/backfill-conversations-cache.cjs --only-missing --include-messages",
     "typecheck": "tsc --noEmit",
     "check:env": "node scripts/check-required-env.cjs"

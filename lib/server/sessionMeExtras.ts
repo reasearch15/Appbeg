@@ -180,3 +180,44 @@ export async function readSessionMePlayerExtras(input: {
 export function numberFromSessionExtras(value: number | null | undefined) {
   return numberOrNull(value) ?? 0;
 }
+
+/** Drop cached coin/cash extras after an authoritative balance write commits. */
+export function invalidateSessionMePlayerExtras(input: {
+  uid: string;
+  coadminUid?: string | null;
+}) {
+  const uid = cleanText(input.uid);
+  if (!uid) {
+    return 0;
+  }
+  const cache = sessionMePlayerExtrasCache();
+  const coadminUid = input.coadminUid === undefined ? null : cleanText(input.coadminUid);
+  if (input.coadminUid !== undefined) {
+    const key = sessionMePlayerExtrasCacheKey({ uid, coadminUid });
+    const deleted = cache.delete(key);
+    if (deleted && isSqlAuthVerboseLogs()) {
+      console.info('[SESSION_ME_EXTRAS_CACHE_INVALIDATED]', {
+        uid,
+        coadminUid: coadminUid || null,
+        mode: 'exact',
+      });
+    }
+    return deleted ? 1 : 0;
+  }
+
+  let removed = 0;
+  for (const key of cache.keys()) {
+    if (key === uid || key.startsWith(`${uid}:`)) {
+      cache.delete(key);
+      removed += 1;
+    }
+  }
+  if (removed > 0 && isSqlAuthVerboseLogs()) {
+    console.info('[SESSION_ME_EXTRAS_CACHE_INVALIDATED]', {
+      uid,
+      mode: 'uid_prefix',
+      removed,
+    });
+  }
+  return removed;
+}
