@@ -16,6 +16,12 @@ import {
 import { isCacheSqlAuthoritative } from '@/lib/server/cacheSqlRead';
 import { attachVendorAwarenessToPlayers } from '@/lib/sql/vendorOwnershipRead';
 import type { VendorAwareness } from '@/features/vendors/vendorAwareness';
+import {
+  noVendor,
+  vendorAwarenessFromStoredFields,
+  readStoredVendorFieldsFromRow,
+} from '@/lib/sql/vendorCashoutAttribution';
+import { hasVendorAwareness } from '@/features/vendors/vendorAwareness';
 
 export type PlayerCashoutTaskCacheInput = {
   firebaseId: string;
@@ -68,6 +74,8 @@ export async function upsertPlayerCashoutTaskCache(input: PlayerCashoutTaskCache
           cashout_requested_by_staff_id, reward_npr_applied,
           reward_blocked_applied, declined_by_uids, started_at, expires_at,
           created_at, completed_at, source, mirrored_at, deleted_at,
+          vendor_id, vendor_code, vendor_name, vendor_status,
+          vendor_linked_staff_uid, vendor_ownership_date, vendor_resolved_at,
           raw_firestore_data
         )
         VALUES (
@@ -77,7 +85,9 @@ export async function upsertPlayerCashoutTaskCache(input: PlayerCashoutTaskCache
           NULLIF($14, ''), NULLIF($15, ''), NULLIF($16, ''), $17,
           $18, $19::jsonb, $20::timestamptz, $21::timestamptz,
           $22::timestamptz, $23::timestamptz, $24, now(), NULL,
-          $25::jsonb
+          $25::bigint, NULLIF($26, ''), NULLIF($27, ''), NULLIF($28, ''),
+          NULLIF($29, ''), $30::timestamptz, $31::timestamptz,
+          $32::jsonb
         )
         ON CONFLICT (firebase_id) DO UPDATE SET
           coadmin_uid = EXCLUDED.coadmin_uid,
@@ -105,6 +115,22 @@ export async function upsertPlayerCashoutTaskCache(input: PlayerCashoutTaskCache
           source = EXCLUDED.source,
           mirrored_at = now(),
           deleted_at = NULL,
+          vendor_id = COALESCE(EXCLUDED.vendor_id, public.player_cashout_tasks_cache.vendor_id),
+          vendor_code = COALESCE(NULLIF(EXCLUDED.vendor_code, ''), public.player_cashout_tasks_cache.vendor_code),
+          vendor_name = COALESCE(NULLIF(EXCLUDED.vendor_name, ''), public.player_cashout_tasks_cache.vendor_name),
+          vendor_status = COALESCE(NULLIF(EXCLUDED.vendor_status, ''), public.player_cashout_tasks_cache.vendor_status),
+          vendor_linked_staff_uid = COALESCE(
+            NULLIF(EXCLUDED.vendor_linked_staff_uid, ''),
+            public.player_cashout_tasks_cache.vendor_linked_staff_uid
+          ),
+          vendor_ownership_date = COALESCE(
+            EXCLUDED.vendor_ownership_date,
+            public.player_cashout_tasks_cache.vendor_ownership_date
+          ),
+          vendor_resolved_at = COALESCE(
+            EXCLUDED.vendor_resolved_at,
+            public.player_cashout_tasks_cache.vendor_resolved_at
+          ),
           raw_firestore_data = EXCLUDED.raw_firestore_data
       `,
       [
@@ -132,6 +158,13 @@ export async function upsertPlayerCashoutTaskCache(input: PlayerCashoutTaskCache
         toIsoString(input.createdAt),
         toIsoString(input.completedAt),
         cleanText(input.source) || 'firestore',
+        numberOrNull(input.vendorId),
+        cleanText(input.vendorCode),
+        cleanText(input.vendorName),
+        cleanText(input.vendorStatus),
+        cleanText(input.vendorLinkedStaffUid),
+        toIsoString(input.vendorOwnershipDate),
+        toIsoString(input.vendorResolvedAt),
         JSON.stringify(normalizeJson(input.rawFirestoreData || {}) || {}),
       ]
     );
@@ -224,6 +257,7 @@ function mapCachedPlayerCashoutTaskRow(row: Record<string, unknown>): CachedPlay
   const declinedByUids = Array.isArray(declinedRaw)
     ? declinedRaw.map((entry) => String(entry)).filter(Boolean)
     : [];
+  const storedVendor = vendorAwarenessFromStoredFields(readStoredVendorFieldsFromRow(row));
 
   return {
     id,
@@ -247,7 +281,47 @@ function mapCachedPlayerCashoutTaskRow(row: Record<string, unknown>): CachedPlay
     expiresAt: toIsoString(row.expires_at),
     createdAt: toIsoString(row.created_at),
     completedAt: toIsoString(row.completed_at),
+    vendor: storedVendor,
   };
+}
+
+async function enrichCashoutTasksWithVendor(
+  tasks: CachedPlayerCashoutTask[]
+): Promise<CachedPlayerCashoutTask[]> {
+  const needsLive = tasks.filter((task) => {
+    const vendor = task.vendor;
+    if (!vendor) return true;
+    if (vendor.configured === false) return true;
+    if (hasVendorAwareness(vendor)) return false;
+    // Explicit unassigned snapshot already resolved.
+    return false;
+  });
+  if (!needsLive.length) {
+    return tasks.map((task) => ({
+      ...task,
+      vendor: task.vendor || noVendor(),
+    }));
+  }
+  const liveEnriched = await attachVendorAwarenessToPlayers(needsLive);
+  const byId = new Map(liveEnriched.map((task) => [task.id, task.vendor]));
+  return tasks.map((task) => {
+    const existing = task.vendor ?? null;
+    const linked =
+      existing?.configured === true &&
+      existing.owned === true &&
+      Boolean(existing.code) &&
+      Boolean(existing.name);
+    if (linked) {
+      return { ...task, vendor: existing };
+    }
+    if (existing?.configured === true && existing.owned === false) {
+      return { ...task, vendor: existing };
+    }
+    return {
+      ...task,
+      vendor: byId.get(task.id) || existing || noVendor(),
+    };
+  });
 }
 
 async function readPlayerCashoutTasksBySql(
@@ -267,7 +341,7 @@ async function readPlayerCashoutTasksBySql(
     const tasks = rows
       .map((row) => mapCachedPlayerCashoutTaskRow(row))
       .filter((task): task is CachedPlayerCashoutTask => Boolean(task));
-    const enrichedTasks = await attachVendorAwarenessToPlayers(tasks);
+    const enrichedTasks = await enrichCashoutTasksWithVendor(tasks);
     const durationMs = Date.now() - startedAt;
     if (isSqlCacheVerboseLogs() || durationMs >= SQL_QUERY_SLOW_MS) {
       logPlayerCacheInfo('[PLAYER_CASHOUT_TASKS_CACHE] read ok', {

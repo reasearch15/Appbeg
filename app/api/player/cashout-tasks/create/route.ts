@@ -23,6 +23,7 @@ import { getPlayerMirrorPoolStats } from '@/lib/sql/playerMirrorCommon';
 import { mirrorFinancialEventById } from '@/lib/sql/financialEventsCache';
 import { mirrorPlayerCashoutTaskById } from '@/lib/sql/playerCashoutTasksCache';
 import { mirrorUserBalanceSnapshotById } from '@/lib/sql/userBalanceSnapshotsCache';
+import { rejectClientSuppliedVendorId } from '@/lib/sql/vendorCashoutAttribution';
 
 export const runtime = 'nodejs';
 
@@ -323,7 +324,8 @@ export async function POST(request: Request) {
       authPath: auth.authPath,
     });
 
-    const body = (await request.json()) as Body;
+    const body = (await request.json()) as Body & Record<string, unknown>;
+    rejectClientSuppliedVendorId(body);
     const reuseLastPaymentDetails = body.reuseLastPaymentDetails === true;
     let paymentDetails = String(body.paymentDetails || '').trim();
     let payoutMethod = String(body.payoutMethod || '').trim() || null;

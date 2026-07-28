@@ -190,7 +190,7 @@ function renderVendorTaskBadge(vendor: VendorAwareness | null | undefined) {
   if (!hasVendorAwareness(vendor)) {
     return (
       <div className="mt-2 inline-flex rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs text-neutral-400">
-        No Vendor
+        Unassigned player
       </div>
     );
   }
@@ -216,7 +216,7 @@ function renderVendorDetailSection(vendor: VendorAwareness | null | undefined) {
     return (
       <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
         <p className="text-xs font-black uppercase tracking-wide text-neutral-400">Vendor</p>
-        <p className="mt-2 text-sm font-semibold text-neutral-300">No Vendor</p>
+        <p className="mt-2 text-sm font-semibold text-neutral-300">Unassigned player</p>
       </div>
     );
   }

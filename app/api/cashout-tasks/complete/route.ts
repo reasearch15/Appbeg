@@ -13,6 +13,7 @@ import { getPlayerMirrorPoolStats } from '@/lib/sql/playerMirrorCommon';
 import { mirrorFinancialEventById } from '@/lib/sql/financialEventsCache';
 import { mirrorPlayerCashoutTaskById } from '@/lib/sql/playerCashoutTasksCache';
 import { mirrorUserBalanceSnapshotById } from '@/lib/sql/userBalanceSnapshotsCache';
+import { rejectClientSuppliedVendorId } from '@/lib/sql/vendorCashoutAttribution';
 
 export const runtime = 'nodejs';
 
@@ -28,7 +29,8 @@ export async function POST(request: Request) {
     const auth = await requireApiUser(request, ['admin', 'coadmin', 'staff', 'carer']);
     if ('response' in auth) return auth.response;
 
-    const body = (await request.json()) as Body;
+    const body = (await request.json()) as Body & Record<string, unknown>;
+    rejectClientSuppliedVendorId(body);
     const taskId = String(body.taskId || '').trim();
     if (!taskId) {
       return apiError('taskId is required.', 400);

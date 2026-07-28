@@ -16,6 +16,7 @@ const MAX_VENDOR_OWNERSHIP_CACHE_ENTRIES = 1000;
 
 type VendorOwnershipApiPlayer = {
   owned?: boolean;
+  vendorId?: unknown;
   vendorName?: unknown;
   vendorCode?: unknown;
   vendorStatus?: unknown;
@@ -116,16 +117,28 @@ function mapVendorOwnershipApiValue(value: VendorOwnershipApiPlayer | undefined)
   if (!vendorCode || !vendorName) {
     return vendorUnavailable();
   }
+  const vendorIdRaw = Number(value.vendorId);
   return {
     configured: true,
     owned: true,
-    vendorId: null,
+    vendorId: Number.isFinite(vendorIdRaw) && vendorIdRaw > 0 ? Math.trunc(vendorIdRaw) : null,
     name: vendorName,
     code: vendorCode,
     status: cleanVendorText(value.vendorStatus) || 'active',
     linkedStaffUid: cleanVendorText(value.linkedStaffUid) || null,
     ownershipDate: cleanVendorText(value.ownershipDate) || null,
   };
+}
+
+export async function resolveVendorAwarenessForPlayerUid(
+  playerUid: unknown
+): Promise<VendorAwareness> {
+  const uid = cleanVendorText(playerUid);
+  if (!uid) {
+    return vendorUnavailable();
+  }
+  const map = await readVendorAwarenessByPlayerUids([uid]);
+  return map.get(uid) || noVendor();
 }
 
 export async function readVendorAwarenessByPlayerUids(

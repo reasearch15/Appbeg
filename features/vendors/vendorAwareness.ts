@@ -80,5 +80,5 @@ export function normalizeVendorAwareness(value: unknown): VendorAwareness | null
 
 export function vendorDisplayName(vendor: VendorAwareness | null | undefined) {
   if (vendor?.configured === false) return 'Vendor data unavailable';
-  return hasVendorAwareness(vendor) ? vendor.name || 'Vendor' : 'No Vendor';
+  return hasVendorAwareness(vendor) ? vendor.name || 'Vendor' : 'Unassigned player';
 }

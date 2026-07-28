@@ -22,6 +22,15 @@ import {
   playerCashoutLiveChannel,
   playerRequestLiveChannel,
 } from '@/lib/sql/liveOutbox';
+import {
+  isVendorLinked,
+  mergeVendorIntoRawFirestoreData,
+  readStoredVendorFieldsFromRow,
+  storedVendorFieldsFromAwareness,
+  vendorAwarenessFromStoredFields,
+} from '@/lib/sql/vendorCashoutAttribution';
+import { resolveVendorAwarenessForPlayerUid } from '@/lib/sql/vendorOwnershipRead';
+import { reportVendorCashoutCompletedToLedger } from '@/lib/sql/vendorCashoutLedger';
 
 export const PLAYER_CASHOUT_MAX_NPR_PER_24_H = 1000;
 const PLAYER_CASHOUT_ROLLING_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -449,6 +458,8 @@ async function upsertCashoutTaskCache(client: PoolClient, taskId: string, input:
         cashout_requested_by_staff_id, reward_npr_applied,
         reward_blocked_applied, declined_by_uids, started_at, expires_at,
         created_at, completed_at, source, mirrored_at, deleted_at,
+        vendor_id, vendor_code, vendor_name, vendor_status,
+        vendor_linked_staff_uid, vendor_ownership_date, vendor_resolved_at,
         raw_firestore_data
       )
       VALUES (
@@ -458,7 +469,9 @@ async function upsertCashoutTaskCache(client: PoolClient, taskId: string, input:
         NULLIF($14::text, ''), NULLIF($15::text, ''), NULLIF($16::text, ''), $17::numeric,
         $18::boolean, $19::jsonb, $20::timestamptz, $21::timestamptz,
         $22::timestamptz, $23::timestamptz, $24::text, now(), NULL,
-        $25::jsonb
+        $25::bigint, NULLIF($26::text, ''), NULLIF($27::text, ''), NULLIF($28::text, ''),
+        NULLIF($29::text, ''), $30::timestamptz, $31::timestamptz,
+        $32::jsonb
       )
       ON CONFLICT (firebase_id) DO UPDATE SET
         coadmin_uid = EXCLUDED.coadmin_uid,
@@ -486,6 +499,22 @@ async function upsertCashoutTaskCache(client: PoolClient, taskId: string, input:
         source = EXCLUDED.source,
         mirrored_at = now(),
         deleted_at = NULL,
+        vendor_id = COALESCE(EXCLUDED.vendor_id, public.player_cashout_tasks_cache.vendor_id),
+        vendor_code = COALESCE(NULLIF(EXCLUDED.vendor_code, ''), public.player_cashout_tasks_cache.vendor_code),
+        vendor_name = COALESCE(NULLIF(EXCLUDED.vendor_name, ''), public.player_cashout_tasks_cache.vendor_name),
+        vendor_status = COALESCE(NULLIF(EXCLUDED.vendor_status, ''), public.player_cashout_tasks_cache.vendor_status),
+        vendor_linked_staff_uid = COALESCE(
+          NULLIF(EXCLUDED.vendor_linked_staff_uid, ''),
+          public.player_cashout_tasks_cache.vendor_linked_staff_uid
+        ),
+        vendor_ownership_date = COALESCE(
+          EXCLUDED.vendor_ownership_date,
+          public.player_cashout_tasks_cache.vendor_ownership_date
+        ),
+        vendor_resolved_at = COALESCE(
+          EXCLUDED.vendor_resolved_at,
+          public.player_cashout_tasks_cache.vendor_resolved_at
+        ),
         raw_firestore_data = EXCLUDED.raw_firestore_data
     `,
     [
@@ -513,6 +542,17 @@ async function upsertCashoutTaskCache(client: PoolClient, taskId: string, input:
       toIsoString(input.createdAt),
       toIsoString(input.completedAt),
       cleanText(input.source) || 'authority',
+      input.vendorId == null || input.vendorId === ''
+        ? null
+        : Number.isFinite(Number(input.vendorId))
+          ? Math.trunc(Number(input.vendorId))
+          : null,
+      cleanText(input.vendorCode),
+      cleanText(input.vendorName),
+      cleanText(input.vendorStatus),
+      cleanText(input.vendorLinkedStaffUid),
+      toIsoString(input.vendorOwnershipDate),
+      toIsoString(input.vendorResolvedAt),
       JSON.stringify(raw),
     ]
   );
@@ -694,6 +734,20 @@ export async function createPlayerCashoutTaskInSql(
   const taskId = randomUUID();
   const eventId = randomUUID();
   const nowIso = new Date().toISOString();
+
+  // Resolve vendor before the DB transaction so we never hold locks across HTTP.
+  const vendorAwareness = await resolveVendorAwarenessForPlayerUid(playerUid);
+  const vendorFields = storedVendorFieldsFromAwareness(vendorAwareness, nowIso);
+  if (!isVendorLinked(vendorFields)) {
+    console.warn('[VENDOR_CASHOUT_UNASSIGNED]', {
+      phase: 'create',
+      taskId,
+      playerUid,
+      configured: vendorAwareness.configured,
+      owned: vendorAwareness.owned,
+    });
+  }
+
   const client = await db.connect();
 
   try {
@@ -870,31 +924,36 @@ export async function createPlayerCashoutTaskInSql(
 
     const playerUsername =
       cleanText(input.playerUsername) || cleanText(player.username) || 'Player';
-    const taskRaw = {
-      coadminUid,
-      playerUid,
-      playerUsername,
-      amountNpr: amountThisRequest,
-      paymentDetails,
-      payoutMethod,
-      qrImageUrl,
-      paymentAppName,
-      paymentAppCashTag,
-      paymentAppAccountName,
-      reusedPaymentDetails: reuseLastPaymentDetails,
-      reusedFromCashoutTaskId,
-      cashDeductedOnRequest: true,
-      status: 'pending',
-      assignedHandlerUid: null,
-      assignedHandlerUsername: null,
-      startedAt: null,
-      expiresAt: null,
-      createdAt: nowIso,
-      completedAt: null,
-    };
+
+    const taskRaw = mergeVendorIntoRawFirestoreData(
+      {
+        coadminUid,
+        playerUid,
+        playerUsername,
+        amountNpr: amountThisRequest,
+        paymentDetails,
+        payoutMethod,
+        qrImageUrl,
+        paymentAppName,
+        paymentAppCashTag,
+        paymentAppAccountName,
+        reusedPaymentDetails: reuseLastPaymentDetails,
+        reusedFromCashoutTaskId,
+        cashDeductedOnRequest: true,
+        status: 'pending',
+        assignedHandlerUid: null,
+        assignedHandlerUsername: null,
+        startedAt: null,
+        expiresAt: null,
+        createdAt: nowIso,
+        completedAt: null,
+      },
+      vendorFields
+    );
 
     await upsertCashoutTaskCache(client, taskId, {
       ...taskRaw,
+      ...vendorFields,
       source: 'authority_cashout_create',
       rawFirestoreData: taskRaw,
     });
@@ -906,6 +965,8 @@ export async function createPlayerCashoutTaskInSql(
       table: 'player_cashout_tasks_cache',
       status: 'pending',
       payoutMethod,
+      vendorId: vendorFields.vendorId,
+      vendorCode: vendorFields.vendorCode,
     });
 
     const rawEvent = {
@@ -916,6 +977,9 @@ export async function createPlayerCashoutTaskInSql(
       cashoutTaskId: taskId,
       createdAt: nowIso,
       ttlExpiresAt: ttlAfterDays(90),
+      vendorId: vendorFields.vendorId,
+      vendorCode: vendorFields.vendorCode,
+      vendorName: vendorFields.vendorName,
     };
 
     await client.query(
@@ -923,12 +987,14 @@ export async function createPlayerCashoutTaskInSql(
         INSERT INTO public.financial_events_cache (
           firebase_id, player_uid, coadmin_uid, type, amount_npr, cashout_task_id,
           before_cash, after_cash, created_at, updated_at, ttl_expires_at,
+          vendor_id, vendor_code, vendor_name,
           source, mirrored_at, deleted_at, raw_firestore_data
         )
         VALUES (
           $1::text, $2::text, $3::text, 'cashout_request_deduct', $4::numeric, $5::text,
           $6::numeric, $7::numeric, $8::timestamptz, $8::timestamptz, $9::timestamptz,
-          'authority_cashout_create', now(), NULL, $10::jsonb
+          $10::bigint, NULLIF($11::text, ''), NULLIF($12::text, ''),
+          'authority_cashout_create', now(), NULL, $13::jsonb
         )
         ON CONFLICT (firebase_id) DO NOTHING
       `,
@@ -942,6 +1008,9 @@ export async function createPlayerCashoutTaskInSql(
         newCash,
         nowIso,
         ttlAfterDays(90),
+        vendorFields.vendorId,
+        vendorFields.vendorCode,
+        vendorFields.vendorName,
         JSON.stringify(rawEvent),
       ]
     );
@@ -1067,6 +1136,36 @@ export async function completePlayerCashoutTaskInSql(
 
   const eventId = randomUUID();
   const nowIso = new Date().toISOString();
+
+  // Peek player/vendor without locking, then resolve via Ledger if the task lacks attribution.
+  const peek = await db.query(
+    `
+      SELECT player_uid, vendor_id, vendor_code, vendor_name, vendor_status,
+             vendor_linked_staff_uid, vendor_ownership_date, vendor_resolved_at,
+             raw_firestore_data
+      FROM public.player_cashout_tasks_cache
+      WHERE firebase_id = $1 AND deleted_at IS NULL
+      LIMIT 1
+    `,
+    [taskId]
+  );
+  if (!peek.rows.length) throw new Error('Cashout task not found.');
+  const peekRow = peek.rows[0] as Record<string, unknown>;
+  const peekPlayerUid = cleanText(peekRow.player_uid);
+  let resolvedVendorFields = readStoredVendorFieldsFromRow(peekRow);
+  const storedAwareness = vendorAwarenessFromStoredFields(resolvedVendorFields);
+  if (!resolvedVendorFields.vendorResolvedAt || storedAwareness?.configured === false) {
+    const liveVendor = await resolveVendorAwarenessForPlayerUid(peekPlayerUid);
+    resolvedVendorFields = storedVendorFieldsFromAwareness(liveVendor, nowIso);
+  }
+  if (!isVendorLinked(resolvedVendorFields)) {
+    console.warn('[VENDOR_CASHOUT_UNASSIGNED]', {
+      phase: 'complete',
+      taskId,
+      playerUid: peekPlayerUid,
+    });
+  }
+
   const client = await db.connect();
 
   try {
@@ -1107,6 +1206,11 @@ export async function completePlayerCashoutTaskInSql(
     const requestedAmount = Math.max(0, Math.round(Number(task.amount_npr || 0)));
     if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) {
       throw new Error('Cashout task amount is invalid.');
+    }
+
+    const lockedVendorFields = readStoredVendorFieldsFromRow(task);
+    if (isVendorLinked(lockedVendorFields) || lockedVendorFields.vendorResolvedAt) {
+      resolvedVendorFields = lockedVendorFields;
     }
 
     const shouldDeductOnComplete = task.cash_deducted_on_request !== true;
@@ -1165,28 +1269,31 @@ export async function completePlayerCashoutTaskInSql(
       };
     }
 
-    const taskRaw = {
-      ...(task.raw_firestore_data && typeof task.raw_firestore_data === 'object' && !Array.isArray(task.raw_firestore_data)
-        ? (task.raw_firestore_data as Record<string, unknown>)
-        : {}),
-      status: 'completed',
-      assignedHandlerUid: actorUid,
-      assignedHandlerUsername: cleanText(input.actorUsername) || 'Handler',
-      cashoutRequestedByStaffId: actorRole === 'staff' ? actorUid : null,
-      rewardNprApplied: rewardAppliedNpr,
-      rewardBlockedApplied: rewardBlocked,
-      payoutAmountNpr: requestedAmount,
-      rewardAmountNpr: rewardAppliedNpr,
-      cashBoxBefore,
-      cashBoxAfter,
-      cashBoxDelta,
-      actorUid,
-      actorRole,
-      sourceCashoutId: taskId,
-      startedAt: toIsoString(task.started_at) || nowIso,
-      expiresAt: null,
-      completedAt: nowIso,
-    };
+    const taskRaw = mergeVendorIntoRawFirestoreData(
+      {
+        ...(task.raw_firestore_data && typeof task.raw_firestore_data === 'object' && !Array.isArray(task.raw_firestore_data)
+          ? (task.raw_firestore_data as Record<string, unknown>)
+          : {}),
+        status: 'completed',
+        assignedHandlerUid: actorUid,
+        assignedHandlerUsername: cleanText(input.actorUsername) || 'Handler',
+        cashoutRequestedByStaffId: actorRole === 'staff' ? actorUid : null,
+        rewardNprApplied: rewardAppliedNpr,
+        rewardBlockedApplied: rewardBlocked,
+        payoutAmountNpr: requestedAmount,
+        rewardAmountNpr: rewardAppliedNpr,
+        cashBoxBefore,
+        cashBoxAfter,
+        cashBoxDelta,
+        actorUid,
+        actorRole,
+        sourceCashoutId: taskId,
+        startedAt: toIsoString(task.started_at) || nowIso,
+        expiresAt: null,
+        completedAt: nowIso,
+      },
+      resolvedVendorFields
+    );
 
     await upsertCashoutTaskCache(client, taskId, {
       coadminUid: taskScope,
@@ -1210,6 +1317,7 @@ export async function completePlayerCashoutTaskInSql(
       expiresAt: null,
       createdAt: task.created_at,
       completedAt: nowIso,
+      ...resolvedVendorFields,
       source: 'authority_cashout_complete',
       rawFirestoreData: taskRaw,
     });
@@ -1231,21 +1339,37 @@ export async function completePlayerCashoutTaskInSql(
       cashBoxDelta,
       actorUid,
       actorRole,
+      vendorId: resolvedVendorFields.vendorId,
+      vendorCode: resolvedVendorFields.vendorCode,
+      vendorName: resolvedVendorFields.vendorName,
     };
 
     await client.query(
       `
         INSERT INTO public.financial_events_cache (
           firebase_id, player_uid, coadmin_uid, type, amount_npr, cashout_task_id,
+          vendor_id, vendor_code, vendor_name,
           created_at, updated_at, source, mirrored_at, deleted_at, raw_firestore_data
         )
         VALUES (
           $1, $2, $3, 'cashout', $4, $5,
-          $6::timestamptz, $6::timestamptz, 'authority_cashout_complete', now(), NULL, $7::jsonb
+          $6::bigint, NULLIF($7::text, ''), NULLIF($8::text, ''),
+          $9::timestamptz, $9::timestamptz, 'authority_cashout_complete', now(), NULL, $10::jsonb
         )
         ON CONFLICT (firebase_id) DO NOTHING
       `,
-      [eventId, playerUid, taskScope, requestedAmount, taskId, nowIso, JSON.stringify(rawEvent)]
+      [
+        eventId,
+        playerUid,
+        taskScope,
+        requestedAmount,
+        taskId,
+        resolvedVendorFields.vendorId,
+        resolvedVendorFields.vendorCode,
+        resolvedVendorFields.vendorName,
+        nowIso,
+        JSON.stringify(rawEvent),
+      ]
     );
 
     await insertAuthorityLedgerEvent(client, {
@@ -1308,16 +1432,43 @@ export async function completePlayerCashoutTaskInSql(
 
     await client.query(
       `UPDATE public.authority_operations SET payload = $2::jsonb WHERE operation_key = $1`,
-      [operationKey, JSON.stringify({ taskId, alreadyCompleted: false })]
+      [
+        operationKey,
+        JSON.stringify({
+          taskId,
+          alreadyCompleted: false,
+          eventId,
+          vendorId: resolvedVendorFields.vendorId,
+          vendorCode: resolvedVendorFields.vendorCode,
+        }),
+      ]
     );
 
     await client.query('COMMIT');
+    // Ledger Total Out / Net / receivable update — only after the cashout event committed.
+    void reportVendorCashoutCompletedToLedger({
+      eventId,
+      taskId,
+      playerUid,
+      coadminUid: taskScope,
+      amountNpr: requestedAmount,
+      occurredAt: nowIso,
+      vendor: resolvedVendorFields,
+    }).catch((error) => {
+      console.warn('[VENDOR_CASHOUT_LEDGER_POST_COMMIT_ERROR]', {
+        taskId,
+        eventId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
     console.info('[CASHOUT_TASK_DONE] success', {
       taskId,
       status: 'completed',
       actorUid,
       actorRole,
       coadminUid: taskScope,
+      vendorId: resolvedVendorFields.vendorId,
+      vendorCode: resolvedVendorFields.vendorCode,
     });
     return { success: true, duplicate: false, alreadyCompleted: false, taskId };
   } catch (error) {

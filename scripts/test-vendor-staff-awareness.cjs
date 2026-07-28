@@ -97,7 +97,7 @@ function testVendorNormalization() {
   assert.equal(vendorAwareness.normalizeVendorAwareness({ configured: true, owned: false }).owned, false);
   assert.equal(vendorAwareness.normalizeVendorAwareness(null), null);
   assert.equal(vendorAwareness.normalizeVendorAwareness({ name: 'Missing code' }), null);
-  assert.equal(vendorAwareness.vendorDisplayName(null), 'No Vendor');
+  assert.equal(vendorAwareness.vendorDisplayName(null), 'Unassigned player');
   assert.equal(vendorAwareness.vendorDisplayName({ configured: false, owned: null }), 'Vendor data unavailable');
 }
 
@@ -362,13 +362,13 @@ function testUiWiringIsReadOnly() {
   assert.doesNotMatch(staffPage, /createVendor|updateVendor|deleteVendor|settlement/i);
 }
 
-function testNoVendorWritesOrMigrations() {
+function testNoVendorOwnershipSqlWrites() {
   const ownershipSource = fs.readFileSync(path.join(root, 'lib/sql/vendorOwnershipRead.ts'), 'utf8');
   assert.doesNotMatch(ownershipSource, /\bINSERT\b|\bUPDATE\b|\bCREATE\b|\bALTER\b|\bDROP\b/i);
   assert.doesNotMatch(ownershipSource, /from ['"]pg['"]|playerMirrorCommon|pool\.query|client\.query|SELECT\s/i);
   const migrationDir = path.join(root, 'migrations');
   const vendorMigrations = fs.readdirSync(migrationDir).filter((name) => /vendor/i.test(name));
-  assert.deepEqual(vendorMigrations, []);
+  assert.deepEqual(vendorMigrations, ['066_cashout_vendor_attribution.sql']);
 }
 
 (async () => {
@@ -385,7 +385,7 @@ function testNoVendorWritesOrMigrations() {
   await testCacheKeyIsolatedByLedgerUrl();
   await testCacheGrowthIsBounded();
   testUiWiringIsReadOnly();
-  testNoVendorWritesOrMigrations();
+  testNoVendorOwnershipSqlWrites();
   console.log('Vendor staff awareness tests passed.');
 })().catch((error) => {
   console.error(error);
