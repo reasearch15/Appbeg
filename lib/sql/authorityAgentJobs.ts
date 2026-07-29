@@ -1401,6 +1401,29 @@ export async function agentFailJobReturnPending(input: {
         scopeUid: cleanText(job.coadmin_uid) || null,
         idempotencyKey: `agent_fail:${input.jobId}`,
       });
+      console.info('[AUTO_TASK_FAILED]', {
+        taskId,
+        player: cleanText(job.player_uid) || null,
+        automationUser: input.carerUid,
+        failureReason: input.reason,
+        completionTime: new Date().toISOString(),
+        jobId: input.jobId,
+        source: 'fail_return_pending',
+      });
+      console.info('[AUTO_TASK_RELEASED]', {
+        taskId,
+        player: cleanText(job.player_uid) || null,
+        automationUser: input.carerUid,
+        completionTime: new Date().toISOString(),
+        jobId: input.jobId,
+        source: 'fail_return_pending',
+      });
+      console.info('[AUTO_NEXT_TASK]', {
+        status: 'released_for_reclaim',
+        taskId,
+        automationUser: input.carerUid,
+        jobId: input.jobId,
+      });
     }
     console.info('[SQL_FIREBASE_BYPASS_CONFIRMED] operation=fail_return_pending jobId=%s', input.jobId);
     return { success: true as const, skipped: false, taskId };

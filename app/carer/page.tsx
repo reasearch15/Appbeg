@@ -1125,6 +1125,8 @@ export default function CarerPage() {
   const autoQueueDrainInFlightRef = useRef(false);
   const autoAutomationEnabledRef = useRef(false);
   const lastAutoDispatchSignatureRef = useRef('');
+  const myInProgressCountRef = useRef(0);
+  const autoCooldownRetryTimeoutRef = useRef<number | null>(null);
   const fastDispatchCoalesceRef = useRef<number | null>(null);
   const fastDispatchPendingRef = useRef<{
     eventName: string;
@@ -1290,7 +1292,8 @@ export default function CarerPage() {
       carerUid: carerIdentity.uid,
       agentId: linkedAgentId,
       instanceId: BROWSER_AUTO_TICK_INSTANCE_ID,
-      allowRetryPendingClaim: source === 'immediate',
+      // Automation is the task consumer: reclaim retryPending after cooldown.
+      allowRetryPendingClaim: true,
       source,
     };
 
@@ -1468,6 +1471,22 @@ export default function CarerPage() {
         return;
       }
 
+      if (
+        myInProgressCountRef.current > 0 &&
+        pending.eventName !== 'task.completed' &&
+        pending.eventName !== 'task.returned_to_pending' &&
+        pending.eventName !== 'task.failed' &&
+        pending.eventName !== 'task.released'
+      ) {
+        console.info('[FAST_DISPATCH_SKIPPED]', {
+          reason: 'awaiting_in_progress_completion',
+          sourceEvent: pending.eventName,
+          taskId: pending.taskId || null,
+          inProgressCount: myInProgressCountRef.current,
+        });
+        return;
+      }
+
       void drainAutomationQueueUntilEmpty('listener');
     }, 0);
   }
@@ -1489,13 +1508,28 @@ export default function CarerPage() {
       source,
       carerUid: carerIdentity?.uid || null,
       coadminUid: coadminUid || null,
+      inProgressCount: myInProgressCountRef.current,
     });
 
     let finishReason = 'unknown';
     let tickCount = 0;
+    let claimedTaskId: string | null = null;
+    let earliestCooldownRetryMs: number | null = null;
 
     try {
       while (autoAutomationEnabledRef.current) {
+        // One-at-a-time: wait until current in-progress work finishes before claiming next.
+        if (myInProgressCountRef.current > 0 && !claimedTaskId) {
+          finishReason = 'awaiting_in_progress_completion';
+          console.info('[AUTO_NEXT_TASK]', {
+            status: 'waiting_for_in_progress',
+            carerUid: carerIdentity?.uid || null,
+            inProgressCount: myInProgressCountRef.current,
+            source,
+          });
+          break;
+        }
+
         tickCount += 1;
         const tickSource =
           tickCount === 1 && source === 'start_button'
@@ -1506,6 +1540,26 @@ export default function CarerPage() {
         const payload = await fireAutomationAutoTick(tickSource);
         const reason = String(payload?.['reason'] || '').trim();
         const claimed = payload?.['claimed'] === true || Number(payload?.['claimedCount'] || 0) > 0;
+        const claimedJobs = Array.isArray(payload?.['claimedJobs'])
+          ? (payload?.['claimedJobs'] as Array<{ taskId?: unknown }>)
+          : [];
+        const skippedTasks = Array.isArray(payload?.['skippedTasks'])
+          ? (payload?.['skippedTasks'] as Array<{ reason?: unknown; remainingCooldownMs?: unknown }>)
+          : [];
+
+        for (const skipped of skippedTasks) {
+          if (String(skipped?.reason || '') !== 'returned_to_pending_cooldown') {
+            continue;
+          }
+          const remaining = Number(skipped?.remainingCooldownMs);
+          if (!Number.isFinite(remaining) || remaining <= 0) {
+            continue;
+          }
+          earliestCooldownRetryMs =
+            earliestCooldownRetryMs == null
+              ? remaining
+              : Math.min(earliestCooldownRetryMs, remaining);
+        }
 
         if (reason === 'no_claimable_task') {
           finishReason = reason;
@@ -1515,6 +1569,31 @@ export default function CarerPage() {
           finishReason = reason || 'tick_failed_or_no_claim';
           break;
         }
+
+        claimedTaskId = String(claimedJobs[0]?.taskId || '').trim() || 'claimed';
+        // Optimistic: block next claim until SSE confirms in-progress / completion.
+        myInProgressCountRef.current = Math.max(1, myInProgressCountRef.current + 1);
+        console.info('[AUTO_TASK_CLAIM]', {
+          taskId: claimedTaskId,
+          automationUser: carerIdentity?.uid || null,
+          source,
+          claimTime: new Date().toISOString(),
+        });
+        console.info('[AUTO_TASK_STARTED]', {
+          taskId: claimedTaskId,
+          automationUser: carerIdentity?.uid || null,
+          source,
+          claimTime: new Date().toISOString(),
+        });
+        // Claimed one task — stop and let the agent process; reclaim next on complete/fail.
+        finishReason = 'claimed_awaiting_completion';
+        console.info('[AUTO_NEXT_TASK]', {
+          status: 'waiting_for_completion',
+          taskId: claimedTaskId,
+          carerUid: carerIdentity?.uid || null,
+          source,
+        });
+        break;
       }
 
       if (!autoAutomationEnabledRef.current) {
@@ -1529,7 +1608,43 @@ export default function CarerPage() {
         coadminUid: coadminUid || null,
         tickCount,
         reason: finishReason,
+        claimedTaskId,
       });
+
+      // Allow refill effect to retry when drain stopped without clearing pending work.
+      if (
+        finishReason !== 'no_claimable_task' &&
+        finishReason !== 'claimed_awaiting_completion' &&
+        finishReason !== 'awaiting_in_progress_completion' &&
+        finishReason !== 'automation_disabled'
+      ) {
+        lastAutoDispatchSignatureRef.current = '';
+      }
+
+      if (
+        earliestCooldownRetryMs != null &&
+        autoAutomationEnabledRef.current &&
+        myInProgressCountRef.current === 0
+      ) {
+        if (autoCooldownRetryTimeoutRef.current != null) {
+          window.clearTimeout(autoCooldownRetryTimeoutRef.current);
+        }
+        const delayMs = Math.max(250, Math.min(RETURN_TO_PENDING_AUTOTICK_COOLDOWN_MS, earliestCooldownRetryMs + 50));
+        console.info('[AUTO_NEXT_TASK]', {
+          status: 'scheduled_after_cooldown',
+          delayMs,
+          carerUid: carerIdentity?.uid || null,
+          source,
+        });
+        autoCooldownRetryTimeoutRef.current = window.setTimeout(() => {
+          autoCooldownRetryTimeoutRef.current = null;
+          if (!autoAutomationEnabledRef.current) {
+            return;
+          }
+          lastAutoDispatchSignatureRef.current = '';
+          void drainAutomationQueueUntilEmpty('listener');
+        }, delayMs);
+      }
     }
   }
 
@@ -2151,6 +2266,19 @@ export default function CarerPage() {
   }, [claimablePendingTasks.length]);
 
   useEffect(() => {
+    myInProgressCountRef.current = myInProgressTasks.length;
+  }, [myInProgressTasks.length]);
+
+  useEffect(() => {
+    return () => {
+      if (autoCooldownRetryTimeoutRef.current != null) {
+        window.clearTimeout(autoCooldownRetryTimeoutRef.current);
+        autoCooldownRetryTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     const pendingCount = claimablePendingTasks.length;
     const activeCount = myInProgressTasks.length;
     if (!autoAutomationEnabled || pendingCount === 0 || !carerIdentity?.uid || !coadminUid) {
@@ -2162,6 +2290,17 @@ export default function CarerPage() {
       String(carerIdentity.automationAgentId || '').trim() ||
       String(agentInputDraft || '').trim();
     if (!linkedAgentId) {
+      return;
+    }
+
+    // Sequential consumer: only auto-claim when this carer has no in-progress task.
+    if (activeCount > 0) {
+      console.info('[AUTO_NEXT_TASK]', {
+        status: 'deferred_while_in_progress',
+        carerUid: carerIdentity.uid,
+        pendingCount,
+        activeCount,
+      });
       return;
     }
 
@@ -2197,6 +2336,8 @@ export default function CarerPage() {
         activeCount,
         reason: 'drain_already_running',
       });
+      // Clear signature so a later idle pass can retry the same pending set.
+      lastAutoDispatchSignatureRef.current = '';
       return;
     }
 

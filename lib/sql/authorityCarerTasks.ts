@@ -1511,6 +1511,22 @@ export async function claimCarerTaskInTxn(
       carerUid: currentUserUid,
       claimToStartMs: durationBetweenMs(nowIso, nowIso),
     });
+    console.info('[AUTO_TASK_CLAIM]', {
+      taskId,
+      player: cleanText(task.player_uid) || null,
+      automationUser: currentUserUid,
+      claimTime: nowIso,
+      jobId: result.jobId,
+      source: 'claim_carer_task_in_txn',
+    });
+    console.info('[AUTO_TASK_STARTED]', {
+      taskId,
+      player: cleanText(task.player_uid) || null,
+      automationUser: currentUserUid,
+      claimTime: nowIso,
+      jobId: result.jobId,
+      source: 'claim_carer_task_in_txn',
+    });
 
     const claimOutboxRows: LiveOutboxInsertInput[] = [
       ...buildTaskOutboxRows({
@@ -2005,21 +2021,49 @@ export async function returnTaskToPendingInSql(input: {
     });
 
     const returnCarerUid = beforeAssignedCarerUid || input.actorUid;
-    await writeTaskOutboxInTxn(client, {
+    const returnOutboxBase = {
       coadminUid: taskScope,
       carerUid: returnCarerUid,
       taskId,
-      status: 'pending',
+      status: 'pending' as const,
       type: cleanText(task.type),
       gameName: cleanText(task.game_name),
       playerUid: cleanText(task.player_uid),
       requestId,
       updatedAt: nowIso,
-      eventType: 'task.returned_to_pending',
       assignedCarerUid: null,
       claimedByUid: null,
       automationStatus: null,
       automationJobId: null,
+    };
+    await insertLiveOutboxEventsBatch(
+      client,
+      [
+        ...buildTaskOutboxRows({ ...returnOutboxBase, eventType: 'task.returned_to_pending' }),
+        ...buildTaskOutboxRows({ ...returnOutboxBase, eventType: 'task.failed' }),
+        ...buildTaskOutboxRows({ ...returnOutboxBase, eventType: 'task.released' }),
+      ],
+      { flowName: 'carer_task_return_to_pending' }
+    );
+
+    console.info('[AUTO_TASK_FAILED]', {
+      taskId,
+      player: cleanText(task.player_uid) || null,
+      automationUser: returnCarerUid,
+      failureReason:
+        cleanText(task.automation_error) ||
+        cleanText(task.raw_firestore_data?.lastFailureReason) ||
+        cleanText(task.raw_firestore_data?.failureReason) ||
+        'returned_to_pending',
+      completionTime: nowIso,
+    });
+    console.info('[AUTO_TASK_RELEASED]', {
+      taskId,
+      player: cleanText(task.player_uid) || null,
+      automationUser: returnCarerUid,
+      claimTime: toIsoString(task.claimed_at),
+      completionTime: nowIso,
+      retryPending: true,
     });
 
     console.info('[CARER_RETURN_TO_PENDING_SQL_WRITE]', {
@@ -2545,6 +2589,13 @@ export async function completeUsernameTasksInSql(input: {
         gameName,
         updatedAt: nowIso,
         eventType: 'task.completed',
+      });
+      console.info('[AUTO_TASK_COMPLETED]', {
+        taskId,
+        player: cleanText(task.player_uid) || null,
+        automationUser: input.actorUid,
+        claimTime: toIsoString(task.claimed_at),
+        completionTime: nowIso,
       });
       console.info('[TASK_OUTBOX_EMITTED]', {
         taskId,

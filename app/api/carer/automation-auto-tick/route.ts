@@ -58,7 +58,7 @@ import {
 export const runtime = 'nodejs';
 
 const LEASE_TTL_MS = 70_000;
-const MAX_CLAIMS_PER_TICK = 5;
+const MAX_CLAIMS_PER_TICK = 1;
 const PENDING_QUERY_LIMIT = 15;
 
 function logAutoTickTiming(step: string, startedAt: number, details: Record<string, unknown> = {}) {
@@ -1386,6 +1386,7 @@ export async function POST(request: Request) {
     reason: string;
     message?: string;
     mapped?: string;
+    remainingCooldownMs?: number;
   }> = [];
 
   for (const task of pendingCandidates) {
@@ -1410,6 +1411,11 @@ export async function POST(request: Request) {
     const returnedMs = returnedToPendingAt ? Date.parse(returnedToPendingAt) : NaN;
     const withinReturnCooldown =
       Number.isFinite(returnedMs) && Date.now() - returnedMs < 30_000;
+    const remainingCooldownMs = withinReturnCooldown
+      ? Math.max(0, 30_000 - (Date.now() - returnedMs))
+      : 0;
+    // Keep return cooldown for auto-tick thrash protection. allowRetryPendingClaim only
+    // unlocks retryPending after the cooldown window (matches continuous automation consumer).
     if (withinReturnCooldown || (retryPending && !allowRetryPendingClaim)) {
       console.info('[AUTO_TICK_RECLAIM_AFTER_RETURN_BLOCKED]', {
         taskId,
@@ -1418,6 +1424,7 @@ export async function POST(request: Request) {
         retryPending,
         returnedToPendingAt: returnedToPendingAt || null,
         withinReturnCooldown,
+        remainingCooldownMs,
         allowRetryPendingClaim,
       });
       if (withinReturnCooldown) {
@@ -1427,6 +1434,7 @@ export async function POST(request: Request) {
           coadminUid,
           returnedToPendingAt,
           cooldownMs: 30_000,
+          remainingCooldownMs,
           retryPending,
         });
         console.info('[AUTO_TICK_SKIP_RECENTLY_RETURNED_TASK]', {
@@ -1435,6 +1443,7 @@ export async function POST(request: Request) {
           coadminUid,
           returnedToPendingAt,
           cooldownMs: 30_000,
+          remainingCooldownMs,
         });
       } else if (retryPending) {
         console.info('[AUTO_TICK_SQL_SKIPPED_RETRY_PENDING]', {
@@ -1451,6 +1460,7 @@ export async function POST(request: Request) {
         reason: withinReturnCooldown
           ? 'returned_to_pending_cooldown'
           : 'retry_pending_requires_start_automation',
+        remainingCooldownMs: withinReturnCooldown ? remainingCooldownMs : undefined,
       });
       continue;
     }
@@ -1723,6 +1733,23 @@ export async function POST(request: Request) {
         reusedExistingJob: result.reusedExistingJob,
         automationJobCreated: !result.reusedExistingJob,
         originalTaskUpdatedToInProgress: true,
+      });
+      const claimTime = new Date().toISOString();
+      console.info('[AUTO_TASK_CLAIM]', {
+        taskId: result.taskId,
+        player: playerUid || null,
+        automationUser: carerUid,
+        claimTime,
+        jobId: result.jobId,
+        source: 'automation_auto_tick',
+      });
+      console.info('[AUTO_TASK_STARTED]', {
+        taskId: result.taskId,
+        player: playerUid || null,
+        automationUser: carerUid,
+        claimTime,
+        jobId: result.jobId,
+        source: 'automation_auto_tick',
       });
       console.info('[AUTO_TICK_CLAIMED_IN_PROGRESS]', {
         taskId: result.taskId,

@@ -107,6 +107,8 @@ const CARER_TASK_UPSERT_EVENTS = new Set([
   'task.upserted',
   'task.returned_to_pending',
   'task.claimed',
+  'task.failed',
+  'task.released',
   'recharge_task_create',
   'redeem_task_create',
   'recharge_create',

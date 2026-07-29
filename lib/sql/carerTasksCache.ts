@@ -923,7 +923,7 @@ export async function getPendingCarerTaskCandidatesFromSql(
         ) THEN 0
         ELSE 1
       END,
-      created_at DESC NULLS LAST
+      created_at ASC NULLS LAST
     LIMIT $2
   `;
 
