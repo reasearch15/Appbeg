@@ -148,6 +148,13 @@ export async function POST(request: Request) {
         alreadyClaimed: result.alreadyClaimed,
         duplicate: result.duplicate,
         message: result.message,
+        coin: result.coin,
+        cash: result.cash,
+        coinBalance: result.coin,
+        cashBalance: result.cash,
+        claimedAt: result.claimedAt,
+        eventId: result.eventId,
+        hasPendingGift: result.hasPendingGift,
         authority: 'sql',
       });
     }

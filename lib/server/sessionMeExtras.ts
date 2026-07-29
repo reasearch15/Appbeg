@@ -195,7 +195,7 @@ export function invalidateSessionMePlayerExtras(input: {
   if (input.coadminUid !== undefined) {
     const key = sessionMePlayerExtrasCacheKey({ uid, coadminUid });
     const deleted = cache.delete(key);
-    if (deleted && isSqlAuthVerboseLogs()) {
+    if (deleted) {
       console.info('[SESSION_ME_EXTRAS_CACHE_INVALIDATED]', {
         uid,
         coadminUid: coadminUid || null,
@@ -212,7 +212,7 @@ export function invalidateSessionMePlayerExtras(input: {
       removed += 1;
     }
   }
-  if (removed > 0 && isSqlAuthVerboseLogs()) {
+  if (removed > 0) {
     console.info('[SESSION_ME_EXTRAS_CACHE_INVALIDATED]', {
       uid,
       mode: 'uid_prefix',

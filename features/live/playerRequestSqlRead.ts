@@ -1297,6 +1297,17 @@ export function attachPlayerRequestSqlReadListener(
         }
       }
       const meta = buildBalanceUpdateMeta(eventName, payload, outboxId);
+      console.info('[PLAYER_BALANCE_EVENT_RECEIVED]', {
+        playerUid: cleanPlayerUid,
+        eventId: meta.eventId,
+        eventType: eventName,
+        sourceFlow: meta.reason || eventName,
+        cashBalance: meta.cashBalance,
+        coinBalance: meta.coinBalance,
+        authoritative: meta.authoritative,
+        outboxId: meta.outboxId,
+        updatedAt: cleanText(payload.updatedAt) || new Date().toISOString(),
+      });
       playerDebugLog('[PLAYER_BALANCE_EVENT]', {
         playerUid: cleanPlayerUid,
         eventName,

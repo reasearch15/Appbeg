@@ -44,6 +44,15 @@ export async function claimFreeplayGift(giftId: string) {
     amount?: number;
     message?: string;
     authority?: string;
+    coin?: number;
+    cash?: number;
+    coinBalance?: number;
+    cashBalance?: number;
+    claimedAt?: string | null;
+    eventId?: string | null;
+    hasPendingGift?: boolean;
+    alreadyClaimed?: boolean;
+    duplicate?: boolean;
   };
   console.info('[FREEPLAY_CLAIM_API_RESPONSE]', {
     ok: response.ok,
@@ -64,8 +73,17 @@ export async function claimFreeplayGift(giftId: string) {
     });
     throw new Error(errorMessage);
   }
+  const coinRaw = payload.coinBalance ?? payload.coin;
+  const cashRaw = payload.cashBalance ?? payload.cash;
   return {
     amount: Number(payload.amount || 0),
     message: String(payload.message || 'Freeplay claimed successfully.'),
+    coin: Number.isFinite(Number(coinRaw)) ? Math.max(0, Number(coinRaw)) : null,
+    cash: Number.isFinite(Number(cashRaw)) ? Math.max(0, Number(cashRaw)) : null,
+    claimedAt: payload.claimedAt ? String(payload.claimedAt) : null,
+    eventId: payload.eventId ? String(payload.eventId) : null,
+    hasPendingGift: payload.hasPendingGift === true,
+    alreadyClaimed: payload.alreadyClaimed === true,
+    duplicate: payload.duplicate === true,
   };
 }

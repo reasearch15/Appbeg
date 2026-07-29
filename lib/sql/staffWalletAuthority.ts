@@ -10,7 +10,9 @@ import {
   readAuthorityOperationPayloadWithClient,
 } from '@/lib/sql/authorityLedger';
 import { lookupUserDirectoryFromSql, resolvePlayerScopeUid } from '@/lib/sql/authorityLookup';
-import { insertLiveOutboxEventWithClient, playerRequestLiveChannel } from '@/lib/sql/liveOutbox';
+import { insertLiveOutboxEventsBatch } from '@/lib/sql/liveOutbox';
+import { buildPlayerBalanceUpdatedOutboxRows } from '@/lib/sql/playerBalanceUpdatedEvent';
+import { invalidateSessionMePlayerExtras } from '@/lib/server/sessionMeExtras';
 import { cleanText, getPlayerMirrorPool } from '@/lib/sql/playerMirrorCommon';
 
 export type AllocateStaffWalletCoinsInput = {
@@ -609,28 +611,41 @@ export async function loadPlayerCoinsFromStaffWalletInSql(
       },
     });
 
-    await insertLiveOutboxEventWithClient(client, {
-      channel: playerRequestLiveChannel(playerUid),
-      eventType: 'balance_update',
-      entityType: 'player_balance',
-      entityId: playerUid,
+    const balanceOutboxRows = buildPlayerBalanceUpdatedOutboxRows({
+      playerUid,
+      cashBalance: beforePlayerCash,
+      coinBalance: afterPlayerCoin,
+      reason: 'staff_wallet_coin_load',
+      eventId,
+      occurredAt: nowIso,
       source: 'authority_staff_wallet_load',
-      mirroredAt: nowIso,
+    }).map((row) => ({
+      ...row,
       payload: {
-        entityId: playerUid,
-        playerUid,
+        ...row.payload,
         staffUid,
         coadminUid: staffScopeUid,
-        reason: 'staff_wallet_coin_load',
-        coin: afterPlayerCoin,
-        cash: beforePlayerCash,
         amount,
-        updatedAt: nowIso,
-        source: 'authority_staff_wallet_load',
       },
+    }));
+    await insertLiveOutboxEventsBatch(client, balanceOutboxRows, {
+      flowName: 'staff_wallet_coin_load_balance',
+    });
+    console.info('[PLAYER_BALANCE_EVENT_PUBLISHED]', {
+      playerUid,
+      eventId,
+      eventType: 'player.balance.updated',
+      sourceFlow: 'staff_wallet_coin_load',
+      staffUid,
+      coinBalance: afterPlayerCoin,
+      cashBalance: beforePlayerCash,
+      amount,
+      updatedAt: nowIso,
     });
 
     await client.query('COMMIT');
+    // Session/me extras are process-local; clear only after the credit has committed.
+    invalidateSessionMePlayerExtras({ uid: playerUid });
     return {
       success: true,
       duplicate: false,

@@ -552,6 +552,13 @@ export function patchCachedSessionMeBalances(input: {
     cash: nextCash,
     coin: nextCoin,
   });
+  console.info('[PLAYER_BALANCE_CACHE_UPDATED]', {
+    eventType: 'session_me_patch',
+    sourceFlow: 'authoritative_wallet_patch',
+    cashBalance: nextCash,
+    coinBalance: nextCoin,
+    updatedAt: new Date().toISOString(),
+  });
   return true;
 }
 

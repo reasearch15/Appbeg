@@ -4089,6 +4089,15 @@ export default function PlayerPage() {
               meta?.coinBalance !== null &&
               Number.isFinite(Number(meta.coinBalance));
 
+            console.info('[PLAYER_BALANCE_EVENT_RECEIVED]', {
+              playerUid,
+              eventId: meta?.eventId || null,
+              eventType: reason,
+              sourceFlow: meta?.reason || reason,
+              needsAuthoritativeRefetch: meta?.needsAuthoritativeRefetch === true,
+              updatedAt: new Date().toISOString(),
+            });
+
             if (hasAuthoritativeCash || hasAuthoritativeCoin) {
               setWallet((current) => {
                 const nextWallet = {
@@ -4104,6 +4113,15 @@ export default function PlayerPage() {
               applyAuthoritativeWalletToProfileCache({
                 cash: hasAuthoritativeCash ? Number(meta?.cashBalance) : undefined,
                 coin: hasAuthoritativeCoin ? Number(meta?.coinBalance) : undefined,
+              });
+              console.info('[PLAYER_BALANCE_CACHE_UPDATED]', {
+                playerUid,
+                eventId: meta?.eventId || null,
+                eventType: reason,
+                sourceFlow: meta?.reason || 'sse_balance_event',
+                cashBalance: hasAuthoritativeCash ? Number(meta?.cashBalance) : null,
+                coinBalance: hasAuthoritativeCoin ? Number(meta?.coinBalance) : null,
+                updatedAt: new Date().toISOString(),
               });
               playerDevLog('[PLAYER_BALANCE_EVENT] applied_authoritative', {
                 reason,
@@ -4130,6 +4148,15 @@ export default function PlayerPage() {
             }).then((profile) => {
               if (profile) {
                 applyPlayerProfileSnapshot(profile, playerUid);
+                console.info('[PLAYER_BALANCE_RECONCILED]', {
+                  playerUid,
+                  eventId: meta?.eventId || null,
+                  eventType: reason,
+                  sourceFlow: meta?.reason || 'reconnect_or_refetch',
+                  cashBalance: profile.cash,
+                  coinBalance: profile.coin,
+                  updatedAt: new Date().toISOString(),
+                });
               }
               if (meta?.direction === 'cash_to_coin' || meta?.direction === 'coin_to_cash') {
                 console.info('[CONVERSION_SSE_RECONCILED]', {
@@ -4838,10 +4865,50 @@ export default function PlayerPage() {
       setFreeplayClaimSuccessMessage(
         result.message || `You got ${result.amount} FreePlay coins!`
       );
-      void loadPlayerProfileSnapshotOnce().then((profile) => {
-        if (profile) {
-          applyPlayerProfileSnapshot(profile, playerUid || '');
-        }
+
+      const hasAuthoritativeCoin = result.coin !== null && Number.isFinite(result.coin);
+      const hasAuthoritativeCash = result.cash !== null && Number.isFinite(result.cash);
+      if (hasAuthoritativeCoin || hasAuthoritativeCash) {
+        setWallet((current) => {
+          const nextWallet = {
+            coin: hasAuthoritativeCoin ? Math.max(0, Number(result.coin)) : current.coin,
+            cash: hasAuthoritativeCash ? Math.max(0, Number(result.cash)) : current.cash,
+          };
+          return areWalletsEqual(current, nextWallet) ? current : nextWallet;
+        });
+        applyAuthoritativeWalletToProfileCache({
+          coin: hasAuthoritativeCoin ? Number(result.coin) : undefined,
+          cash: hasAuthoritativeCash ? Number(result.cash) : undefined,
+        });
+        console.info('[PLAYER_BALANCE_CACHE_UPDATED]', {
+          playerUid: playerUid || null,
+          eventId: result.eventId || null,
+          eventType: 'freeplay_claim_mutation',
+          sourceFlow: 'freeplay_claim',
+          coinBalance: hasAuthoritativeCoin ? Number(result.coin) : null,
+          cashBalance: hasAuthoritativeCash ? Number(result.cash) : null,
+          updatedAt: result.claimedAt || new Date().toISOString(),
+        });
+      } else {
+        // Fallback only when mutation omitted balances — bypass stale session/me extras.
+        void loadPlayerProfileSnapshotOnce({
+          force: true,
+          bypassCache: true,
+        }).then((profile) => {
+          if (profile) {
+            applyPlayerProfileSnapshot(profile, playerUid || '');
+          }
+        });
+      }
+      console.info('[FREEPLAY_UI_UPDATED]', {
+        playerUid: playerUid || null,
+        eventId: result.eventId || null,
+        eventType: 'freeplay_claim',
+        sourceFlow: 'freeplay_claim_mutation',
+        amount: result.amount,
+        hasPendingGift: false,
+        coinBalance: hasAuthoritativeCoin ? Number(result.coin) : null,
+        updatedAt: result.claimedAt || new Date().toISOString(),
       });
     } catch (error) {
       const errorMessage =

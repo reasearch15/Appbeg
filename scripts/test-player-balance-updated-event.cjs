@@ -224,6 +224,14 @@ test('source files wire post-commit invalidation and event emission', () => {
 
   const extras = fs.readFileSync(path.join(ROOT, 'lib/server/sessionMeExtras.ts'), 'utf8');
   assert.ok(extras.includes('function invalidateSessionMePlayerExtras'));
+
+  const freeplay = fs.readFileSync(path.join(ROOT, 'lib/sql/authorityFreeplay.ts'), 'utf8');
+  assert.ok(freeplay.includes('buildPlayerBalanceUpdatedOutboxRows'));
+  assert.ok(freeplay.includes('invalidateSessionMePlayerExtras({ uid: playerUid })'));
+
+  const staff = fs.readFileSync(path.join(ROOT, 'lib/sql/staffWalletAuthority.ts'), 'utf8');
+  assert.ok(staff.includes('buildPlayerBalanceUpdatedOutboxRows'));
+  assert.ok(staff.includes('invalidateSessionMePlayerExtras({ uid: playerUid })'));
 });
 
 if (process.exitCode) {

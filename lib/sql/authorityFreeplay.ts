@@ -12,9 +12,12 @@ import {
 } from '@/lib/sql/authorityLedger';
 import {
   insertLiveOutboxEventWithClient,
+  insertLiveOutboxEventsBatch,
   playerFreeplayLiveChannel,
   playerRequestLiveChannel,
 } from '@/lib/sql/liveOutbox';
+import { buildPlayerBalanceUpdatedOutboxRows } from '@/lib/sql/playerBalanceUpdatedEvent';
+import { invalidateSessionMePlayerExtras } from '@/lib/server/sessionMeExtras';
 
 const STAFF_FREEPLAY_COST_COINS = 3;
 
@@ -57,6 +60,12 @@ export type AuthorityFreeplayClaimResult = {
   giftId: string;
   playerUid: string;
   message: string;
+  /** Authoritative wallet after claim (or current balances on duplicate/already-claimed). */
+  coin: number;
+  cash: number;
+  claimedAt: string | null;
+  eventId: string | null;
+  hasPendingGift: boolean;
 };
 
 function isEligiblePlayerRow(row: Record<string, unknown>) {
@@ -385,27 +394,64 @@ async function writeFreeplayBalanceOutbox(
     giftId: string;
     amount: number;
     coin: number;
+    cash: number;
+    eventId: string;
     updatedAt: string;
   }
 ) {
-  await insertLiveOutboxEventWithClient(client, {
-    channel: playerRequestLiveChannel(input.playerUid),
-    eventType: 'balance_update',
-    entityType: 'player_balance',
-    entityId: input.playerUid,
+  const rows = buildPlayerBalanceUpdatedOutboxRows({
+    playerUid: input.playerUid,
+    cashBalance: input.cash,
+    coinBalance: input.coin,
+    reason: 'freeplay_claim',
+    eventId: input.eventId,
+    occurredAt: input.updatedAt,
     source: 'authority_freeplay',
-    mirroredAt: input.updatedAt,
+  }).map((row) => ({
+    ...row,
     payload: {
-      entityId: input.playerUid,
-      playerUid: input.playerUid,
+      ...row.payload,
       giftId: input.giftId,
-      coin: input.coin,
       amount: input.amount,
-      reason: 'freeplay_claim',
-      updatedAt: input.updatedAt,
-      source: 'authority',
+      freePlayClaimedAt: input.updatedAt,
+      hasPendingGift: false,
     },
+  }));
+  const outboxIds = await insertLiveOutboxEventsBatch(client, rows, {
+    flowName: 'freeplay_claim_balance',
   });
+  console.info('[PLAYER_BALANCE_EVENT_PUBLISHED]', {
+    playerUid: input.playerUid,
+    eventId: input.eventId,
+    eventType: 'player.balance.updated',
+    sourceFlow: 'freeplay_claim',
+    giftId: input.giftId,
+    coinBalance: input.coin,
+    cashBalance: input.cash,
+    amount: input.amount,
+    outboxIds,
+    updatedAt: input.updatedAt,
+  });
+}
+
+async function readPlayerWalletForClaim(
+  client: PoolClient,
+  playerUid: string
+): Promise<{ coin: number; cash: number }> {
+  const result = await client.query<{ coin: unknown; cash: unknown }>(
+    `
+      SELECT coin, cash
+      FROM public.players_cache
+      WHERE uid = $1::text
+        AND deleted_at IS NULL
+      LIMIT 1
+    `,
+    [playerUid]
+  );
+  return {
+    coin: Math.max(0, Math.floor(numberFromDb(result.rows[0]?.coin))),
+    cash: Math.max(0, Math.floor(numberFromDb(result.rows[0]?.cash))),
+  };
 }
 
 async function loadFreeplayPlayersForCoadmin(coadminUid: string): Promise<FreeplayPlayerCandidate[]> {
@@ -798,6 +844,8 @@ export async function claimFreeplayGiftInSql(input: {
     }
     if (markerStatus === 'claimed') {
       const amount = Math.max(0, Math.floor(Number(marker.amount || 0)));
+      const wallet = await readPlayerWalletForClaim(client, playerUid);
+      const claimedAt = cleanText(marker.claimed_at) || null;
       await client.query('COMMIT');
       return {
         success: true,
@@ -807,6 +855,11 @@ export async function claimFreeplayGiftInSql(input: {
         giftId: requestedGiftId,
         playerUid,
         message: `You got ${amount} FreePlay coins!`,
+        coin: wallet.coin,
+        cash: wallet.cash,
+        claimedAt,
+        eventId: null,
+        hasPendingGift: false,
       };
     }
     if (markerStatus !== 'pending' || !markerGiftId) {
@@ -865,6 +918,7 @@ export async function claimFreeplayGiftInSql(input: {
       const payload = await readAuthorityOperationPayloadWithClient(client, operationKey, {
         flowName: 'freeplay_claim',
       });
+      const wallet = await readPlayerWalletForClaim(client, playerUid);
       await client.query('ROLLBACK');
       const amount = Math.max(0, Math.floor(Number(payload?.amount || marker.amount || 0)));
       return {
@@ -875,6 +929,11 @@ export async function claimFreeplayGiftInSql(input: {
         giftId: requestedGiftId,
         playerUid,
         message: `You got ${amount} FreePlay coins!`,
+        coin: wallet.coin,
+        cash: wallet.cash,
+        claimedAt: cleanText(payload?.claimedAt) || cleanText(marker.claimed_at) || null,
+        eventId: cleanText(payload?.eventId) || null,
+        hasPendingGift: false,
       };
     }
 
@@ -883,6 +942,7 @@ export async function claimFreeplayGiftInSql(input: {
     const coadminUid =
       cleanText(gift.coadmin_uid) || cleanText(marker.coadmin_uid) || null;
     const currentCoin = Math.max(0, Math.floor(Number(player.coin || 0)));
+    const currentCash = Math.max(0, Math.floor(Number(player.cash || 0)));
     const nextCoin = currentCoin + amount;
     const eventId = randomUUID();
 
@@ -1041,6 +1101,8 @@ export async function claimFreeplayGiftInSql(input: {
       giftId: requestedGiftId,
       amount,
       coin: nextCoin,
+      cash: currentCash,
+      eventId,
       updatedAt: nowIso,
     });
     await insertLiveOutboxEventWithClient(client, {
@@ -1080,16 +1142,25 @@ export async function claimFreeplayGiftInSql(input: {
           giftId: requestedGiftId,
           amount,
           alreadyClaimed: false,
+          coin: nextCoin,
+          cash: currentCash,
+          eventId,
+          claimedAt: nowIso,
         }),
       ]
     );
 
     await client.query('COMMIT');
+    // Session/me extras are process-local; clear only after the credit has committed.
+    invalidateSessionMePlayerExtras({ uid: playerUid });
     console.info('[FREEPLAY_CLAIM_SQL_SUCCESS]', {
       playerUid,
       giftId: requestedGiftId,
       amount,
       operationKey,
+      coin: nextCoin,
+      cash: currentCash,
+      eventId,
     });
     return {
       success: true,
@@ -1099,6 +1170,11 @@ export async function claimFreeplayGiftInSql(input: {
       giftId: requestedGiftId,
       playerUid,
       message: 'Freeplay claimed successfully.',
+      coin: nextCoin,
+      cash: currentCash,
+      claimedAt: nowIso,
+      eventId,
+      hasPendingGift: false,
     };
   } catch (error) {
     await client.query('ROLLBACK');
