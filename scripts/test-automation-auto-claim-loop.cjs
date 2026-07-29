@@ -264,7 +264,7 @@ test('fast dispatch covers completed/failed/released for next claim', () => {
 
 test('no continuous polling loop introduced for auto claim', () => {
   const page = fs.readFileSync(path.join(ROOT, 'app/carer/page.tsx'), 'utf8');
-  assert.ok(page.includes('scheduled_after_cooldown'));
+  assert.ok(page.includes('[AUTO_RETRY_COOLDOWN_SCHEDULED]'));
   assert.ok(!/setInterval\([^)]*drainAutomationQueueUntilEmpty/.test(page));
   assert.ok(!/setInterval\([^)]*fireAutomationAutoTick/.test(page));
 });
