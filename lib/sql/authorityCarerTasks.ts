@@ -641,6 +641,9 @@ function buildTaskOutboxRows(input: {
   claimedByUid?: string | null;
   automationStatus?: string | null;
   automationJobId?: string | null;
+  retryPending?: boolean | null;
+  returnedToPendingAt?: string | null;
+  retryAt?: string | null;
   updatedAt: string;
   eventType?: string;
 }): LiveOutboxInsertInput[] {
@@ -670,6 +673,15 @@ function buildTaskOutboxRows(input: {
   }
   if (input.automationJobId !== undefined) {
     payload.automationJobId = input.automationJobId;
+  }
+  if (input.retryPending !== undefined && input.retryPending !== null) {
+    payload.retryPending = input.retryPending === true;
+  }
+  if (input.returnedToPendingAt !== undefined) {
+    payload.returnedToPendingAt = cleanText(input.returnedToPendingAt) || null;
+  }
+  if (input.retryAt !== undefined) {
+    payload.retryAt = cleanText(input.retryAt) || null;
   }
   const eventType = cleanText(input.eventType) || 'task.upserted';
   const carerUid = cleanText(input.carerUid);
@@ -2021,6 +2033,7 @@ export async function returnTaskToPendingInSql(input: {
     });
 
     const returnCarerUid = beforeAssignedCarerUid || input.actorUid;
+    const retryAtIso = new Date(Date.parse(nowIso) + RETURN_TO_PENDING_COOLDOWN_MS).toISOString();
     const returnOutboxBase = {
       coadminUid: taskScope,
       carerUid: returnCarerUid,
@@ -2035,6 +2048,9 @@ export async function returnTaskToPendingInSql(input: {
       claimedByUid: null,
       automationStatus: null,
       automationJobId: null,
+      retryPending: true,
+      returnedToPendingAt: nowIso,
+      retryAt: retryAtIso,
     };
     await insertLiveOutboxEventsBatch(
       client,
@@ -2056,6 +2072,8 @@ export async function returnTaskToPendingInSql(input: {
         cleanText(task.raw_firestore_data?.failureReason) ||
         'returned_to_pending',
       completionTime: nowIso,
+      retryAt: retryAtIso,
+      retryAfterMs: RETURN_TO_PENDING_COOLDOWN_MS,
     });
     console.info('[AUTO_TASK_RELEASED]', {
       taskId,
@@ -2064,6 +2082,15 @@ export async function returnTaskToPendingInSql(input: {
       claimTime: toIsoString(task.claimed_at),
       completionTime: nowIso,
       retryPending: true,
+      returnedToPendingAt: nowIso,
+      retryAt: retryAtIso,
+    });
+    console.info('[AUTO_RETRY_PENDING_DETECTED]', {
+      taskId,
+      carerUid: returnCarerUid,
+      reason: 'returned_to_pending',
+      retryAt: retryAtIso,
+      retryAfterMs: RETURN_TO_PENDING_COOLDOWN_MS,
     });
 
     console.info('[CARER_RETURN_TO_PENDING_SQL_WRITE]', {

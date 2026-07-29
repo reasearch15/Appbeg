@@ -1387,6 +1387,8 @@ export async function POST(request: Request) {
     message?: string;
     mapped?: string;
     remainingCooldownMs?: number;
+    retryAfterMs?: number;
+    retryAt?: string;
   }> = [];
 
   for (const task of pendingCandidates) {
@@ -1458,10 +1460,24 @@ export async function POST(request: Request) {
       skippedTasks.push({
         taskId,
         reason: withinReturnCooldown
-          ? 'returned_to_pending_cooldown'
+          ? 'retry_cooldown'
           : 'retry_pending_requires_start_automation',
         remainingCooldownMs: withinReturnCooldown ? remainingCooldownMs : undefined,
+        retryAfterMs: withinReturnCooldown ? remainingCooldownMs : undefined,
+        retryAt: withinReturnCooldown
+          ? new Date(Date.now() + remainingCooldownMs).toISOString()
+          : undefined,
       });
+      if (withinReturnCooldown) {
+        console.info('[AUTO_RETRY_PENDING_DETECTED]', {
+          taskId,
+          carerUid,
+          reason: 'retry_cooldown',
+          retryAfterMs: remainingCooldownMs,
+          retryAt: new Date(Date.now() + remainingCooldownMs).toISOString(),
+          automationEnabled: true,
+        });
+      }
       continue;
     }
 
@@ -1743,6 +1759,15 @@ export async function POST(request: Request) {
         jobId: result.jobId,
         source: 'automation_auto_tick',
       });
+      if (retryPending) {
+        console.info('[AUTO_RETRY_CLAIM_SUCCESS]', {
+          taskId: result.taskId,
+          carerUid,
+          jobId: result.jobId,
+          claimTime,
+          reason: 'retry_after_cooldown',
+        });
+      }
       console.info('[AUTO_TASK_STARTED]', {
         taskId: result.taskId,
         player: playerUid || null,
@@ -1955,6 +1980,42 @@ export async function POST(request: Request) {
     skippedCount: skippedTasks.length,
     reason: 'no_claimable_task',
   });
+
+  const cooldownSkip = skippedTasks.find(
+    (row) => row.reason === 'retry_cooldown' || row.reason === 'returned_to_pending_cooldown'
+  );
+  if (cooldownSkip) {
+    const retryAfterMs = Math.max(
+      0,
+      Number(cooldownSkip.retryAfterMs ?? cooldownSkip.remainingCooldownMs ?? 0)
+    );
+    const retryAt =
+      String(cooldownSkip.retryAt || '').trim() ||
+      new Date(Date.now() + retryAfterMs).toISOString();
+    console.info('[AUTO_RETRY_CLAIM_SKIPPED]', {
+      taskId: cooldownSkip.taskId,
+      carerUid,
+      reason: 'retry_cooldown',
+      retryAfterMs,
+      retryAt,
+      automationEnabled: true,
+    });
+    return NextResponse.json({
+      ok: true,
+      claimed: false,
+      claimedCount: 0,
+      claimedJobs: [],
+      claimedTaskIds: [],
+      claimedJobIds: [],
+      skippedCount: skippedTasks.length,
+      skippedTasks,
+      reason: 'retry_cooldown',
+      taskId: cooldownSkip.taskId,
+      retryAfterMs,
+      retryAt,
+    });
+  }
+
   return NextResponse.json({
     ok: true,
     claimed: false,

@@ -1127,6 +1127,10 @@ export default function CarerPage() {
   const lastAutoDispatchSignatureRef = useRef('');
   const myInProgressCountRef = useRef(0);
   const autoCooldownRetryTimeoutRef = useRef<number | null>(null);
+  const autoRetryByTaskIdRef = useRef<
+    Map<string, { taskId: string; retryAtMs: number; timeoutId: number }>
+  >(new Map());
+  const pendingTaskIdsRef = useRef<Set<string>>(new Set());
   const fastDispatchCoalesceRef = useRef<number | null>(null);
   const fastDispatchPendingRef = useRef<{
     eventName: string;
@@ -1487,8 +1491,251 @@ export default function CarerPage() {
         return;
       }
 
+      if (
+        pending.eventName === 'task.returned_to_pending' ||
+        pending.eventName === 'task.failed' ||
+        pending.eventName === 'task.released'
+      ) {
+        myInProgressCountRef.current = Math.max(0, myInProgressCountRef.current - 1);
+        if (pending.taskId) {
+          pendingTaskIdsRef.current.add(pending.taskId);
+          scheduleAutoRetryCooldown({
+            taskId: pending.taskId,
+            retryAfterMs: RETURN_TO_PENDING_AUTOTICK_COOLDOWN_MS,
+            reason: pending.eventName,
+          });
+        }
+        lastAutoDispatchSignatureRef.current = '';
+      }
+
+      if (pending.eventName === 'task.completed' && pending.taskId) {
+        cancelAutoRetryForTask(pending.taskId, 'completed');
+        myInProgressCountRef.current = Math.max(0, myInProgressCountRef.current - 1);
+        lastAutoDispatchSignatureRef.current = '';
+      }
+
       void drainAutomationQueueUntilEmpty('listener');
     }, 0);
+  }
+
+  function cancelAllAutoRetryTimers(reason: string) {
+    const entries = [...autoRetryByTaskIdRef.current.entries()];
+    for (const [taskId, entry] of entries) {
+      window.clearTimeout(entry.timeoutId);
+      autoRetryByTaskIdRef.current.delete(taskId);
+      console.info('[AUTO_RETRY_CLAIM_SKIPPED]', {
+        taskId,
+        carerUid: carerIdentity?.uid || null,
+        reason,
+        automationEnabled: autoAutomationEnabledRef.current,
+      });
+    }
+    if (autoCooldownRetryTimeoutRef.current != null) {
+      window.clearTimeout(autoCooldownRetryTimeoutRef.current);
+      autoCooldownRetryTimeoutRef.current = null;
+    }
+  }
+
+  function cancelAutoRetryForTask(taskId: string, reason: string) {
+    const cleanId = String(taskId || '').trim();
+    if (!cleanId) {
+      return;
+    }
+    const existing = autoRetryByTaskIdRef.current.get(cleanId);
+    if (!existing) {
+      return;
+    }
+    window.clearTimeout(existing.timeoutId);
+    autoRetryByTaskIdRef.current.delete(cleanId);
+    console.info('[AUTO_RETRY_CLAIM_SKIPPED]', {
+      taskId: cleanId,
+      carerUid: carerIdentity?.uid || null,
+      reason,
+      automationEnabled: autoAutomationEnabledRef.current,
+    });
+  }
+
+  function scheduleAutoRetryCooldown(input: {
+    taskId: string;
+    retryAfterMs: number;
+    retryAt?: string | null;
+    reason: string;
+  }) {
+    if (!autoAutomationEnabledRef.current) {
+      console.info('[AUTO_RETRY_CLAIM_SKIPPED]', {
+        taskId: input.taskId,
+        carerUid: carerIdentity?.uid || null,
+        reason: 'automation_disabled',
+        automationEnabled: false,
+      });
+      return;
+    }
+    const taskId = String(input.taskId || '').trim();
+    if (!taskId) {
+      return;
+    }
+    const retryAfterMs = Math.max(250, Math.min(RETURN_TO_PENDING_AUTOTICK_COOLDOWN_MS + 1_000, Number(input.retryAfterMs) || 0));
+    if (!Number.isFinite(retryAfterMs) || retryAfterMs <= 0) {
+      return;
+    }
+    const retryAtMs = Date.now() + retryAfterMs;
+    const retryAt =
+      String(input.retryAt || '').trim() || new Date(retryAtMs).toISOString();
+    const existing = autoRetryByTaskIdRef.current.get(taskId);
+    if (existing && existing.retryAtMs <= retryAtMs + 100) {
+      console.info('[AUTO_RETRY_CLAIM_SKIPPED]', {
+        taskId,
+        carerUid: carerIdentity?.uid || null,
+        reason: 'duplicate_timer',
+        retryAt: new Date(existing.retryAtMs).toISOString(),
+        automationEnabled: true,
+      });
+      return;
+    }
+    if (existing) {
+      window.clearTimeout(existing.timeoutId);
+      autoRetryByTaskIdRef.current.delete(taskId);
+    }
+
+    console.info('[AUTO_RETRY_COOLDOWN_SCHEDULED]', {
+      taskId,
+      carerUid: carerIdentity?.uid || null,
+      reason: input.reason,
+      retryAfterMs,
+      retryAt,
+      automationEnabled: true,
+    });
+
+    const timeoutId = window.setTimeout(() => {
+      autoRetryByTaskIdRef.current.delete(taskId);
+      console.info('[AUTO_RETRY_COOLDOWN_FIRED]', {
+        taskId,
+        carerUid: carerIdentity?.uid || null,
+        reason: input.reason,
+        retryAt,
+        retryAfterMs,
+        automationEnabled: autoAutomationEnabledRef.current,
+      });
+      if (!autoAutomationEnabledRef.current) {
+        console.info('[AUTO_RETRY_CLAIM_SKIPPED]', {
+          taskId,
+          carerUid: carerIdentity?.uid || null,
+          reason: 'automation_disabled_on_fire',
+          automationEnabled: false,
+        });
+        return;
+      }
+      if (!pendingTaskIdsRef.current.has(taskId)) {
+        console.info('[AUTO_RETRY_CLAIM_SKIPPED]', {
+          taskId,
+          carerUid: carerIdentity?.uid || null,
+          reason: 'task_no_longer_pending',
+          automationEnabled: true,
+        });
+        return;
+      }
+      lastAutoDispatchSignatureRef.current = '';
+      void drainAutomationQueueUntilEmpty('listener');
+    }, retryAfterMs);
+
+    autoRetryByTaskIdRef.current.set(taskId, { taskId, retryAtMs, timeoutId });
+  }
+
+  function scheduleTemporaryDrainRetry(input: {
+    reason: string;
+    delayMs?: number;
+    taskId?: string | null;
+  }) {
+    if (!autoAutomationEnabledRef.current) {
+      return;
+    }
+    const delayMs = Math.max(500, Math.min(5_000, Number(input.delayMs) || 1_500));
+    console.info('[AUTO_DRAIN_TEMPORARY_BLOCK]', {
+      taskId: input.taskId || null,
+      carerUid: carerIdentity?.uid || null,
+      reason: input.reason,
+      retryAfterMs: delayMs,
+      automationEnabled: true,
+    });
+    lastAutoDispatchSignatureRef.current = '';
+    if (autoCooldownRetryTimeoutRef.current != null) {
+      window.clearTimeout(autoCooldownRetryTimeoutRef.current);
+    }
+    autoCooldownRetryTimeoutRef.current = window.setTimeout(() => {
+      autoCooldownRetryTimeoutRef.current = null;
+      if (!autoAutomationEnabledRef.current) {
+        return;
+      }
+      lastAutoDispatchSignatureRef.current = '';
+      void drainAutomationQueueUntilEmpty('listener');
+    }, delayMs);
+  }
+
+  function ingestAutoTickRetryHints(payload: Record<string, unknown> | null) {
+    if (!payload) {
+      return;
+    }
+    const topReason = String(payload['reason'] || '').trim();
+    const topTaskId = String(payload['taskId'] || '').trim();
+    const topRetryAfterMs = Number(payload['retryAfterMs']);
+    if (
+      (topReason === 'retry_cooldown' || topReason === 'returned_to_pending_cooldown') &&
+      topTaskId &&
+      Number.isFinite(topRetryAfterMs) &&
+      topRetryAfterMs > 0
+    ) {
+      console.info('[AUTO_RETRY_PENDING_DETECTED]', {
+        taskId: topTaskId,
+        carerUid: carerIdentity?.uid || null,
+        reason: topReason,
+        retryAfterMs: topRetryAfterMs,
+        retryAt: String(payload['retryAt'] || ''),
+        automationEnabled: autoAutomationEnabledRef.current,
+      });
+      scheduleAutoRetryCooldown({
+        taskId: topTaskId,
+        retryAfterMs: topRetryAfterMs,
+        retryAt: String(payload['retryAt'] || '') || null,
+        reason: topReason,
+      });
+    }
+
+    const skippedTasks = Array.isArray(payload['skippedTasks'])
+      ? (payload['skippedTasks'] as Array<Record<string, unknown>>)
+      : [];
+    for (const skipped of skippedTasks) {
+      const reason = String(skipped?.reason || '').trim();
+      if (reason !== 'retry_cooldown' && reason !== 'returned_to_pending_cooldown') {
+        continue;
+      }
+      const taskId = String(skipped?.taskId || '').trim();
+      const retryAfterMs = Number(skipped?.retryAfterMs ?? skipped?.remainingCooldownMs);
+      if (!taskId || !Number.isFinite(retryAfterMs) || retryAfterMs <= 0) {
+        continue;
+      }
+      console.info('[AUTO_RETRY_PENDING_DETECTED]', {
+        taskId,
+        carerUid: carerIdentity?.uid || null,
+        reason,
+        retryAfterMs,
+        retryAt: String(skipped?.retryAt || ''),
+        automationEnabled: autoAutomationEnabledRef.current,
+      });
+      scheduleAutoRetryCooldown({
+        taskId,
+        retryAfterMs,
+        retryAt: String(skipped?.retryAt || '') || null,
+        reason,
+      });
+    }
+
+    if (topReason === 'lease_held' || topReason === 'lease_unavailable') {
+      scheduleTemporaryDrainRetry({
+        reason: topReason,
+        delayMs: 1_500,
+        taskId: topTaskId || null,
+      });
+    }
   }
 
   async function drainAutomationQueueUntilEmpty(source: 'start_button' | 'listener') {
@@ -1514,12 +1761,29 @@ export default function CarerPage() {
     let finishReason = 'unknown';
     let tickCount = 0;
     let claimedTaskId: string | null = null;
-    let earliestCooldownRetryMs: number | null = null;
 
     try {
       while (autoAutomationEnabledRef.current) {
         // One-at-a-time: wait until current in-progress work finishes before claiming next.
+        // Still run one tick when pending exists so cooldown retries can be scheduled.
         if (myInProgressCountRef.current > 0 && !claimedTaskId) {
+          if (pendingTaskIdsRef.current.size > 0) {
+            const payload = await fireAutomationAutoTick('listener');
+            ingestAutoTickRetryHints(payload);
+            const reason = String(payload?.['reason'] || '').trim();
+            if (reason === 'retry_cooldown' || reason === 'lease_held' || reason === 'lease_unavailable') {
+              finishReason = reason;
+              lastAutoDispatchSignatureRef.current = '';
+              console.info('[AUTO_DRAIN_TEMPORARY_BLOCK]', {
+                carerUid: carerIdentity?.uid || null,
+                reason,
+                inProgressCount: myInProgressCountRef.current,
+                pendingCount: pendingTaskIdsRef.current.size,
+                automationEnabled: true,
+              });
+              break;
+            }
+          }
           finishReason = 'awaiting_in_progress_completion';
           console.info('[AUTO_NEXT_TASK]', {
             status: 'waiting_for_in_progress',
@@ -1538,39 +1802,38 @@ export default function CarerPage() {
               ? 'listener'
               : 'queue';
         const payload = await fireAutomationAutoTick(tickSource);
+        ingestAutoTickRetryHints(payload);
         const reason = String(payload?.['reason'] || '').trim();
         const claimed = payload?.['claimed'] === true || Number(payload?.['claimedCount'] || 0) > 0;
         const claimedJobs = Array.isArray(payload?.['claimedJobs'])
           ? (payload?.['claimedJobs'] as Array<{ taskId?: unknown }>)
           : [];
-        const skippedTasks = Array.isArray(payload?.['skippedTasks'])
-          ? (payload?.['skippedTasks'] as Array<{ reason?: unknown; remainingCooldownMs?: unknown }>)
-          : [];
 
-        for (const skipped of skippedTasks) {
-          if (String(skipped?.reason || '') !== 'returned_to_pending_cooldown') {
-            continue;
-          }
-          const remaining = Number(skipped?.remainingCooldownMs);
-          if (!Number.isFinite(remaining) || remaining <= 0) {
-            continue;
-          }
-          earliestCooldownRetryMs =
-            earliestCooldownRetryMs == null
-              ? remaining
-              : Math.min(earliestCooldownRetryMs, remaining);
+        if (reason === 'retry_cooldown') {
+          finishReason = reason;
+          lastAutoDispatchSignatureRef.current = '';
+          break;
         }
-
+        if (reason === 'lease_held' || reason === 'lease_unavailable') {
+          finishReason = reason;
+          lastAutoDispatchSignatureRef.current = '';
+          break;
+        }
         if (reason === 'no_claimable_task') {
           finishReason = reason;
           break;
         }
         if (!payload || !claimed) {
           finishReason = reason || 'tick_failed_or_no_claim';
+          lastAutoDispatchSignatureRef.current = '';
+          if (reason) {
+            scheduleTemporaryDrainRetry({ reason, delayMs: 2_000, taskId: null });
+          }
           break;
         }
 
-        claimedTaskId = String(claimedJobs[0]?.taskId || '').trim() || 'claimed';
+        claimedTaskId = String(claimedJobs[0]?.taskId || payload?.['taskId'] || '').trim() || 'claimed';
+        cancelAutoRetryForTask(claimedTaskId, 'claimed');
         // Optimistic: block next claim until SSE confirms in-progress / completion.
         myInProgressCountRef.current = Math.max(1, myInProgressCountRef.current + 1);
         console.info('[AUTO_TASK_CLAIM]', {
@@ -1585,6 +1848,14 @@ export default function CarerPage() {
           source,
           claimTime: new Date().toISOString(),
         });
+        if (String(payload?.['reason'] || '').includes('retry') || payload?.['reusedExistingJob'] === true) {
+          console.info('[AUTO_RETRY_CLAIM_SUCCESS]', {
+            taskId: claimedTaskId,
+            carerUid: carerIdentity?.uid || null,
+            source,
+            claimTime: new Date().toISOString(),
+          });
+        }
         // Claimed one task — stop and let the agent process; reclaim next on complete/fail.
         finishReason = 'claimed_awaiting_completion';
         console.info('[AUTO_NEXT_TASK]', {
@@ -1611,39 +1882,15 @@ export default function CarerPage() {
         claimedTaskId,
       });
 
-      // Allow refill effect to retry when drain stopped without clearing pending work.
+      // Temporary failures must remain retryable (do not stamp as permanently handled).
       if (
-        finishReason !== 'no_claimable_task' &&
-        finishReason !== 'claimed_awaiting_completion' &&
-        finishReason !== 'awaiting_in_progress_completion' &&
-        finishReason !== 'automation_disabled'
+        finishReason === 'retry_cooldown' ||
+        finishReason === 'lease_held' ||
+        finishReason === 'lease_unavailable' ||
+        finishReason === 'tick_failed_or_no_claim' ||
+        finishReason === 'unknown'
       ) {
         lastAutoDispatchSignatureRef.current = '';
-      }
-
-      if (
-        earliestCooldownRetryMs != null &&
-        autoAutomationEnabledRef.current &&
-        myInProgressCountRef.current === 0
-      ) {
-        if (autoCooldownRetryTimeoutRef.current != null) {
-          window.clearTimeout(autoCooldownRetryTimeoutRef.current);
-        }
-        const delayMs = Math.max(250, Math.min(RETURN_TO_PENDING_AUTOTICK_COOLDOWN_MS, earliestCooldownRetryMs + 50));
-        console.info('[AUTO_NEXT_TASK]', {
-          status: 'scheduled_after_cooldown',
-          delayMs,
-          carerUid: carerIdentity?.uid || null,
-          source,
-        });
-        autoCooldownRetryTimeoutRef.current = window.setTimeout(() => {
-          autoCooldownRetryTimeoutRef.current = null;
-          if (!autoAutomationEnabledRef.current) {
-            return;
-          }
-          lastAutoDispatchSignatureRef.current = '';
-          void drainAutomationQueueUntilEmpty('listener');
-        }, delayMs);
       }
     }
   }
@@ -2270,13 +2517,25 @@ export default function CarerPage() {
   }, [myInProgressTasks.length]);
 
   useEffect(() => {
-    return () => {
-      if (autoCooldownRetryTimeoutRef.current != null) {
-        window.clearTimeout(autoCooldownRetryTimeoutRef.current);
-        autoCooldownRetryTimeoutRef.current = null;
+    pendingTaskIdsRef.current = new Set(claimablePendingTasks.map((task) => task.id));
+    for (const taskId of [...autoRetryByTaskIdRef.current.keys()]) {
+      if (!pendingTaskIdsRef.current.has(taskId)) {
+        cancelAutoRetryForTask(taskId, 'task_no_longer_pending');
       }
+    }
+  }, [claimablePendingTasks]);
+
+  useEffect(() => {
+    return () => {
+      cancelAllAutoRetryTimers('component_unmount');
     };
   }, []);
+
+  useEffect(() => {
+    if (!autoAutomationEnabled) {
+      cancelAllAutoRetryTimers('automation_disabled');
+    }
+  }, [autoAutomationEnabled]);
 
   useEffect(() => {
     const pendingCount = claimablePendingTasks.length;
@@ -3024,6 +3283,8 @@ export default function CarerPage() {
         });
         setAutoDrainRequestId((current) => current + 1);
       } else {
+        autoAutomationEnabledRef.current = false;
+        cancelAllAutoRetryTimers('automation_stopped');
         window.setTimeout(() => {
           autoAutomationEnabledRef.current = false;
         }, 0);
