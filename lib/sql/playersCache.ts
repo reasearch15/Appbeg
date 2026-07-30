@@ -244,6 +244,7 @@ export type ApiUserSqlProfileLookup = {
   status: string | null;
   coadminUid: string | null;
   createdBy: string | null;
+  canViewPlayers: boolean;
   automationAgentId: string | null;
   activeSessionId: string | null;
 };
@@ -468,7 +469,7 @@ export async function lookupApiUserProfileFromSqlCache(
   }
 
   const profileSql = `
-    SELECT uid, username, role, status, coadmin_uid, created_by, active_session_id, raw_firestore_data
+    SELECT uid, username, role, status, coadmin_uid, created_by, can_view_players, active_session_id, raw_firestore_data
     FROM public.players_cache
     WHERE uid = $1
       AND deleted_at IS NULL
@@ -500,6 +501,7 @@ export async function lookupApiUserProfileFromSqlCache(
       status: cleanText(row.status) || null,
       coadminUid: cleanText(row.coadmin_uid) || cleanText(row.created_by) || null,
       createdBy: cleanText(row.created_by) || null,
+      canViewPlayers: Boolean(row.can_view_players),
       automationAgentId: fieldFromRawFirestore(raw, 'automationAgentId'),
       activeSessionId: resolveActiveSessionId(row),
     } satisfies ApiUserSqlProfileLookup;
@@ -545,7 +547,7 @@ export async function lookupApiUserProfileByUsernameFromSqlCache(
   }
 
   const profileSql = `
-    SELECT uid, username, role, status, coadmin_uid, created_by, active_session_id, raw_firestore_data
+    SELECT uid, username, role, status, coadmin_uid, created_by, can_view_players, active_session_id, raw_firestore_data
     FROM public.players_cache
     WHERE deleted_at IS NULL
       AND LOWER(username) = LOWER($1)
@@ -570,6 +572,7 @@ export async function lookupApiUserProfileByUsernameFromSqlCache(
       status: cleanText(row.status) || null,
       coadminUid: cleanText(row.coadmin_uid) || cleanText(row.created_by) || null,
       createdBy: cleanText(row.created_by) || null,
+      canViewPlayers: Boolean(row.can_view_players),
       automationAgentId: fieldFromRawFirestore(raw, 'automationAgentId'),
       activeSessionId: resolveActiveSessionId(row),
     } satisfies ApiUserSqlProfileLookup;

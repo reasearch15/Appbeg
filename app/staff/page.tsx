@@ -26,7 +26,7 @@ import { auth, db } from '@/lib/firebase/client';
 import { belongsToCoadmin, getCurrentUserCoadminUid } from '@/lib/coadmin/scope';
 import {
   blockPlayer,
-  getPlayers,
+  getPlayersByCoadminSqlFirst,
   getStaff,
   PlayerUser,
   StaffUser,
@@ -99,6 +99,7 @@ type StaffSessionContext = {
   uid: string;
   role: string;
   coadminUid: string;
+  canViewPlayers: boolean;
 };
 
 const STAFF_PLAYER_CHAT_PAGE_SIZE = 25;
@@ -480,6 +481,7 @@ export default function StaffPage() {
     () => players.reduce((sum, player) => sum + (unreadCounts[player.uid] || 0), 0),
     [players, unreadCounts]
   );
+  const canViewPlayers = staffSession?.role === 'staff' && staffSession.canViewPlayers === true;
 
   useEffect(() => {
     if (!isAutoDismissStaffSuccessMessage(message)) {
@@ -641,14 +643,17 @@ export default function StaffPage() {
   }, [playPlayerMessageSound, playerChatUnreadTotal, loadingList]);
 
   async function loadPlayers() {
+    if (!canViewPlayers) {
+      setPlayers([]);
+      setSelectedViewPlayer(null);
+      setSelectedPlayerChatUser(null);
+      return;
+    }
     setLoadingList(true);
 
     try {
       const coadminUid = await getCurrentUserCoadminUid();
-      const allPlayers = await getPlayers();
-      const relatedPlayers = allPlayers.filter((player) =>
-        belongsToCoadmin(player, coadminUid)
-      );
+      const relatedPlayers = await getPlayersByCoadminSqlFirst(coadminUid);
       setPlayers(sortByNewest(relatedPlayers));
       void loadMyStaffWalletBalance();
     } catch (error: any) {
@@ -776,7 +781,7 @@ export default function StaffPage() {
   useEffect(() => {
     hasSyncedPlayerChatUnreadRef.current = false;
     previousPlayerChatUnreadRef.current = 0;
-  }, [creatorRole]);
+  }, [creatorRole, canViewPlayers]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -821,6 +826,7 @@ export default function StaffPage() {
             uid: sessionUser.uid,
             role,
             coadminUid,
+            canViewPlayers: Boolean(sessionUser.canViewPlayers),
           });
           setStaffAuthUid(sessionUser.uid);
         }
@@ -1591,12 +1597,20 @@ export default function StaffPage() {
       setSelectedPlayerChatUser(null);
       setNewPlayerMessage('');
     }
+
+    if (view === 'view-players' && !canViewPlayers) {
+      setActiveView('dashboard');
+      setMessage('Forbidden.');
+      return;
+    }
   }
 
   const menuItems: (NavigationItem & { view: StaffView })[] = [
     { label: 'Dashboard', view: 'dashboard' },
     { label: 'Cashout Tasks', view: 'view-tasks' },
-    { label: 'View Players', view: 'view-players', unread: playerChatUnreadTotal },
+    ...(canViewPlayers
+      ? [{ label: 'View Players', view: 'view-players', unread: playerChatUnreadTotal } as const]
+      : []),
     { label: 'Reach Out', view: 'reach-out', unread: reachOutUnread },
   ];
   const sidebarItems = menuItems.map((item) => ({

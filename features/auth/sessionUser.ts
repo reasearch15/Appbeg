@@ -22,6 +22,7 @@ export type SessionUser = {
   username?: string | null;
   coadminUid?: string | null;
   status?: string | null;
+  canViewPlayers?: boolean;
   expiresAt?: string | null;
   appSessionId?: string | null;
   playerSessionId?: string | null;
@@ -37,6 +38,7 @@ export type SessionMePayload = {
   coadminUid?: string | null;
   username?: string;
   status?: string | null;
+  canViewPlayers?: boolean;
   expiresAt?: string;
   appSessionId?: string;
   playerSessionId?: string;
@@ -136,6 +138,7 @@ function mapPayloadToSessionUser(payload: {
   coadminUid?: string | null;
   username?: string;
   status?: string | null;
+  canViewPlayers?: boolean;
   expiresAt?: string;
   appSessionId?: string;
   playerSessionId?: string;
@@ -154,6 +157,7 @@ function mapPayloadToSessionUser(payload: {
     coadminUid: payload.coadminUid ?? null,
     username: String(payload.username || ''),
     status: payload.status ?? null,
+    canViewPlayers: payload.role === 'staff' ? Boolean(payload.canViewPlayers) : false,
     expiresAt: String(payload.expiresAt || ''),
     appSessionId: String(payload.appSessionId || '').trim() || null,
     playerSessionId:

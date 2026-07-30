@@ -18,6 +18,7 @@ interface BaseUser {
   status: string;
   isOnline?: boolean;
   lastSeen?: any;
+  canViewPlayers?: boolean;
 }
 
 interface Props<T extends BaseUser> {
@@ -42,6 +43,8 @@ interface Props<T extends BaseUser> {
   /** Coadmin: change login username for staff/carer. */
   onCoadminSetUsername?: (user: T) => void;
   coadminCredentialsLoading?: boolean;
+  onTogglePlayerPrivilege?: (user: T) => void;
+  playerPrivilegeLoadingUid?: string | null;
   /** Firestore-based presence: uid → online (overrides `user.isOnline` when set). */
   onlineByUid?: Record<string, boolean>;
   renderSelectedExtras?: (user: T) => React.ReactNode;
@@ -89,6 +92,8 @@ export default function UserManagementView<T extends BaseUser>({
   onCoadminSetPassword,
   onCoadminSetUsername,
   coadminCredentialsLoading = false,
+  onTogglePlayerPrivilege,
+  playerPrivilegeLoadingUid = null,
   onlineByUid,
   renderSelectedExtras,
   onGiveFreeplay,
@@ -348,6 +353,23 @@ export default function UserManagementView<T extends BaseUser>({
                     }
                   >
                     {coadminCredentialsLoading ? 'Saving…' : 'Set password'}
+                  </button>
+                )}
+
+                {onTogglePlayerPrivilege && selectedUser.role === 'staff' && (
+                  <button
+                    type="button"
+                    onClick={() => onTogglePlayerPrivilege(selectedUser)}
+                    disabled={playerPrivilegeLoadingUid === selectedUser.uid}
+                    className={
+                      selectedUser.canViewPlayers
+                        ? 'rounded-xl border border-emerald-400/35 bg-emerald-500/20 px-4 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-60'
+                        : 'rounded-xl border border-neutral-500/35 bg-neutral-700/35 px-4 py-2 text-sm font-semibold text-neutral-200 hover:bg-neutral-700/50 disabled:cursor-not-allowed disabled:opacity-60'
+                    }
+                  >
+                    {playerPrivilegeLoadingUid === selectedUser.uid
+                      ? 'Saving...'
+                      : `Player Privilege: ${selectedUser.canViewPlayers ? 'ON' : 'OFF'}`}
                   </button>
                 )}
 

@@ -43,6 +43,7 @@ export type StaffUser = {
   createdBy: string | null;
   coadminUid?: string | null;
   cashBoxNpr?: number;
+  canViewPlayers?: boolean;
   createdAt?: any;
 };
 
@@ -289,6 +290,10 @@ async function tryReadPlayersCacheByCoadmin(coadminUid: string): Promise<PlayerU
       PLAYERS_CACHE_TIMEOUT_MS
     );
     if (!response.ok) {
+      if (response.status === 403 || response.status === 401) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || 'Forbidden.');
+      }
       console.info('[PLAYERS_CACHE_READ] source=firestore_fallback', {
         coadminUid: cleanCoadminUid,
         reason: `cache_api_status_${response.status}`,
@@ -911,6 +916,29 @@ export async function resetCoadminWorkerCredentials(
     throw new Error(data.error || 'Failed to update sign-in details.');
   }
   return data;
+}
+
+export async function setStaffPlayerPrivilege(
+  staff: StaffUser,
+  canViewPlayers: boolean
+): Promise<{ canViewPlayers: boolean; changed: boolean }> {
+  const response = await fetch('/api/coadmin/staff-player-privilege', {
+    method: 'POST',
+    headers: await getAdminActionHeaders('update'),
+    body: JSON.stringify({
+      staffUid: staff.uid,
+      canViewPlayers,
+    }),
+  });
+
+  const data = await parseApiResponse(response);
+  if (!response.ok) {
+    throw new Error(data.error || 'Failed to update player privilege.');
+  }
+  return {
+    canViewPlayers: Boolean(data.canViewPlayers),
+    changed: Boolean(data.changed),
+  };
 }
 
 export async function adminResetManagedPassword(

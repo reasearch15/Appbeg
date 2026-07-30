@@ -68,6 +68,7 @@ import {
   getPlayersByCoadminSqlFirst,
   requestCarerCreation,
   resetCoadminWorkerCredentials,
+  setStaffPlayerPrivilege,
   unblockCarer,
   unblockPlayer,
   unblockStaff,
@@ -500,6 +501,7 @@ export default function CoadminPage() {
   const [staffWalletsLoading, setStaffWalletsLoading] = useState(false);
   const [staffWalletAmountByUid, setStaffWalletAmountByUid] = useState<Record<string, string>>({});
   const [staffWalletAllocatingUid, setStaffWalletAllocatingUid] = useState<string | null>(null);
+  const [staffPlayerPrivilegeSavingUid, setStaffPlayerPrivilegeSavingUid] = useState<string | null>(null);
 
   const [carerUsername, setCarerUsername] = useState('');
   const [carerPassword, setCarerPassword] = useState('');
@@ -2905,6 +2907,43 @@ export default function CoadminPage() {
     }
   }
 
+  async function handleToggleStaffPlayerPrivilege(user: StaffUser) {
+    if (staffPlayerPrivilegeSavingUid) {
+      return;
+    }
+    const previous = Boolean(user.canViewPlayers);
+    const next = !previous;
+    setStaffPlayerPrivilegeSavingUid(user.uid);
+    setMessage('');
+    try {
+      const result = await setStaffPlayerPrivilege(user, next);
+      const updated = { ...user, canViewPlayers: result.canViewPlayers };
+      setStaffList((current) =>
+        current.map((staffMember) =>
+          staffMember.uid === user.uid ? { ...staffMember, canViewPlayers: result.canViewPlayers } : staffMember
+        )
+      );
+      setSelectedStaff((current) =>
+        current?.uid === user.uid ? { ...current, canViewPlayers: result.canViewPlayers } : current
+      );
+      setMessage(
+        `Player Privilege ${updated.canViewPlayers ? 'enabled' : 'disabled'} for ${updated.username}.`
+      );
+    } catch (err: any) {
+      setSelectedStaff((current) =>
+        current?.uid === user.uid ? { ...current, canViewPlayers: previous } : current
+      );
+      setStaffList((current) =>
+        current.map((staffMember) =>
+          staffMember.uid === user.uid ? { ...staffMember, canViewPlayers: previous } : staffMember
+        )
+      );
+      setMessage(err?.message || 'Failed to update Player Privilege.');
+    } finally {
+      setStaffPlayerPrivilegeSavingUid(null);
+    }
+  }
+
   async function handleCoadminSetCarerPassword(user: CarerUser) {
     const pw1 = window.prompt('New password (at least 6 characters):', '');
     if (pw1 === null) {
@@ -4859,6 +4898,8 @@ export default function CoadminPage() {
               onCoadminSetPassword={handleCoadminSetStaffPassword}
               onCoadminSetUsername={handleCoadminSetStaffUsername}
               coadminCredentialsLoading={workerCredentialsLoading}
+              onTogglePlayerPrivilege={handleToggleStaffPlayerPrivilege}
+              playerPrivilegeLoadingUid={staffPlayerPrivilegeSavingUid}
               onlineByUid={coadminOnlineByUid}
               nameMode="coadmin"
               onStartChat={handleStaffStartChat}

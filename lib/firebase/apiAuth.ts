@@ -58,6 +58,7 @@ export type ApiUser = {
   username: string;
   coadminUid: string | null;
   createdBy: string | null;
+  canViewPlayers?: boolean;
   automationAgentId?: string | null;
 };
 
@@ -540,6 +541,7 @@ function apiUserFromSqlProfile(profile: ApiUserSqlProfileLookup): ApiUser {
     username: profile.username,
     coadminUid: profile.coadminUid,
     createdBy: profile.createdBy,
+    canViewPlayers: profile.role === 'staff' ? profile.canViewPlayers : false,
     automationAgentId: profile.automationAgentId,
   };
 }
@@ -552,6 +554,7 @@ function apiUserFromFirestore(uid: string, data: Record<string, unknown>): ApiUs
     username: String(data.username || ''),
     coadminUid: String(data.coadminUid || data.createdBy || '').trim() || null,
     createdBy: String(data.createdBy || '').trim() || null,
+    canViewPlayers: role === 'staff' ? Boolean(data.canViewPlayers) : false,
     automationAgentId: String(data.automationAgentId || '').trim() || null,
   };
 }

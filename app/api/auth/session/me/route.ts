@@ -6,6 +6,7 @@ import { logSqlAuthNoFirestore, logSqlAuthProfileRead, logSqlAuthSessionRead } f
 import { AUTH_SLOW_MS, isSqlAuthVerboseLogs } from '@/lib/server/verboseLogs';
 import { readSessionMePlayerExtras } from '@/lib/server/sessionMeExtras';
 import { cleanText } from '@/lib/sql/playerMirrorCommon';
+import { lookupApiUserProfileFromSqlCache } from '@/lib/sql/playersCache';
 
 export const runtime = 'nodejs';
 
@@ -20,6 +21,7 @@ type SessionMeStableBody = {
   coadminUid: string | null;
   username: string;
   status: string | null;
+  canViewPlayers?: boolean;
   expiresAt: string;
   appSessionId: string;
   sessionSource: 'sql';
@@ -237,12 +239,15 @@ export async function GET(request: Request) {
   }
 
   const cacheReadStartedAt = Date.now();
-  const cachedStableBody = readSessionMeRouteCache({
-    sessionId,
-    uid: auth.uid,
-    role: auth.role,
-    expiresAt: auth.session.expiresAt,
-  });
+  const cachedStableBody =
+    auth.role === 'staff'
+      ? null
+      : readSessionMeRouteCache({
+          sessionId,
+          uid: auth.uid,
+          role: auth.role,
+          expiresAt: auth.session.expiresAt,
+        });
   const sessionMeCacheLookupMs = Date.now() - cacheReadStartedAt;
 
   if (cachedStableBody) {
@@ -265,6 +270,11 @@ export async function GET(request: Request) {
       });
     }
   }
+
+  const freshStaffProfile =
+    auth.role === 'staff'
+      ? (await lookupApiUserProfileFromSqlCache(auth.uid)).profile
+      : null;
 
   const playerExtrasStartedAt = Date.now();
 
@@ -297,6 +307,9 @@ export async function GET(request: Request) {
       username: auth.username,
 
       status: auth.profile.status,
+      ...(auth.role === 'staff'
+        ? { canViewPlayers: Boolean(freshStaffProfile?.canViewPlayers) }
+        : {}),
 
       expiresAt: auth.session.expiresAt,
 
@@ -313,7 +326,7 @@ export async function GET(request: Request) {
 
     } satisfies SessionMeStableBody);
 
-  if (!cachedStableBody) {
+  if (!cachedStableBody && auth.role !== 'staff') {
     writeSessionMeRouteCache({
       sessionId,
       uid: auth.uid,

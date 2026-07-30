@@ -23,6 +23,7 @@ export type CachedDirectoryUser = {
   createdBy: string | null;
   coadminUid?: string | null;
   cashBoxNpr?: number;
+  canViewPlayers?: boolean;
   paymentQrUrl?: string | null;
   paymentQrPublicId?: string | null;
   paymentDetails?: string | null;
@@ -134,6 +135,7 @@ function mapCachedDirectoryUserRow(
     createdBy: cleanText(row.created_by) || cleanText(raw.createdBy) || null,
     coadminUid: resolveCoadminUid(row, requestedCoadminUid),
     cashBoxNpr: rawNumber(raw, 'cashBoxNpr'),
+    canViewPlayers: role === 'staff' ? Boolean(row.can_view_players) : false,
     paymentQrUrl: rawString(raw, 'paymentQrUrl'),
     paymentQrPublicId: rawString(raw, 'paymentQrPublicId'),
     paymentDetails: rawString(raw, 'paymentDetails'),
@@ -198,6 +200,7 @@ function buildUsersCacheSql(options: ReadUsersCacheByRoleOptions) {
       coadmin_uid,
       coin,
       cash,
+      can_view_players,
       created_at,
       updated_at,
       mirrored_at,

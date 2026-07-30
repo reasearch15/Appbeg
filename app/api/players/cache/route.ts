@@ -14,6 +14,7 @@ import {
   logCacheSqlRead,
 } from '@/lib/server/cacheSqlRead';
 import { readPlayersCacheByCoadmin, type CachedPlayer } from '@/lib/sql/playersCache';
+import { lookupApiUserProfileFromSqlCache } from '@/lib/sql/playersCache';
 
 export const runtime = 'nodejs';
 
@@ -100,6 +101,14 @@ function canAccessCoadmin(authUser: ApiUser, requested: string, scoped: string |
   return Boolean(scoped && requested === scoped);
 }
 
+async function staffCanViewPlayers(authUser: ApiUser) {
+  if (authUser.role !== 'staff') {
+    return true;
+  }
+  const fresh = await lookupApiUserProfileFromSqlCache(authUser.uid);
+  return fresh.profile?.role === 'staff' && fresh.profile.canViewPlayers === true;
+}
+
 export async function GET(request: Request) {
   const startedAt = Date.now();
 
@@ -118,6 +127,10 @@ export async function GET(request: Request) {
   }
 
   if (!canAccessCoadmin(auth.user, coadminUid, scoped)) {
+    return apiError('Forbidden.', 403);
+  }
+
+  if (!(await staffCanViewPlayers(auth.user))) {
     return apiError('Forbidden.', 403);
   }
 

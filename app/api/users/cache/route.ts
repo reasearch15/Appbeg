@@ -19,6 +19,7 @@ import {
   type CachedDirectoryUser,
   type DirectoryRole,
 } from '@/lib/sql/usersCache';
+import { lookupApiUserProfileFromSqlCache } from '@/lib/sql/playersCache';
 
 export const runtime = 'nodejs';
 
@@ -81,6 +82,7 @@ function mapFirestoreDirectoryUser(
     createdBy,
     coadminUid,
     cashBoxNpr: numberOrNull(data.cashBoxNpr),
+    canViewPlayers: role === 'staff' ? Boolean(data.canViewPlayers) : false,
     paymentQrUrl: cleanText(data.paymentQrUrl) || null,
     paymentQrPublicId: cleanText(data.paymentQrPublicId) || null,
     paymentDetails: cleanText(data.paymentDetails) || null,
@@ -171,7 +173,7 @@ function canAccessCoadminScope(authUser: ApiUser, requested: string | null, scop
   return Boolean(scoped && requested === scoped);
 }
 
-function resolveCoadminScope(authUser: ApiUser, explicitCoadminUid: string | null, scoped: string | null) {
+function resolveCoadminScope(authUser: ApiUser, explicitCoadminUid: string | null) {
   if (authUser.role === 'coadmin') {
     return authUser.uid;
   }
@@ -187,6 +189,14 @@ function canReadRole(authUser: ApiUser, role: DirectoryRole) {
     return authUser.role === 'staff';
   }
   return true;
+}
+
+async function staffCanReadPlayerDirectory(authUser: ApiUser, role: DirectoryRole) {
+  if (authUser.role !== 'staff' || role !== 'player') {
+    return true;
+  }
+  const fresh = await lookupApiUserProfileFromSqlCache(authUser.uid);
+  return fresh.profile?.role === 'staff' && fresh.profile.canViewPlayers === true;
 }
 
 export async function GET(request: Request) {
@@ -206,12 +216,16 @@ export async function GET(request: Request) {
     return apiError('Forbidden.', 403);
   }
 
+  if (!(await staffCanReadPlayerDirectory(auth.user, role))) {
+    return apiError('Forbidden.', 403);
+  }
+
   const status = resolveStatus(request);
   const includeDisabled = resolveIncludeDisabled(request, status);
   const statusFilter = status || 'all';
   const explicitCoadminUid = resolveExplicitCoadminUid(request);
   const scoped = scopedCoadminUid(auth.user);
-  const coadminUid = resolveCoadminScope(auth.user, explicitCoadminUid, scoped);
+  const coadminUid = resolveCoadminScope(auth.user, explicitCoadminUid);
 
   if (!canAccessCoadminScope(auth.user, coadminUid, scoped)) {
     return apiError('Forbidden.', 403);
