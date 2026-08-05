@@ -1,17 +1,34 @@
 'use client';
 
-import { memo, useEffect } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { playerDebugLog } from '@/lib/client/playerDebugLogs';
 import { AnimatePresence, motion } from 'motion/react';
 import { getPlayerBonusEventDescription } from '../utils';
 import { usePlayerRenderPerf } from '../performance';
-import AutomaticRechargeBonusPanel from './AutomaticRechargeBonusPanel';
 import {
   arbClaimLockReasonFromMode,
   type ArbPlayerMode,
 } from '@/features/automaticRechargeBonus/playerArbPreference';
 
 type Props = Record<string, any>;
+
+function formatBonusArbCooldownClock(
+  endsAt: string | null | undefined,
+  nowMs: number
+): string | null {
+  if (!endsAt) return null;
+  const endMs = Date.parse(endsAt);
+  if (!Number.isFinite(endMs) || endMs <= nowMs) return null;
+  const totalSec = Math.max(0, Math.ceil((endMs - nowMs) / 1000));
+  const hours = Math.floor(totalSec / 3600);
+  const minutes = Math.floor((totalSec % 3600) / 60);
+  const seconds = totalSec % 60;
+  return [
+    String(hours).padStart(2, '0'),
+    String(minutes).padStart(2, '0'),
+    String(seconds).padStart(2, '0'),
+  ].join(':');
+}
 
 function Bonus(props: Props) {
   const {
@@ -28,20 +45,23 @@ function Bonus(props: Props) {
     showBonusPanelHint,
     arbPlayerModeEnabled = false,
     arbMode = 'disabled' as ArbPlayerMode,
-    arbEnabled = false,
     arbCooldownEndsAt = null,
-    arbCanEnable = false,
-    arbCanDisable = false,
     arbCanClaimBonusEvent = true,
-    arbFeatureEnabled = false,
-    arbRiskBlocked = false,
-    arbToggling = false,
-    onArbToggle,
-    arbPanelMessage = null,
   } = props;
 
   const claimLockReason = arbClaimLockReasonFromMode(arbMode, arbCanClaimBonusEvent);
   const claimDisabled = Boolean(claimLockReason) || maintenanceBreak.enabled;
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const showArbInfoCard =
+    arbPlayerModeEnabled && (arbMode === 'enabled' || arbMode === 'cooldown');
+
+  useEffect(() => {
+    if (!showArbInfoCard || arbMode !== 'cooldown' || !arbCooldownEndsAt) return;
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [showArbInfoCard, arbMode, arbCooldownEndsAt]);
+
+  const cooldownLabel = formatBonusArbCooldownClock(arbCooldownEndsAt, nowMs);
 
   usePlayerRenderPerf('Bonus', () => ({
     bonusEventCount: playerBonusEvents.length,
@@ -104,21 +124,44 @@ function Bonus(props: Props) {
                   ) : null}
                 </AnimatePresence>
                 </div>
-                {typeof onArbToggle === 'function' ? (
-                  <AutomaticRechargeBonusPanel
-                    playerModeEnabled={arbPlayerModeEnabled}
-                    mode={arbMode}
-                    enabled={arbEnabled}
-                    cooldownEndsAt={arbCooldownEndsAt}
-                    canEnable={arbCanEnable}
-                    canDisable={arbCanDisable}
-                    canClaimBonusEvent={arbCanClaimBonusEvent}
-                    featureEnabled={arbFeatureEnabled}
-                    riskBlocked={arbRiskBlocked}
-                    toggling={arbToggling}
-                    onToggle={onArbToggle}
-                    message={arbPanelMessage}
-                  />
+                {showArbInfoCard ? (
+                  <div className="rounded-3xl border border-cyan-400/25 bg-gradient-to-br from-[#0d2433]/80 via-[#14091f]/80 to-black/80 p-4 sm:p-5">
+                    <p className="text-xs font-black uppercase tracking-[0.28em] text-cyan-200/80">
+                      Automatic Recharge Bonus
+                    </p>
+                    {arbMode === 'enabled' ? (
+                      <div className="mt-3 space-y-2 text-sm leading-relaxed text-cyan-50/85 sm:text-base">
+                        <p className="font-semibold text-white">
+                          Automatic Recharge Bonus is currently active.
+                        </p>
+                        <p>
+                          Bonus Events cannot be claimed while Auto Bonus is enabled.
+                        </p>
+                        <p className="text-cyan-100/70">
+                          Manage Auto Bonus from the Play page.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="mt-3 space-y-2 text-sm leading-relaxed text-cyan-50/85 sm:text-base">
+                        <p className="font-semibold text-white">
+                          Automatic Recharge Bonus was recently disabled.
+                        </p>
+                        <p>
+                          Bonus Events unlock in:
+                          {cooldownLabel ? (
+                            <span className="mt-1 block font-mono text-lg font-black text-amber-100">
+                              {cooldownLabel}
+                            </span>
+                          ) : (
+                            <span className="mt-1 block text-amber-100/90">soon</span>
+                          )}
+                        </p>
+                        <p className="text-cyan-100/70">
+                          Manage Auto Bonus from the Play page.
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 ) : null}
                 <div
                   className="player-bonus-drops-panel fire-panel fire-purple group/bonus relative flex min-h-[min(19rem,44svh)] flex-col items-center justify-center rounded-3xl border border-violet-400/35 bg-gradient-to-br from-violet-950/70 via-black/55 to-fuchsia-950/30 px-4 py-8 shadow-[0_0_40px_-12px_rgba(139,92,246,0.35)] backdrop-blur-xl sm:min-h-[min(21rem,40svh)] sm:px-8 sm:py-10"
@@ -308,8 +351,9 @@ function Bonus(props: Props) {
                       wait for the next bonus event.
                     </p>
                     <p>
-                      Automatic Recharge Bonus is a separate mode. While Auto is on — or during
-                      its cooldown — Bonus Event claims stay locked.
+                      Automatic Recharge Bonus is a separate mode managed on the Play
+                      page. While Auto is on — or during its cooldown — Bonus Event claims
+                      stay locked.
                     </p>
                   </div>
                 </div>

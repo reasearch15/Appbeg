@@ -7,6 +7,8 @@ import { playerDevLog } from '@/lib/client/playerDebugLogs';
 import { warmPlayerImages } from '../playerAssetPreload';
 import { usePlayerRenderPerf } from '../performance';
 import { getGameBackgroundImage } from '../utils';
+import AutomaticRechargeBonusPanel from './AutomaticRechargeBonusPanel';
+import type { ArbPlayerMode } from '@/features/automaticRechargeBonus/playerArbPreference';
 
 type Props = Record<string, any>;
 
@@ -38,6 +40,18 @@ function Play(props: Props) {
     openActiveTableSplash,
     selectedGameName,
     setSelectedGameName,
+    arbPlayerModeEnabled = false,
+    arbMode = 'disabled' as ArbPlayerMode,
+    arbEnabled = false,
+    arbCooldownEndsAt = null,
+    arbCanEnable = false,
+    arbCanDisable = false,
+    arbCanClaimBonusEvent = true,
+    arbFeatureEnabled = false,
+    arbRiskBlocked = false,
+    arbToggling = false,
+    onArbToggle,
+    arbPanelMessage = null,
   } = props;
 
   const renderDebugCountRef = useRef(0);
@@ -144,6 +158,23 @@ function Play(props: Props) {
                     redeem ⬆️.
                   </p>
                 </div>
+
+                {typeof onArbToggle === 'function' ? (
+                  <AutomaticRechargeBonusPanel
+                    playerModeEnabled={arbPlayerModeEnabled}
+                    mode={arbMode}
+                    enabled={arbEnabled}
+                    cooldownEndsAt={arbCooldownEndsAt}
+                    canEnable={arbCanEnable}
+                    canDisable={arbCanDisable}
+                    canClaimBonusEvent={arbCanClaimBonusEvent}
+                    featureEnabled={arbFeatureEnabled}
+                    riskBlocked={arbRiskBlocked}
+                    toggling={arbToggling}
+                    onToggle={onArbToggle}
+                    message={arbPanelMessage}
+                  />
+                ) : null}
 
                 {loadingList ? (
                   <div className="grid grid-cols-2 gap-2 sm:items-start" aria-busy="true">
