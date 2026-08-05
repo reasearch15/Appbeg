@@ -153,28 +153,31 @@ function Play(props: Props) {
                     🎰 High-limit floor
                   </p>
                   <h2 className="mt-2 text-2xl font-black text-white sm:text-3xl">Pick your table</h2>
-                  <p className="mt-2 text-sm text-amber-100/60">
-                    Tap a table to open the play screen, enter your amount in USD, then recharge ⬇️ or
-                    redeem ⬆️.
-                  </p>
+                  <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+                    <p className="min-w-0 flex-1 text-sm text-amber-100/60">
+                      Tap a table to open the play screen, enter your amount in USD, then recharge ⬇️ or
+                      redeem ⬆️.
+                    </p>
+                    {typeof onArbToggle === 'function' ? (
+                      <div className="flex shrink-0 justify-start sm:justify-end">
+                        <AutomaticRechargeBonusPanel
+                          playerModeEnabled={arbPlayerModeEnabled}
+                          mode={arbMode}
+                          enabled={arbEnabled}
+                          cooldownEndsAt={arbCooldownEndsAt}
+                          canEnable={arbCanEnable}
+                          canDisable={arbCanDisable}
+                          canClaimBonusEvent={arbCanClaimBonusEvent}
+                          featureEnabled={arbFeatureEnabled}
+                          riskBlocked={arbRiskBlocked}
+                          toggling={arbToggling}
+                          onToggle={onArbToggle}
+                          message={arbPanelMessage}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
-
-                {typeof onArbToggle === 'function' ? (
-                  <AutomaticRechargeBonusPanel
-                    playerModeEnabled={arbPlayerModeEnabled}
-                    mode={arbMode}
-                    enabled={arbEnabled}
-                    cooldownEndsAt={arbCooldownEndsAt}
-                    canEnable={arbCanEnable}
-                    canDisable={arbCanDisable}
-                    canClaimBonusEvent={arbCanClaimBonusEvent}
-                    featureEnabled={arbFeatureEnabled}
-                    riskBlocked={arbRiskBlocked}
-                    toggling={arbToggling}
-                    onToggle={onArbToggle}
-                    message={arbPanelMessage}
-                  />
-                ) : null}
 
                 {loadingList ? (
                   <div className="grid grid-cols-2 gap-2 sm:items-start" aria-busy="true">
