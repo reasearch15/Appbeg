@@ -1,0 +1,172 @@
+{
+  "fixtureVersion": 1,
+  "description": "Immutable Automatic Recharge Bonus resolver golden cases (Phase 3). Do not change expected outputs lightly — update only with intentional domain changes.",
+  "amountsAlwaysCovered": [9, 10, 19, 20, 39, 40, 59, 60],
+  "cases": [
+    {
+      "id": "linear_default_bands",
+      "label": "Contiguous $10 bands with open-ended $200+",
+      "configuration": {
+        "versionId": "golden-linear-v1",
+        "versionNumber": 1,
+        "status": "published",
+        "coadminUid": "golden-coadmin",
+        "publishedAt": "2026-01-01T00:00:00.000Z",
+        "publishedByUid": "golden-actor",
+        "publishedByRole": "coadmin",
+        "supersedesVersionId": null,
+        "policy": {
+          "minimumRecharge": 10,
+          "maximumRechargeConsidered": null,
+          "maximumBonusCap": null,
+          "cooldownDurationMinutes": 120
+        },
+        "tiers": [
+          { "id": "t10", "minAmount": 10, "maxAmount": 19, "bonusCoins": 1, "label": "$10–19", "active": true },
+          { "id": "t20", "minAmount": 20, "maxAmount": 29, "bonusCoins": 2, "label": "$20–29", "active": true },
+          { "id": "t30", "minAmount": 30, "maxAmount": 39, "bonusCoins": 3, "label": "$30–39", "active": true },
+          { "id": "t40", "minAmount": 40, "maxAmount": 49, "bonusCoins": 4, "label": "$40–49", "active": true },
+          { "id": "t50", "minAmount": 50, "maxAmount": 59, "bonusCoins": 5, "label": "$50–59", "active": true },
+          { "id": "t60", "minAmount": 60, "maxAmount": 199, "bonusCoins": 6, "label": "$60–199", "active": true },
+          { "id": "t200", "minAmount": 200, "maxAmount": null, "bonusCoins": 20, "label": "$200+", "active": true }
+        ]
+      },
+      "expectations": [
+        { "rechargeAmount": 9, "eligible": false, "bonusCoins": 0, "skipReason": "below_minimum_recharge", "tierId": null },
+        { "rechargeAmount": 10, "eligible": true, "bonusCoins": 1, "skipReason": null, "tierId": "t10" },
+        { "rechargeAmount": 19, "eligible": true, "bonusCoins": 1, "skipReason": null, "tierId": "t10" },
+        { "rechargeAmount": 20, "eligible": true, "bonusCoins": 2, "skipReason": null, "tierId": "t20" },
+        { "rechargeAmount": 39, "eligible": true, "bonusCoins": 3, "skipReason": null, "tierId": "t30" },
+        { "rechargeAmount": 40, "eligible": true, "bonusCoins": 4, "skipReason": null, "tierId": "t40" },
+        { "rechargeAmount": 59, "eligible": true, "bonusCoins": 5, "skipReason": null, "tierId": "t50" },
+        { "rechargeAmount": 60, "eligible": true, "bonusCoins": 6, "skipReason": null, "tierId": "t60" },
+        { "rechargeAmount": 200, "eligible": true, "bonusCoins": 20, "skipReason": null, "tierId": "t200" },
+        { "rechargeAmount": 999, "eligible": true, "bonusCoins": 20, "skipReason": null, "tierId": "t200" }
+      ]
+    },
+    {
+      "id": "gap_tiers",
+      "label": "Gap between 19 and 40 — mid amounts skip",
+      "configuration": {
+        "versionId": "golden-gap-v1",
+        "versionNumber": 1,
+        "status": "published",
+        "coadminUid": "golden-coadmin",
+        "publishedAt": "2026-01-01T00:00:00.000Z",
+        "publishedByUid": null,
+        "publishedByRole": null,
+        "supersedesVersionId": null,
+        "policy": {
+          "minimumRecharge": 10,
+          "maximumRechargeConsidered": null,
+          "maximumBonusCap": null,
+          "cooldownDurationMinutes": 120
+        },
+        "tiers": [
+          { "id": "low", "minAmount": 10, "maxAmount": 19, "bonusCoins": 1, "label": null, "active": true },
+          { "id": "high", "minAmount": 40, "maxAmount": null, "bonusCoins": 4, "label": null, "active": true }
+        ]
+      },
+      "expectations": [
+        { "rechargeAmount": 9, "eligible": false, "bonusCoins": 0, "skipReason": "below_minimum_recharge", "tierId": null },
+        { "rechargeAmount": 10, "eligible": true, "bonusCoins": 1, "skipReason": null, "tierId": "low" },
+        { "rechargeAmount": 19, "eligible": true, "bonusCoins": 1, "skipReason": null, "tierId": "low" },
+        { "rechargeAmount": 20, "eligible": false, "bonusCoins": 0, "skipReason": "no_matching_tier", "tierId": null },
+        { "rechargeAmount": 39, "eligible": false, "bonusCoins": 0, "skipReason": "no_matching_tier", "tierId": null },
+        { "rechargeAmount": 40, "eligible": true, "bonusCoins": 4, "skipReason": null, "tierId": "high" },
+        { "rechargeAmount": 59, "eligible": true, "bonusCoins": 4, "skipReason": null, "tierId": "high" },
+        { "rechargeAmount": 60, "eligible": true, "bonusCoins": 4, "skipReason": null, "tierId": "high" }
+      ]
+    },
+    {
+      "id": "maximum_cap",
+      "label": "Bonus cap reduces grant; zero cap skips",
+      "configuration": {
+        "versionId": "golden-cap-v1",
+        "versionNumber": 2,
+        "status": "published",
+        "coadminUid": "golden-coadmin",
+        "publishedAt": "2026-01-02T00:00:00.000Z",
+        "publishedByUid": null,
+        "publishedByRole": null,
+        "supersedesVersionId": null,
+        "policy": {
+          "minimumRecharge": 10,
+          "maximumRechargeConsidered": 100,
+          "maximumBonusCap": 3,
+          "cooldownDurationMinutes": 120
+        },
+        "tiers": [
+          { "id": "wide", "minAmount": 10, "maxAmount": null, "bonusCoins": 10, "label": null, "active": true }
+        ]
+      },
+      "expectations": [
+        { "rechargeAmount": 9, "eligible": false, "bonusCoins": 0, "skipReason": "below_minimum_recharge", "tierId": null },
+        { "rechargeAmount": 10, "eligible": true, "bonusCoins": 3, "skipReason": null, "tierId": "wide", "uncappedBonusCoins": 10, "appliedCap": 3 },
+        { "rechargeAmount": 60, "eligible": true, "bonusCoins": 3, "skipReason": null, "tierId": "wide", "uncappedBonusCoins": 10, "appliedCap": 3 },
+        { "rechargeAmount": 101, "eligible": false, "bonusCoins": 0, "skipReason": "above_maximum_recharge_considered", "tierId": null }
+      ]
+    },
+    {
+      "id": "cap_zero",
+      "label": "maximumBonusCap 0 → bonus_capped_to_zero",
+      "configuration": {
+        "versionId": "golden-cap0-v1",
+        "versionNumber": 1,
+        "status": "published",
+        "coadminUid": "golden-coadmin",
+        "publishedAt": "2026-01-03T00:00:00.000Z",
+        "publishedByUid": null,
+        "publishedByRole": null,
+        "supersedesVersionId": null,
+        "policy": {
+          "minimumRecharge": 10,
+          "maximumRechargeConsidered": null,
+          "maximumBonusCap": 0,
+          "cooldownDurationMinutes": 120
+        },
+        "tiers": [
+          { "id": "only", "minAmount": 10, "maxAmount": null, "bonusCoins": 5, "label": null, "active": true }
+        ]
+      },
+      "expectations": [
+        { "rechargeAmount": 10, "eligible": false, "bonusCoins": 0, "skipReason": "bonus_capped_to_zero", "tierId": "only", "uncappedBonusCoins": 5, "appliedCap": 0 }
+      ]
+    },
+    {
+      "id": "null_configuration",
+      "label": "No published configuration",
+      "configuration": null,
+      "expectations": [
+        { "rechargeAmount": 10, "eligible": false, "bonusCoins": 0, "skipReason": "no_published_configuration", "tierId": null }
+      ]
+    },
+    {
+      "id": "malformed_amount",
+      "label": "Non-integer recharge amount",
+      "configuration": {
+        "versionId": "golden-malformed-v1",
+        "versionNumber": 1,
+        "status": "published",
+        "coadminUid": "golden-coadmin",
+        "publishedAt": "2026-01-04T00:00:00.000Z",
+        "publishedByUid": null,
+        "publishedByRole": null,
+        "supersedesVersionId": null,
+        "policy": {
+          "minimumRecharge": 10,
+          "maximumRechargeConsidered": null,
+          "maximumBonusCap": null,
+          "cooldownDurationMinutes": 120
+        },
+        "tiers": [
+          { "id": "only", "minAmount": 10, "maxAmount": null, "bonusCoins": 1, "label": null, "active": true }
+        ]
+      },
+      "expectations": [
+        { "rechargeAmount": 10.5, "eligible": false, "bonusCoins": 0, "skipReason": "invalid_amount", "tierId": null },
+        { "rechargeAmount": -1, "eligible": false, "bonusCoins": 0, "skipReason": "invalid_amount", "tierId": null }
+      ]
+    }
+  ]
+}

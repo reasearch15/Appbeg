@@ -5,6 +5,11 @@ import { playerDebugLog } from '@/lib/client/playerDebugLogs';
 import { AnimatePresence, motion } from 'motion/react';
 import { getPlayerBonusEventDescription } from '../utils';
 import { usePlayerRenderPerf } from '../performance';
+import AutomaticRechargeBonusPanel from './AutomaticRechargeBonusPanel';
+import {
+  arbClaimLockReasonFromMode,
+  type ArbPlayerMode,
+} from '@/features/automaticRechargeBonus/playerArbPreference';
 
 type Props = Record<string, any>;
 
@@ -21,7 +26,22 @@ function Bonus(props: Props) {
     setBonusCarouselIndex,
     setBonusStripPaused,
     showBonusPanelHint,
+    arbPlayerModeEnabled = false,
+    arbMode = 'disabled' as ArbPlayerMode,
+    arbEnabled = false,
+    arbCooldownEndsAt = null,
+    arbCanEnable = false,
+    arbCanDisable = false,
+    arbCanClaimBonusEvent = true,
+    arbFeatureEnabled = false,
+    arbRiskBlocked = false,
+    arbToggling = false,
+    onArbToggle,
+    arbPanelMessage = null,
   } = props;
+
+  const claimLockReason = arbClaimLockReasonFromMode(arbMode, arbCanClaimBonusEvent);
+  const claimDisabled = Boolean(claimLockReason) || maintenanceBreak.enabled;
 
   usePlayerRenderPerf('Bonus', () => ({
     bonusEventCount: playerBonusEvents.length,
@@ -84,11 +104,32 @@ function Bonus(props: Props) {
                   ) : null}
                 </AnimatePresence>
                 </div>
+                {typeof onArbToggle === 'function' ? (
+                  <AutomaticRechargeBonusPanel
+                    playerModeEnabled={arbPlayerModeEnabled}
+                    mode={arbMode}
+                    enabled={arbEnabled}
+                    cooldownEndsAt={arbCooldownEndsAt}
+                    canEnable={arbCanEnable}
+                    canDisable={arbCanDisable}
+                    canClaimBonusEvent={arbCanClaimBonusEvent}
+                    featureEnabled={arbFeatureEnabled}
+                    riskBlocked={arbRiskBlocked}
+                    toggling={arbToggling}
+                    onToggle={onArbToggle}
+                    message={arbPanelMessage}
+                  />
+                ) : null}
                 <div
                   className="player-bonus-drops-panel fire-panel fire-purple group/bonus relative flex min-h-[min(19rem,44svh)] flex-col items-center justify-center rounded-3xl border border-violet-400/35 bg-gradient-to-br from-violet-950/70 via-black/55 to-fuchsia-950/30 px-4 py-8 shadow-[0_0_40px_-12px_rgba(139,92,246,0.35)] backdrop-blur-xl sm:min-h-[min(21rem,40svh)] sm:px-8 sm:py-10"
                   onPointerEnter={() => setBonusStripPaused(true)}
                   onPointerLeave={() => setBonusStripPaused(false)}
                 >
+                  {claimLockReason ? (
+                    <div className="absolute inset-x-4 top-4 z-20 rounded-2xl border border-amber-400/35 bg-amber-500/20 px-3 py-2 text-center text-xs font-semibold text-amber-50 sm:inset-x-8">
+                      {claimLockReason}
+                    </div>
+                  ) : null}
                   <div
                     className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-fuchsia-500/20 blur-3xl"
                     aria-hidden
@@ -211,14 +252,18 @@ function Bonus(props: Props) {
                                     <p className="text-[10px] font-black uppercase tracking-wider text-fuchsia-200/70">
                                       Status
                                     </p>
-                                    <p className="mt-1 font-bold text-fuchsia-50">Available now</p>
+                                    <p className="mt-1 font-bold text-fuchsia-50">
+                                      {claimLockReason ? 'Locked' : 'Available now'}
+                                    </p>
                                   </div>
                                 </div>
 
                                 <button
                                   type="button"
                                   onClick={() => void handleActivateBonusEvent(event)}
-                                  disabled={activatingBonusEventId === event.id || maintenanceBreak.enabled}
+                                  disabled={
+                                    activatingBonusEventId === event.id || claimDisabled
+                                  }
                                   className="fire-button fire-purple mt-5 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-fuchsia-500 via-violet-500 to-amber-400 py-3 text-sm font-black text-white shadow-lg shadow-fuchsia-500/25 transition hover:brightness-110 active:scale-[0.99] disabled:opacity-60"
                                 >
                                   {activatingBonusEventId === event.id ? (
@@ -226,6 +271,8 @@ function Bonus(props: Props) {
                                       <i className="fas fa-circle-notch fa-spin" aria-hidden />
                                       Opening drop...
                                     </>
+                                  ) : claimLockReason ? (
+                                    <>Locked</>
                                   ) : (
                                     <>Claim / Open Bonus</>
                                   )}
@@ -259,6 +306,10 @@ function Bonus(props: Props) {
                       When you claim a bonus event, that drop is locked in and removed from the
                       live list. If someone else claims it first, it disappears and you need to
                       wait for the next bonus event.
+                    </p>
+                    <p>
+                      Automatic Recharge Bonus is a separate mode. While Auto is on — or during
+                      its cooldown — Bonus Event claims stay locked.
                     </p>
                   </div>
                 </div>

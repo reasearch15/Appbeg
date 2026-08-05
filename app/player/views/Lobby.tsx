@@ -34,6 +34,8 @@ type Props = {
   setShowLoadCoinPanel: (show: boolean) => void;
   totalUnread: number;
   wallet: { coin: number; cash: number };
+  arbCanClaimBonusEvent?: boolean;
+  arbMode?: 'enabled' | 'cooldown' | 'disabled';
 };
 
 function Lobby(props: Props) {
@@ -61,6 +63,8 @@ function Lobby(props: Props) {
     setShowLoadCoinPanel,
     totalUnread,
     wallet,
+    arbCanClaimBonusEvent = true,
+    arbMode = 'disabled',
   } = props;
 
   usePlayerRenderPerf('Lobby', () => ({
@@ -410,13 +414,23 @@ function Lobby(props: Props) {
                                 <button
                                   type="button"
                                   onClick={() => void handleActivateBonusEvent(event)}
-                                  disabled={activatingBonusEventId === event.id || maintenanceBreak.enabled}
+                                  disabled={
+                                    activatingBonusEventId === event.id ||
+                                    maintenanceBreak.enabled ||
+                                    !arbCanClaimBonusEvent
+                                  }
                                   className="mt-4 flex min-h-[50px] w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-fuchsia-500 via-violet-500 to-fuchsia-600 py-3 text-sm font-black text-white shadow-lg shadow-fuchsia-500/25 transition hover:brightness-110 active:scale-[0.99] disabled:opacity-60"
                                 >
                                   {activatingBonusEventId === event.id ? (
                                     <>
                                       <i className="fas fa-circle-notch fa-spin" aria-hidden />
                                       Locking in…
+                                    </>
+                                  ) : !arbCanClaimBonusEvent ? (
+                                    <>
+                                      {arbMode === 'cooldown'
+                                        ? 'Locked (Auto cooldown)'
+                                        : 'Locked (Auto on)'}
                                     </>
                                   ) : (
                                     <>🎰 Claim this drop</>

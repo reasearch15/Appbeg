@@ -1411,6 +1411,8 @@ export async function initiateBonusEventPlay(values: {
     error?: string | boolean;
     message?: string;
     requestId?: string;
+    code?: string;
+    blockers?: string[];
   };
   if (!response.ok) {
     const reason =
@@ -1431,7 +1433,13 @@ export async function initiateBonusEventPlay(values: {
       blocked: true,
       reason,
     });
-    throw new Error(reason);
+    const error = new Error(reason) as Error & {
+      code?: string;
+      blockers?: string[];
+    };
+    if (payload.code) error.code = String(payload.code);
+    if (Array.isArray(payload.blockers)) error.blockers = payload.blockers;
+    throw error;
   }
   const createdRequestId = String(payload.requestId || '').trim();
   if (!createdRequestId) {

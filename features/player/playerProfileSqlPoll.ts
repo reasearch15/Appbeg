@@ -21,6 +21,15 @@ export type PlayerProfileSqlSnapshot = {
   coadminPaymentDetailsNoticeVersion: number;
   referralBonusNotice: string | null;
   referralBonusNoticeAt: string | null;
+  automaticBonusEnabled: boolean;
+  bonusCooldownEndsAt: string | null;
+  automaticBonusMode: 'enabled' | 'cooldown' | 'disabled';
+  automaticBonusAvailable: boolean;
+  automaticBonusPlayerModeEnabled: boolean;
+  canDisableAutomaticBonus: boolean;
+  automaticBonusFeatureEnabled: boolean;
+  automaticBonusRiskBlocked: boolean;
+  canClaimBonusEvent: boolean;
 };
 
 const DEFAULT_POLL_INTERVAL_MS = 20_000;
@@ -31,6 +40,7 @@ function mapSessionMeToProfile(payload: SessionMePayload): PlayerProfileSqlSnaps
   }
 
   const player = payload.player;
+  const mode = player?.automaticBonusMode;
   return {
     coin: Number(player?.coin || 0),
     cash: Number(player?.cash || 0),
@@ -48,6 +58,18 @@ function mapSessionMeToProfile(payload: SessionMePayload): PlayerProfileSqlSnaps
     ),
     referralBonusNotice: String(player?.referralBonusNotice || '').trim() || null,
     referralBonusNoticeAt: String(player?.referralBonusNoticeAt || '').trim() || null,
+    automaticBonusEnabled: player?.automaticBonusEnabled === true,
+    bonusCooldownEndsAt: String(player?.bonusCooldownEndsAt || '').trim() || null,
+    automaticBonusMode:
+      mode === 'enabled' || mode === 'cooldown' || mode === 'disabled'
+        ? mode
+        : 'disabled',
+    automaticBonusAvailable: player?.automaticBonusAvailable === true,
+    automaticBonusPlayerModeEnabled: player?.automaticBonusPlayerModeEnabled === true,
+    canDisableAutomaticBonus: player?.canDisableAutomaticBonus === true,
+    automaticBonusFeatureEnabled: player?.automaticBonusFeatureEnabled === true,
+    automaticBonusRiskBlocked: player?.automaticBonusRiskBlocked === true,
+    canClaimBonusEvent: player?.canClaimBonusEvent !== false,
   };
 }
 

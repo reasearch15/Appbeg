@@ -50,7 +50,12 @@ const GAME_REQUESTS_HISTORY_COLUMNS = `
   bonus_percentage
 `.trim();
 
-type PlayerRecordTab = 'coin-recharge' | 'cashout' | 'coin-recharge-ingame' | 'redeem';
+type PlayerRecordTab =
+  | 'coin-recharge'
+  | 'cashout'
+  | 'coin-recharge-ingame'
+  | 'redeem'
+  | 'auto-bonus';
 
 type PlayerRecordRow = {
   id: string;
@@ -179,6 +184,7 @@ function baseRows(): Record<PlayerRecordTab, PlayerRecordRow[]> {
     cashout: [],
     'coin-recharge-ingame': [],
     redeem: [],
+    'auto-bonus': [],
   };
 }
 
@@ -273,15 +279,33 @@ async function playerBelongsToCoadminScope(
 
 function mapFinancialRows(rows: SqlHistoryRow[], callerCoadminUid: string | null) {
   const mappedRows: PlayerRecordRow[] = [];
+  const autoBonusRows: PlayerRecordRow[] = [];
 
   rows.forEach((row) => {
     const eventType = cleanText(sqlValue(row, 'type'));
     const eventCoadminUid = cleanText(sqlValue(row, 'coadmin_uid', 'coadminUid'));
+    const amount = numberValue(sqlValue(row, 'amount_npr', 'amountNpr'));
+    const createdAt = sqlValue(row, 'created_at', 'createdAt');
+
+    if (eventType === 'automatic_recharge_bonus') {
+      if (callerCoadminUid && eventCoadminUid && eventCoadminUid !== callerCoadminUid) return;
+      autoBonusRows.push({
+        id: `auto-bonus-${cleanText(row.firebase_id)}`,
+        dateLabel: formatDateTime(createdAt),
+        amountValue: amount,
+        amountUnit: 'coin',
+        amountLabel: formatPlayerRecordAmount(amount, 'coin'),
+        statusLabel: 'Granted',
+        sourceLabel: 'Automatic Recharge Bonus',
+        detailLabel: 'Promo-locked auto bonus grant',
+        sortMs: toMillis(createdAt),
+      });
+      return;
+    }
+
     if (eventType !== 'coadmin_coin_add') return;
     if (callerCoadminUid && eventCoadminUid && eventCoadminUid !== callerCoadminUid) return;
 
-    const amount = numberValue(sqlValue(row, 'amount_npr', 'amountNpr'));
-    const createdAt = sqlValue(row, 'created_at', 'createdAt');
     mappedRows.push({
       id: `coin-recharge-${cleanText(row.firebase_id)}`,
       dateLabel: formatDateTime(createdAt),
@@ -295,7 +319,10 @@ function mapFinancialRows(rows: SqlHistoryRow[], callerCoadminUid: string | null
     });
   });
 
-  return mappedRows.sort((left, right) => right.sortMs - left.sortMs);
+  return {
+    coinRechargeRows: mappedRows.sort((left, right) => right.sortMs - left.sortMs),
+    autoBonusRows: autoBonusRows.sort((left, right) => right.sortMs - left.sortMs),
+  };
 }
 
 function mapCashoutRows(rows: SqlHistoryRow[]) {
@@ -382,7 +409,10 @@ function buildHistoryPayload(
   gameRequestRows: SqlHistoryRow[],
   callerCoadminUid: string | null
 ): HistoryPayload {
-  const coinRechargeRows = mapFinancialRows(financialRows, callerCoadminUid);
+  const { coinRechargeRows, autoBonusRows } = mapFinancialRows(
+    financialRows,
+    callerCoadminUid
+  );
   const cashoutRows = mapCashoutRows(cashoutRowsInput);
   const { inGameRechargeRows, redeemRows } = mapGameRequestRows(gameRequestRows);
 
@@ -399,6 +429,7 @@ function buildHistoryPayload(
       cashout: cashoutRows,
       'coin-recharge-ingame': inGameRechargeRows,
       redeem: redeemRows,
+      'auto-bonus': autoBonusRows,
     },
   };
 }
@@ -409,7 +440,8 @@ async function getPostgresHistory(
   client: PoolClient,
   routeTiming: RouteTiming
 ) {
-  const [financialEvents, completedCashouts, playerGameRequests] = await Promise.all([
+  const [financialEvents, completedCashouts, playerGameRequests, autoBonusEvents] =
+    await Promise.all([
     (async () => {
       const queryStartedAt = Date.now();
       const result = await client.query(
@@ -455,11 +487,28 @@ async function getPostgresHistory(
       routeTiming.each_query_ms.push(Date.now() - queryStartedAt);
       return result;
     })(),
+    (async () => {
+      const queryStartedAt = Date.now();
+      const result = await client.query(
+        `
+          SELECT ${FINANCIAL_EVENTS_HISTORY_COLUMNS}
+          FROM public.financial_events_cache
+          WHERE player_uid = $1
+            AND type = 'automatic_recharge_bonus'
+            AND deleted_at IS NULL
+          ORDER BY created_at DESC NULLS LAST
+          LIMIT $2
+        `,
+        [playerUid, SELECTED_PLAYER_RECORD_QUERY_LIMIT]
+      );
+      routeTiming.each_query_ms.push(Date.now() - queryStartedAt);
+      return result;
+    })(),
   ]);
 
   return buildHistoryPayload(
     'postgres',
-    financialEvents.rows,
+    [...financialEvents.rows, ...autoBonusEvents.rows],
     completedCashouts.rows,
     playerGameRequests.rows,
     callerCoadminUid

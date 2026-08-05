@@ -12,6 +12,7 @@ import {
   readAuthorityOperationPayloadWithClient,
 } from '@/lib/sql/authorityLedger';
 import { scheduleAutoClaimPendingTaskOnCreate } from '@/lib/sql/authorityAutoClaim';
+import { applyArbOnRechargeCompleteInTxn } from '@/lib/sql/authorityAutomaticBonusGrant';
 import {
   normalizeGameName,
   tombstoneLinkedCarerTaskInTxn,
@@ -1553,9 +1554,24 @@ export async function completeRechargeRedeemTaskInSql(
 
     const playerResult = await client.query(
       `
-        SELECT uid, username, coin, cash, raw_firestore_data
-        FROM public.players_cache
-        WHERE uid = $1 AND deleted_at IS NULL
+        SELECT
+          p.uid,
+          p.username,
+          p.coin,
+          p.cash,
+          p.promo_locked_coins,
+          p.coadmin_uid,
+          p.created_by,
+          p.raw_firestore_data,
+          (
+            SELECT s.bonus_blocked_until
+            FROM public.user_balance_snapshots_cache s
+            WHERE s.firebase_id = p.uid
+              AND s.deleted_at IS NULL
+            LIMIT 1
+          ) AS bonus_blocked_until
+        FROM public.players_cache p
+        WHERE p.uid = $1 AND p.deleted_at IS NULL
         FOR UPDATE
       `,
       [playerUid]
@@ -1591,7 +1607,7 @@ export async function completeRechargeRedeemTaskInSql(
     const eventId = randomUUID();
     let totalAwardNpr = 0;
     let committedCashBalance: number | null = null;
-    const committedCoinBalance = readPlayerCoin(player);
+    let committedCoinBalance = readPlayerCoin(player);
 
     if (requestType === 'redeem') {
       const currentCash = readPlayerCash(player);
@@ -1667,6 +1683,36 @@ export async function completeRechargeRedeemTaskInSql(
         createdAt: nowIso,
         source: 'authority_game_request_complete',
       });
+
+      // Phase 6: Automatic Recharge Bonus (shadow and/or real grant) — same txn.
+      // Never blocks completion on skip; consumes eligibility + resolver domain services.
+      const arbGrant = await applyArbOnRechargeCompleteInTxn(client, {
+        playerUid,
+        playerRow: player,
+        requestId,
+        requestRow: request,
+        rechargeAmount: depositAmount,
+        requestCoadminUid: coadminUid,
+        taskId,
+        actorUid,
+        actorRole,
+        nowIso,
+      });
+      if (arbGrant.coinBalanceAfter != null) {
+        (player as { coin?: number }).coin = arbGrant.coinBalanceAfter;
+        committedCoinBalance = arbGrant.coinBalanceAfter;
+      }
+      if (Object.keys(arbGrant.requestRawPatch).length) {
+        const raw =
+          request.raw_firestore_data &&
+          typeof request.raw_firestore_data === 'object' &&
+          !Array.isArray(request.raw_firestore_data)
+            ? (request.raw_firestore_data as Record<string, unknown>)
+            : {};
+        Object.assign(raw, arbGrant.requestRawPatch);
+        (request as { raw_firestore_data: Record<string, unknown> }).raw_firestore_data =
+          raw;
+      }
     } else {
       throw new Error('Unsupported request type for completion.');
     }

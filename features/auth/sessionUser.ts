@@ -54,6 +54,15 @@ export type SessionMePayload = {
     coadminPaymentDetailsNoticeVersion?: number;
     referralBonusNotice?: string | null;
     referralBonusNoticeAt?: string | null;
+    automaticBonusEnabled?: boolean;
+    bonusCooldownEndsAt?: string | null;
+    automaticBonusMode?: 'enabled' | 'cooldown' | 'disabled';
+    automaticBonusAvailable?: boolean;
+    automaticBonusPlayerModeEnabled?: boolean;
+    canDisableAutomaticBonus?: boolean;
+    automaticBonusFeatureEnabled?: boolean;
+    automaticBonusRiskBlocked?: boolean;
+    canClaimBonusEvent?: boolean;
   };
 };
 

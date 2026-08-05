@@ -101,6 +101,11 @@ import {
   listenBonusEventsByCoadmin,
 } from '../../features/bonusEvents/bonusEvents';
 import {
+  ArbPlayerPreferenceClientError,
+  setArbPlayerPreference,
+  type ArbPlayerMode,
+} from '@/features/automaticRechargeBonus/playerArbPreference';
+import {
   createCashToCoinTransferRequest,
   createCoinToCashTransferRequest,
 } from '@/features/risk/playerRisk';
@@ -660,6 +665,17 @@ export default function PlayerPage() {
   const [showInquirySentToast, setShowInquirySentToast] = useState(false);
   const [activatingBonusEventId, setActivatingBonusEventId] = useState<string | null>(null);
   const [bonusErrorSplashMessage, setBonusErrorSplashMessage] = useState('');
+  const [arbPlayerModeEnabled, setArbPlayerModeEnabled] = useState(false);
+  const [arbMode, setArbMode] = useState<ArbPlayerMode>('disabled');
+  const [arbEnabled, setArbEnabled] = useState(false);
+  const [arbCooldownEndsAt, setArbCooldownEndsAt] = useState<string | null>(null);
+  const [arbCanEnable, setArbCanEnable] = useState(false);
+  const [arbCanDisable, setArbCanDisable] = useState(false);
+  const [arbCanClaimBonusEvent, setArbCanClaimBonusEvent] = useState(true);
+  const [arbFeatureEnabled, setArbFeatureEnabled] = useState(false);
+  const [arbRiskBlocked, setArbRiskBlocked] = useState(false);
+  const [arbToggling, setArbToggling] = useState(false);
+  const [arbPanelMessage, setArbPanelMessage] = useState<string | null>(null);
   const [credentialTaskLoadingKey, setCredentialTaskLoadingKey] = useState<string | null>(
     null
   );
@@ -3138,6 +3154,16 @@ export default function PlayerPage() {
         window.sessionStorage.setItem(noticeKey, '1');
       }
     }
+
+    setArbPlayerModeEnabled(profile.automaticBonusPlayerModeEnabled === true);
+    setArbEnabled(profile.automaticBonusEnabled === true);
+    setArbCooldownEndsAt(profile.bonusCooldownEndsAt || null);
+    setArbMode(profile.automaticBonusMode || 'disabled');
+    setArbCanEnable(profile.automaticBonusAvailable === true);
+    setArbCanDisable(profile.canDisableAutomaticBonus === true);
+    setArbCanClaimBonusEvent(profile.canClaimBonusEvent !== false);
+    setArbFeatureEnabled(profile.automaticBonusFeatureEnabled === true);
+    setArbRiskBlocked(profile.automaticBonusRiskBlocked === true);
   }, [ensureCurrentPlayerReferralCode, setWalletIfChanged]);
 
   const playNotificationSound = useCallback(() => {
@@ -6347,6 +6373,17 @@ export default function PlayerPage() {
       return;
     }
 
+    if (!arbCanClaimBonusEvent) {
+      const lockMessage =
+        arbMode === 'enabled'
+          ? 'Bonus Events are locked while Automatic Recharge Bonus is enabled.'
+          : arbMode === 'cooldown'
+            ? 'Bonus Events are locked during the Automatic Recharge Bonus cooldown.'
+            : 'Bonus Events are currently unavailable.';
+      setBonusErrorSplashMessage(lockMessage);
+      return;
+    }
+
     setActivatingBonusEventId(bonusEvent.id);
     setMessage('');
 
@@ -6362,6 +6399,10 @@ export default function PlayerPage() {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Failed to activate bonus event.';
+      const errorCode =
+        error && typeof error === 'object' && 'code' in error
+          ? String((error as { code?: string }).code || '')
+          : '';
       const lower = errorMessage.toLowerCase();
       if (
         lower.includes('loading secure session') ||
@@ -6373,10 +6414,14 @@ export default function PlayerPage() {
         return;
       }
       if (
+        errorCode === 'auto_bonus_enabled' ||
+        errorCode === 'auto_bonus_cooldown' ||
+        errorCode === 'risk_blocked' ||
         lower.includes('low coin') ||
         lower.includes('already') ||
         lower.includes('no longer available') ||
-        lower.includes('blocked')
+        lower.includes('blocked') ||
+        lower.includes('locked')
       ) {
         setBonusErrorSplashMessage(errorMessage);
       } else {
@@ -6391,11 +6436,54 @@ export default function PlayerPage() {
       setActivatingBonusEventId(null);
     }
   }, [
+    arbCanClaimBonusEvent,
+    arbMode,
     maintenanceBreak.enabled,
     maintenanceBreak.message,
     playerCoadminUid,
     playerUid,
   ]);
+
+  const handleArbToggle = useCallback(
+    async (enabled: boolean) => {
+      if (arbToggling) return;
+      setArbToggling(true);
+      setArbPanelMessage(null);
+      try {
+        const result = await setArbPlayerPreference(enabled);
+        const snap = result.snapshot;
+        setArbEnabled(snap.preference?.automaticBonusEnabled === true);
+        setArbCooldownEndsAt(snap.preference?.bonusCooldownEndsAt || null);
+        setArbMode(snap.mode || snap.eligibility?.currentMode || 'disabled');
+        setArbCanEnable(snap.eligibility?.canEnable === true);
+        setArbCanDisable(snap.eligibility?.canDisable === true);
+        setArbCanClaimBonusEvent(snap.eligibility?.canClaimBonusEvent !== false);
+        setArbFeatureEnabled(snap.gates?.featureEnabled === true);
+        setArbRiskBlocked(snap.gates?.riskBlocked === true);
+        setArbPlayerModeEnabled(snap.gates?.playerModeEnabled !== false);
+        if (result.startedCooldown) {
+          setArbPanelMessage('Auto turned off. Cooldown started — Bonus Events stay locked until it ends.');
+        } else if (result.cancelledCooldown) {
+          setArbPanelMessage('Auto turned on. Cooldown cancelled. Bonus Events are locked while Auto is on.');
+        } else if (enabled) {
+          setArbPanelMessage('Automatic Recharge Bonus is on.');
+        } else {
+          setArbPanelMessage('Automatic Recharge Bonus is off.');
+        }
+      } catch (error) {
+        const message =
+          error instanceof ArbPlayerPreferenceClientError
+            ? error.message
+            : error instanceof Error
+              ? error.message
+              : 'Could not update Automatic Recharge Bonus.';
+        setArbPanelMessage(message);
+      } finally {
+        setArbToggling(false);
+      }
+    },
+    [arbToggling]
+  );
 
   function readPlayerLogoutContext() {
     const cached = getCachedSessionUser();
@@ -7234,9 +7322,9 @@ export default function PlayerPage() {
             )}
             
             {/* DASHBOARD VIEW */}
-            {activeView === 'dashboard' && <Lobby activatingBonusEventId={activatingBonusEventId} activeBonusCarouselIndex={activeBonusCarouselIndex} agents={agents} bonusStripPaused={bonusStripPaused} bonusVanishedToast={bonusVanishedToast} formatWalletAmount={formatWalletAmount} gameLogins={gameLogins} handleActivateBonusEvent={handleActivateBonusEvent} handleCopyReferralCode={handleCopyReferralCode} handleOpenFirstUnreadAgent={handleOpenFirstUnreadAgent} openCashToCoinTransferModal={openCashToCoinTransferModal} openCoinToCashTransferModal={openCoinToCashTransferModal} isBlockedPlayer={isBlockedPlayer} lowPerformanceMode={lowPerformanceMode} maintenanceBreak={maintenanceBreak} playerBonusEvents={playerBonusEvents} referralCode={referralCode} setActiveView={setActiveViewFromLobby} setBonusCarouselIndex={setBonusCarouselIndex} setBonusStripPaused={setBonusStripPaused} setMessage={setMessage} setShowLoadCoinPanel={setShowLoadCoinPanel} totalUnread={totalUnread} wallet={wallet} />}
+            {activeView === 'dashboard' && <Lobby activatingBonusEventId={activatingBonusEventId} activeBonusCarouselIndex={activeBonusCarouselIndex} agents={agents} bonusStripPaused={bonusStripPaused} bonusVanishedToast={bonusVanishedToast} formatWalletAmount={formatWalletAmount} gameLogins={gameLogins} handleActivateBonusEvent={handleActivateBonusEvent} handleCopyReferralCode={handleCopyReferralCode} handleOpenFirstUnreadAgent={handleOpenFirstUnreadAgent} openCashToCoinTransferModal={openCashToCoinTransferModal} openCoinToCashTransferModal={openCoinToCashTransferModal} isBlockedPlayer={isBlockedPlayer} lowPerformanceMode={lowPerformanceMode} maintenanceBreak={maintenanceBreak} playerBonusEvents={playerBonusEvents} referralCode={referralCode} setActiveView={setActiveViewFromLobby} setBonusCarouselIndex={setBonusCarouselIndex} setBonusStripPaused={setBonusStripPaused} setMessage={setMessage} setShowLoadCoinPanel={setShowLoadCoinPanel} totalUnread={totalUnread} wallet={wallet} arbCanClaimBonusEvent={arbCanClaimBonusEvent} arbMode={arbMode} />}
 
-            {activeView === 'bonus-events' && <Bonus activatingBonusEventId={activatingBonusEventId} activeBonusCarouselIndex={activeBonusCarouselIndex} bonusEventsSessionLoading={bonusEventsSessionLoading} bonusSwipeStartXRef={bonusSwipeStartXRef} bonusVanishedToast={bonusVanishedToast} handleActivateBonusEvent={handleActivateBonusEvent} lowPerformanceMode={lowPerformanceMode} maintenanceBreak={maintenanceBreak} playerBonusEvents={playerBonusEvents} setBonusCarouselIndex={setBonusCarouselIndex} setBonusStripPaused={setBonusStripPaused} showBonusPanelHint={showBonusPanelHint} />}
+            {activeView === 'bonus-events' && <Bonus activatingBonusEventId={activatingBonusEventId} activeBonusCarouselIndex={activeBonusCarouselIndex} bonusEventsSessionLoading={bonusEventsSessionLoading} bonusSwipeStartXRef={bonusSwipeStartXRef} bonusVanishedToast={bonusVanishedToast} handleActivateBonusEvent={handleActivateBonusEvent} lowPerformanceMode={lowPerformanceMode} maintenanceBreak={maintenanceBreak} playerBonusEvents={playerBonusEvents} setBonusCarouselIndex={setBonusCarouselIndex} setBonusStripPaused={setBonusStripPaused} showBonusPanelHint={showBonusPanelHint} arbPlayerModeEnabled={arbPlayerModeEnabled} arbMode={arbMode} arbEnabled={arbEnabled} arbCooldownEndsAt={arbCooldownEndsAt} arbCanEnable={arbCanEnable} arbCanDisable={arbCanDisable} arbCanClaimBonusEvent={arbCanClaimBonusEvent} arbFeatureEnabled={arbFeatureEnabled} arbRiskBlocked={arbRiskBlocked} arbToggling={arbToggling} onArbToggle={handleArbToggle} arbPanelMessage={arbPanelMessage} />}
 
             {/* PLAY VIEW */}
             {activeView === 'play' && <Play copyCredentialValue={copyCredentialValue} gameBackgroundImageByKey={gameBackgroundImageByKey} gameLogins={gameLogins} loadingList={loadingList} lowPerformanceMode={lowPerformanceMode} onCardsRendered={handlePlayCardsRendered} onShellRendered={handlePlayShellRendered} openActiveTableSplash={openActiveTableSplash} selectedGameName={selectedGameName} setSelectedGameName={setSelectedGameName} togglePassword={togglePassword} visiblePasswords={visiblePasswords} />}

@@ -4,6 +4,11 @@ import { randomUUID } from 'crypto';
 import type { PoolClient } from 'pg';
 
 import {
+  assertArbCanClaimBonusEvent,
+  evaluateArbEligibility,
+} from '@/lib/economy/automaticRechargeBonus/eligibility';
+import { parseArbPlayerPreferenceState } from '@/lib/economy/automaticRechargeBonus/playerPreference';
+import {
   requestLinkedCarerTaskId,
   type RequestLinkedGameCredential,
 } from '@/lib/games/requestLinkedCarerTask';
@@ -549,9 +554,23 @@ export async function initiateBonusPlayInSql(
     const playerCoadminUid =
       cleanText(player.coadmin_uid) || cleanText(player.created_by);
     if (!playerCoadminUid) throw new Error('Player coadmin scope not found.');
-    if (readBonusBlockedUntilMs(player) > Date.now()) {
-      throw new Error('Bonus play is temporarily blocked for this account.');
-    }
+
+    // Phase 5: mutual exclusion + risk via authoritative eligibility helper.
+    const claimDecision = evaluateArbEligibility({
+      preference: parseArbPlayerPreferenceState(player.raw_firestore_data),
+      nowMs: Date.now(),
+      gates: {
+        playerModeEnabled: true,
+        globalKillActive: false,
+        featureEnabled: true,
+        emergencyDisable: false,
+        playerOptInAllowed: true,
+        riskBlocked: readBonusBlockedUntilMs(player) > Date.now(),
+        hasPublishedConfiguration: true,
+      },
+      grantsEnabled: false,
+    });
+    assertArbCanClaimBonusEvent(claimDecision);
 
     const baseAmount = Math.max(0, Number(bonus.amountNpr || 0));
     const bonusPercent = Math.max(0, Number(bonus.bonusPercentage || 0));

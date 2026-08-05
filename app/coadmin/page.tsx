@@ -22,6 +22,7 @@ import DashboardView from '../../components/admin/DashboardView';
 import CreateUserForm from '../../components/admin/CreateUserForm';
 import UserManagementView from '../../components/admin/UserManagementView';
 import ReachOutView from '../../components/admin/ReachOutView';
+import { AutomaticRechargeBonusAdminView } from '../../components/admin/AutomaticRechargeBonusAdminView';
 import RoleSidebarLayout, { type NavigationItem } from '@/components/navigation/RoleSidebarLayout';
 
 import {
@@ -198,6 +199,7 @@ type CoadminView =
   | 'game-list'
   | 'payment-details'
   | 'listener-details'
+  | 'automatic-recharge-bonus'
   | 'shifts'
   | 'reach-out'
   | 'behaviours';
@@ -297,7 +299,12 @@ function buildPaymentListenerForm(
   };
 }
 
-type PlayerRecordTab = 'coin-recharge' | 'cashout' | 'coin-recharge-ingame' | 'redeem';
+type PlayerRecordTab =
+  | 'coin-recharge'
+  | 'cashout'
+  | 'coin-recharge-ingame'
+  | 'redeem'
+  | 'auto-bonus';
 
 type PlayerRecordRow = {
   id: string;
@@ -543,6 +550,7 @@ export default function CoadminPage() {
     cashout: 1,
     'coin-recharge-ingame': 1,
     redeem: 1,
+    'auto-bonus': 1,
   });
   const [selectedPlayerRecordRows, setSelectedPlayerRecordRows] = useState<
     Record<PlayerRecordTab, PlayerRecordRow[]>
@@ -551,6 +559,7 @@ export default function CoadminPage() {
     cashout: [],
     'coin-recharge-ingame': [],
     redeem: [],
+    'auto-bonus': [],
   });
 
   const [gameName, setGameName] = useState('');
@@ -1227,12 +1236,14 @@ export default function CoadminPage() {
         cashout: 1,
         'coin-recharge-ingame': 1,
         redeem: 1,
+        'auto-bonus': 1,
       });
       setSelectedPlayerRecordRows({
         'coin-recharge': [],
         cashout: [],
         'coin-recharge-ingame': [],
         redeem: [],
+        'auto-bonus': [],
       });
       setSelectedPlayerRedeemLimitSummaries([]);
       setSelectedPlayerRedeemLimitLoading(false);
@@ -1277,12 +1288,14 @@ export default function CoadminPage() {
             cashout: 1,
             'coin-recharge-ingame': 1,
             redeem: 1,
+            'auto-bonus': 1,
           });
           setSelectedPlayerRecordRows({
             'coin-recharge': rows['coin-recharge'] || [],
             cashout: rows.cashout || [],
             'coin-recharge-ingame': rows['coin-recharge-ingame'] || [],
             redeem: rows.redeem || [],
+            'auto-bonus': rows['auto-bonus'] || [],
           });
         }
       } catch (error) {
@@ -1294,6 +1307,7 @@ export default function CoadminPage() {
             cashout: [],
             'coin-recharge-ingame': [],
             redeem: [],
+            'auto-bonus': [],
           });
           setMessage(error instanceof Error ? error.message : 'Failed to load player totals.');
         }
@@ -4150,6 +4164,7 @@ export default function CoadminPage() {
     { label: 'Game List', view: 'game-list' },
     { label: 'Payment details (photos)', view: 'payment-details' },
     { label: 'Listener Details', view: 'listener-details' },
+    { label: 'Automatic Recharge Bonus', view: 'automatic-recharge-bonus' },
     { label: 'Shifts', view: 'shifts' },
     { label: 'Behaviours', view: 'behaviours' },
     {
@@ -5541,6 +5556,7 @@ export default function CoadminPage() {
                           ['cashout', 'Cashout'],
                           ['coin-recharge-ingame', 'Coin Recharge In Game'],
                           ['redeem', 'Redeem'],
+                          ['auto-bonus', 'Auto Bonus'],
                         ] as Array<[PlayerRecordTab, string]>
                       ).map(([tabKey, label]) => {
                         const isActive = selectedPlayerRecordTab === tabKey;
@@ -6062,6 +6078,10 @@ export default function CoadminPage() {
                 )}
               </div>
             </div>
+          )}
+
+          {activeView === 'automatic-recharge-bonus' && (
+            <AutomaticRechargeBonusAdminView />
           )}
 
           {activeView === 'listener-details' && (

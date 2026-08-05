@@ -1,3 +1,8 @@
+import {
+  assertArbCanClaimBonusEvent,
+  evaluateArbEligibility,
+} from '@/lib/economy/automaticRechargeBonus/eligibility';
+import { parseArbPlayerPreferenceState } from '@/lib/economy/automaticRechargeBonus/playerPreference';
 import { FieldValue } from 'firebase-admin/firestore';
 import { NextResponse } from 'next/server';
 
@@ -233,6 +238,8 @@ export async function POST(request: Request) {
         coadminUid?: string | null;
         createdBy?: string | null;
         bonusBlockedUntil?: Date | { toMillis?: () => number } | null;
+        automaticBonusEnabled?: boolean;
+        bonusCooldownEndsAt?: string | null;
       };
       if (String(player.role || '').toLowerCase() !== 'player') {
         throw new Error('Only players can start bonus event play.');
@@ -246,9 +253,23 @@ export async function POST(request: Request) {
         player.bonusBlockedUntil instanceof Date
           ? player.bonusBlockedUntil.getTime()
           : player.bonusBlockedUntil?.toMillis?.() || 0;
-      if (bonusBlockedUntilMs > Date.now()) {
-        throw new Error('Bonus play is temporarily blocked for this account.');
-      }
+      // Phase 5: mutual exclusion + risk via authoritative eligibility helper.
+      assertArbCanClaimBonusEvent(
+        evaluateArbEligibility({
+          preference: parseArbPlayerPreferenceState(player),
+          nowMs: Date.now(),
+          gates: {
+            playerModeEnabled: true,
+            globalKillActive: false,
+            featureEnabled: true,
+            emergencyDisable: false,
+            playerOptInAllowed: true,
+            riskBlocked: bonusBlockedUntilMs > Date.now(),
+            hasPublishedConfiguration: true,
+          },
+          grantsEnabled: false,
+        })
+      );
 
       const bonus = bonusSnap.data() as {
         coadminUid?: string;
@@ -445,7 +466,34 @@ export async function POST(request: Request) {
     if (message.startsWith('MAINTENANCE_BREAK:')) {
       return maintenanceBreakApiResponse(message.replace(/^MAINTENANCE_BREAK:/, ''));
     }
-    const status = /not authenticated|authorization|token/i.test(message) ? 401 : /forbidden/i.test(message) ? 403 : /required|not found|invalid|low coins|only|blocked/i.test(message) ? 400 : 409;
-    return NextResponse.json({ error: message }, { status });
+    const code =
+      error && typeof error === 'object' && 'code' in error
+        ? String((error as { code?: unknown }).code || '')
+        : '';
+    const blockers =
+      error && typeof error === 'object' && Array.isArray((error as { blockers?: unknown }).blockers)
+        ? (error as { blockers: string[] }).blockers
+        : undefined;
+    if (code === 'auto_bonus_enabled' || code === 'auto_bonus_cooldown' || code === 'risk_blocked') {
+      return NextResponse.json(
+        {
+          error: message,
+          code,
+          blockers: blockers || [code],
+        },
+        { status: 403 }
+      );
+    }
+    const status = /not authenticated|authorization|token/i.test(message)
+      ? 401
+      : /forbidden/i.test(message)
+        ? 403
+        : /required|not found|invalid|low coins|only|blocked|locked/i.test(message)
+          ? 400
+          : 409;
+    return NextResponse.json(
+      blockers ? { error: message, code: code || undefined, blockers } : { error: message },
+      { status }
+    );
   }
 }
