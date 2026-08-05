@@ -102,7 +102,6 @@ import {
 } from '../../features/bonusEvents/bonusEvents';
 import {
   ArbPlayerPreferenceClientError,
-  friendlyArbToggleErrorMessage,
   logArbActivationBlockers,
   setArbPlayerPreference,
   type ArbPlayerMode,
@@ -6463,15 +6462,8 @@ export default function PlayerPage() {
         setArbFeatureEnabled(snap.gates?.featureEnabled === true);
         setArbRiskBlocked(snap.gates?.riskBlocked === true);
         setArbPlayerModeEnabled(snap.gates?.playerModeEnabled !== false);
-        if (result.startedCooldown) {
-          setArbPanelMessage('Auto turned off. Cooldown started — Bonus Events stay locked until it ends.');
-        } else if (result.cancelledCooldown) {
-          setArbPanelMessage('Auto turned on. Cooldown cancelled. Bonus Events are locked while Auto is on.');
-        } else if (enabled) {
-          setArbPanelMessage('Automatic Recharge Bonus is on.');
-        } else {
-          setArbPanelMessage('Automatic Recharge Bonus is off.');
-        }
+        // Success: button state updates from mode props — no success dialog/toast.
+        setArbPanelMessage(null);
       } catch (error) {
         if (error instanceof ArbPlayerPreferenceClientError) {
           logArbActivationBlockers({
@@ -6486,7 +6478,7 @@ export default function PlayerPage() {
             message: error instanceof Error ? error.message : 'unknown_error',
           });
         }
-        setArbPanelMessage(friendlyArbToggleErrorMessage(error));
+        setArbPanelMessage('Automatic Bonus is unavailable.');
       } finally {
         setArbToggling(false);
       }

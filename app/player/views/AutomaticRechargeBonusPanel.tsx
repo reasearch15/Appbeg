@@ -2,10 +2,7 @@
 
 import { useEffect, useId, useState } from 'react';
 import {
-  fetchArbPlayerPreference,
   formatArbCooldownRemaining,
-  friendlyArbUnavailableMessage,
-  logArbActivationBlockers,
   type ArbPlayerMode,
 } from '@/features/automaticRechargeBonus/playerArbPreference';
 
@@ -24,32 +21,12 @@ export type AutomaticRechargeBonusPanelProps = {
   message?: string | null;
 };
 
-/** Compact illustrative sample of the standard linear tier pattern. */
-const TIER_SAMPLES: { recharge: string; bonus: string }[] = [
-  { recharge: '$10–19', bonus: '1 coin' },
-  { recharge: '$20–29', bonus: '2 coins' },
-  { recharge: '$50–59', bonus: '5 coins' },
-  { recharge: '$100–109', bonus: '10 coins' },
-  { recharge: '$200+', bonus: '20 coins' },
-];
-
-function isFriendlyPlayerMessage(message: string | null | undefined) {
-  if (!message) return false;
-  const lower = message.toLowerCase();
-  return !(
-    lower.includes('coadmin') ||
-    lower.includes('feature_') ||
-    lower.includes('arb') ||
-    lower.includes('flag') ||
-    lower.includes('eligibility') ||
-    lower.includes('reporting') ||
-    lower.includes('global_kill') ||
-    lower.includes('opt_in') ||
-    lower.includes('published_configuration') ||
-    lower.includes('cannot enable')
-  );
-}
-
+/**
+ * Compact in-banner Auto Bonus control.
+ *
+ * Primary action is one tap → existing onToggle (API).
+ * Modal/overlay for activate was removed. Help "?" is optional info only.
+ */
 export default function AutomaticRechargeBonusPanel({
   playerModeEnabled,
   mode,
@@ -57,18 +34,16 @@ export default function AutomaticRechargeBonusPanel({
   cooldownEndsAt,
   canEnable,
   canDisable,
-  canClaimBonusEvent,
   featureEnabled,
   riskBlocked,
   toggling,
   onToggle,
   message,
 }: AutomaticRechargeBonusPanelProps) {
-  const titleId = useId();
-  const [open, setOpen] = useState(false);
+  const helpTitleId = useId();
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const [availabilityKnown, setAvailabilityKnown] = useState(false);
-  const [liveCanEnable, setLiveCanEnable] = useState(canEnable);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     if (mode !== 'cooldown' || !cooldownEndsAt) return;
@@ -77,50 +52,20 @@ export default function AutomaticRechargeBonusPanel({
   }, [mode, cooldownEndsAt]);
 
   useEffect(() => {
-    setLiveCanEnable(canEnable);
-  }, [canEnable]);
+    if (!message) return;
+    setToast(message);
+    const timer = window.setTimeout(() => setToast(null), 3200);
+    return () => window.clearTimeout(timer);
+  }, [message]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!helpOpen) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key === 'Escape') setHelpOpen(false);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open]);
-
-  useEffect(() => {
-    if (!open || !playerModeEnabled) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const snap = await fetchArbPlayerPreference();
-        if (cancelled) return;
-        const blockers = snap.eligibility?.blockers?.enable || [];
-        const gates = snap.gates || null;
-        setLiveCanEnable(snap.eligibility?.canEnable === true);
-        setAvailabilityKnown(true);
-        if (snap.eligibility?.canEnable !== true) {
-          logArbActivationBlockers({
-            source: 'modal_open_preference_snapshot',
-            blockers,
-            gates: gates as unknown as Record<string, unknown>,
-            message: 'Enable gates failed for Automatic Recharge Bonus.',
-          });
-        }
-      } catch (error) {
-        if (cancelled) return;
-        setAvailabilityKnown(true);
-        logArbActivationBlockers({
-          source: 'modal_open_preference_fetch_failed',
-          message: error instanceof Error ? error.message : 'preference_fetch_failed',
-        });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [open, playerModeEnabled]);
+  }, [helpOpen]);
 
   if (!playerModeEnabled) {
     return null;
@@ -129,216 +74,112 @@ export default function AutomaticRechargeBonusPanel({
   const cooldownLabel = formatArbCooldownRemaining(cooldownEndsAt, nowMs);
   const isOn = mode === 'enabled';
   const isCooldown = mode === 'cooldown';
-  const enableAllowed = liveCanEnable;
-  const toggleDisabled =
-    toggling ||
-    riskBlocked ||
-    (isOn && !canDisable) ||
-    (!isOn && !isCooldown && !enableAllowed);
-
-  const showUnavailable =
+  const isUnavailable =
     !isOn &&
     !isCooldown &&
-    (riskBlocked || !featureEnabled || !enableAllowed || (availabilityKnown && !enableAllowed));
+    (riskBlocked || !featureEnabled || !canEnable);
 
-  let statusLine = 'Off — Bonus Events are available when drops appear.';
+  let label = 'ACTIVATE BONUS';
+  let className =
+    'border-rose-400/80 bg-rose-500 text-white shadow-[0_0_14px_-5px_rgba(244,63,94,0.8)] hover:brightness-110';
+  let disabled = toggling;
+
   if (isOn) {
-    statusLine =
-      'On — eligible recharges can earn promo-locked bonus coins. Bonus Events are locked.';
+    label = '✓ BONUS ACTIVE';
+    className =
+      'border-emerald-300/80 bg-emerald-400 text-black shadow-[0_0_14px_-5px_rgba(52,211,153,0.85)] hover:brightness-105';
+    disabled = toggling || !canDisable;
   } else if (isCooldown) {
-    statusLine = cooldownLabel
-      ? `Cooldown — Bonus Events unlock in ${cooldownLabel}. Auto grants are off.`
-      : 'Cooldown — Bonus Events unlock soon. Auto grants are off.';
-  } else if (riskBlocked) {
-    statusLine = 'This feature is temporarily unavailable for your account.';
-  } else if (showUnavailable) {
-    statusLine = friendlyArbUnavailableMessage();
+    label = cooldownLabel ? `COOLDOWN ${cooldownLabel}` : 'COOLDOWN';
+    className =
+      'border-orange-300/70 bg-orange-500 text-white shadow-[0_0_14px_-5px_rgba(249,115,22,0.75)]';
+    disabled = true;
+  } else if (isUnavailable) {
+    label = 'UNAVAILABLE';
+    className =
+      'border-neutral-500/50 bg-neutral-600 text-neutral-200 cursor-not-allowed';
+    disabled = true;
   }
 
-  const chipLabel = isOn
-    ? 'Bonus Active ✓'
-    : isCooldown
-      ? cooldownLabel
-        ? `Cooldown ${cooldownLabel}`
-        : 'Cooldown'
-      : 'Activate Bonus';
-
-  const chipClass = isOn
-    ? 'border-emerald-300/70 bg-emerald-400 text-black shadow-[0_0_18px_-6px_rgba(52,211,153,0.75)]'
-    : isCooldown
-      ? 'border-orange-300/60 bg-orange-500 text-white shadow-[0_0_16px_-6px_rgba(249,115,22,0.7)]'
-      : 'border-rose-300/70 bg-rose-500 text-white shadow-[0_0_16px_-6px_rgba(244,63,94,0.75)] hover:brightness-110';
-
-  const primaryActionLabel = isOn
-    ? toggling
-      ? 'Turning off…'
-      : 'Turn Auto Bonus off'
-    : isCooldown
-      ? 'Cooldown active'
-      : toggling
-        ? 'Turning on…'
-        : 'Turn Auto Bonus on';
-
-  const handlePrimaryAction = () => {
-    if (toggleDisabled) {
-      if (!isOn && !isCooldown) {
-        logArbActivationBlockers({
-          source: 'modal_primary_blocked',
-          blockers: [
-            !featureEnabled ? 'feature_disabled' : null,
-            riskBlocked ? 'risk_blocked' : null,
-            !enableAllowed ? 'can_enable_false' : null,
-          ].filter(Boolean) as string[],
-          gates: {
-            featureEnabled,
-            riskBlocked,
-            canEnable: enableAllowed,
-          },
-          message: 'Player attempted enable while gates block activation.',
-        });
-      }
-      return;
-    }
+  const handlePrimaryClick = () => {
+    if (disabled || toggling) return;
     if (isOn) {
       onToggle(false);
       return;
     }
-    if (!isCooldown) {
-      onToggle(true);
-    }
+    // OFF → immediate activate via existing toggle API (no modal).
+    onToggle(true);
   };
 
-  const visibleMessage = isFriendlyPlayerMessage(message) ? message : null;
-  if (message && !visibleMessage) {
-    logArbActivationBlockers({
-      source: 'panel_message_scrubbed',
-      message,
-    });
-  }
-
   return (
-    <>
+    <div className="relative flex items-center gap-1.5">
       <button
         type="button"
-        onClick={() => setOpen(true)}
-        className={`inline-flex max-w-full items-center justify-center rounded-full border px-3 py-1.5 text-[11px] font-black uppercase tracking-wide transition active:scale-[0.98] sm:px-3.5 sm:text-xs ${chipClass}`}
-        aria-haspopup="dialog"
-        aria-expanded={open}
+        onClick={handlePrimaryClick}
+        disabled={disabled}
+        aria-busy={toggling || undefined}
+        className={`inline-flex max-w-full items-center justify-center rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-wide transition active:scale-[0.98] disabled:opacity-70 sm:px-3.5 sm:text-[11px] ${className}`}
       >
-        <span className="truncate">{chipLabel}</span>
+        <span className="truncate">{toggling ? '…' : label}</span>
       </button>
 
-      {open ? (
+      <button
+        type="button"
+        onClick={() => setHelpOpen(true)}
+        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-amber-200/35 bg-black/35 text-[11px] font-black text-amber-100/85 transition hover:bg-black/50"
+        aria-label="About Automatic Bonus"
+      >
+        ?
+      </button>
+
+      {toast ? (
         <div
-          className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 p-3 sm:items-center sm:p-6"
+          role="status"
+          className="absolute right-0 top-full z-20 mt-2 max-w-[14rem] rounded-xl border border-amber-400/35 bg-black/90 px-2.5 py-1.5 text-[11px] font-semibold text-amber-50 shadow-lg sm:max-w-[16rem]"
+        >
+          {toast}
+        </div>
+      ) : null}
+
+      {helpOpen ? (
+        <div
+          className="fixed inset-0 z-[80] flex items-end justify-center bg-black/55 p-3 sm:items-center sm:p-6"
           role="presentation"
-          onClick={() => setOpen(false)}
+          onClick={() => setHelpOpen(false)}
         >
           <div
             role="dialog"
             aria-modal="true"
-            aria-labelledby={titleId}
-            className="max-h-[min(88vh,36rem)] w-full max-w-md overflow-y-auto rounded-3xl border border-emerald-400/30 bg-gradient-to-br from-[#0d1f18] via-[#101010] to-black p-4 shadow-2xl sm:p-5"
+            aria-labelledby={helpTitleId}
+            className="w-full max-w-sm rounded-2xl border border-white/15 bg-[#121212] p-4 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200/80">
-                  Automatic Recharge Bonus
-                </p>
-                <h3 id={titleId} className="mt-1 text-lg font-black text-white">
-                  Auto Bonus
-                </h3>
-              </div>
+            <div className="flex items-start justify-between gap-2">
+              <h3 id={helpTitleId} className="text-sm font-black text-white">
+                Automatic Bonus
+              </h3>
               <button
                 type="button"
-                onClick={() => setOpen(false)}
-                className="rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-xs font-bold text-white/80"
+                onClick={() => setHelpOpen(false)}
+                className="rounded-full border border-white/15 px-2 py-0.5 text-[10px] font-bold text-white/70"
               >
                 Close
               </button>
             </div>
-
-            <p className="mt-3 rounded-2xl border border-white/10 bg-black/35 px-3 py-2 text-xs font-semibold text-emerald-50/90">
-              {statusLine}
-            </p>
-
-            <div className="mt-4 space-y-2 text-sm leading-relaxed text-emerald-50/80">
+            <div className="mt-3 space-y-2 text-xs leading-relaxed text-white/75">
               <p>
-                When Auto Bonus is on, eligible completed recharges can earn
-                promo-locked bonus coins based on published reward tiers.
+                When active, eligible completed recharges can earn promo-locked
+                bonus coins from published reward tiers.
               </p>
               <p>
-                Bonus Event claims stay locked while Auto is on. Turning Auto off
-                starts a cooldown — grants stop, and Bonus Events stay locked until
-                the timer ends.
+                Bonus Event claims stay locked while Auto Bonus is on. Turning it
+                off starts a cooldown before Bonus Events unlock again.
               </p>
+              <p>Tap the button once to turn Automatic Bonus on or off.</p>
             </div>
-
-            <div className="mt-4 overflow-hidden rounded-2xl border border-white/10">
-              <div className="bg-emerald-500/15 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-emerald-100/90">
-                Reward tiers (typical pattern)
-              </div>
-              <table className="w-full text-left text-xs text-emerald-50/90 sm:text-sm">
-                <thead className="bg-black/40 text-[10px] uppercase tracking-wider text-emerald-200/70">
-                  <tr>
-                    <th className="px-3 py-2 font-bold">Recharge</th>
-                    <th className="px-3 py-2 font-bold">Bonus</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {TIER_SAMPLES.map((row) => (
-                    <tr key={row.recharge} className="border-t border-white/5">
-                      <td className="px-3 py-1.5 font-semibold">{row.recharge}</td>
-                      <td className="px-3 py-1.5">{row.bonus}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="border-t border-white/5 bg-black/30 px-3 py-2 text-[10px] leading-snug text-emerald-100/55">
-                Exact tiers follow the published configuration for your account.
-              </p>
-            </div>
-
-            {!canClaimBonusEvent ? (
-              <p className="mt-3 rounded-2xl border border-amber-400/30 bg-amber-500/15 px-3 py-2 text-xs font-semibold text-amber-100">
-                {isOn
-                  ? 'Bonus Event claims are locked while Auto is on.'
-                  : isCooldown
-                    ? 'Bonus Event claims stay locked until cooldown ends.'
-                    : 'Bonus Event claims are currently locked.'}
-              </p>
-            ) : null}
-
-            {visibleMessage ? (
-              <p className="mt-3 rounded-2xl border border-violet-400/30 bg-violet-500/15 px-3 py-2 text-xs font-semibold text-violet-100">
-                {visibleMessage}
-              </p>
-            ) : null}
-
-            {showUnavailable ? (
-              <p className="mt-3 rounded-2xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-50">
-                {friendlyArbUnavailableMessage()}
-              </p>
-            ) : null}
-
-            <button
-              type="button"
-              disabled={toggleDisabled || isCooldown}
-              onClick={handlePrimaryAction}
-              className={`mt-4 flex min-h-[44px] w-full items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-black transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 ${
-                isOn
-                  ? 'border border-rose-300/40 bg-rose-500/90 text-white'
-                  : isCooldown
-                    ? 'border border-orange-300/40 bg-orange-500/80 text-white'
-                    : 'bg-emerald-400 text-black shadow-[0_0_20px_-6px_rgba(52,211,153,0.7)]'
-              }`}
-            >
-              {primaryActionLabel}
-            </button>
           </div>
         </div>
       ) : null}
-    </>
+    </div>
   );
 }
