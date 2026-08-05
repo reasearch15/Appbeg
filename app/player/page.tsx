@@ -102,6 +102,8 @@ import {
 } from '../../features/bonusEvents/bonusEvents';
 import {
   ArbPlayerPreferenceClientError,
+  friendlyArbToggleErrorMessage,
+  logArbActivationBlockers,
   setArbPlayerPreference,
   type ArbPlayerMode,
 } from '@/features/automaticRechargeBonus/playerArbPreference';
@@ -6471,13 +6473,20 @@ export default function PlayerPage() {
           setArbPanelMessage('Automatic Recharge Bonus is off.');
         }
       } catch (error) {
-        const message =
-          error instanceof ArbPlayerPreferenceClientError
-            ? error.message
-            : error instanceof Error
-              ? error.message
-              : 'Could not update Automatic Recharge Bonus.';
-        setArbPanelMessage(message);
+        if (error instanceof ArbPlayerPreferenceClientError) {
+          logArbActivationBlockers({
+            source: 'player_toggle_api',
+            code: error.code,
+            blockers: error.blockers,
+            message: error.message,
+          });
+        } else {
+          logArbActivationBlockers({
+            source: 'player_toggle_unknown',
+            message: error instanceof Error ? error.message : 'unknown_error',
+          });
+        }
+        setArbPanelMessage(friendlyArbToggleErrorMessage(error));
       } finally {
         setArbToggling(false);
       }

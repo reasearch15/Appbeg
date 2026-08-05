@@ -165,3 +165,46 @@ export function arbClaimLockReasonFromMode(
   }
   return 'Bonus Events are currently unavailable.';
 }
+
+/** Player-safe copy — never includes internal gate/flag names. */
+export function friendlyArbUnavailableMessage(): string {
+  return 'Automatic Bonus is not available at the moment.';
+}
+
+export function friendlyArbToggleErrorMessage(
+  error: ArbPlayerPreferenceClientError | Error | unknown
+): string {
+  if (error instanceof ArbPlayerPreferenceClientError) {
+    if (error.code === 'risk_blocked') {
+      return 'This feature is temporarily unavailable for your account.';
+    }
+    if (
+      error.code === 'player_mode_disabled' ||
+      error.code === 'feature_disabled' ||
+      error.code === 'emergency_disabled' ||
+      error.code === 'player_opt_in_disabled' ||
+      error.code === 'global_kill_active' ||
+      error.code === 'no_published_configuration'
+    ) {
+      return friendlyArbUnavailableMessage();
+    }
+  }
+  return 'Could not update Automatic Bonus right now. Please try again.';
+}
+
+/** Dev-only technical logging for activation failures. */
+export function logArbActivationBlockers(details: {
+  source: string;
+  code?: string | null;
+  blockers?: string[] | null;
+  gates?: Record<string, unknown> | null;
+  message?: string | null;
+}) {
+  console.info('[ARB_PLAYER_ACTIVATION_BLOCKED]', {
+    source: details.source,
+    code: details.code || null,
+    blockers: details.blockers || [],
+    gates: details.gates || null,
+    technicalMessage: details.message || null,
+  });
+}

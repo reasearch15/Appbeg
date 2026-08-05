@@ -2,7 +2,10 @@
 
 import { useEffect, useId, useState } from 'react';
 import {
+  fetchArbPlayerPreference,
   formatArbCooldownRemaining,
+  friendlyArbUnavailableMessage,
+  logArbActivationBlockers,
   type ArbPlayerMode,
 } from '@/features/automaticRechargeBonus/playerArbPreference';
 
@@ -21,7 +24,7 @@ export type AutomaticRechargeBonusPanelProps = {
   message?: string | null;
 };
 
-/** Compact illustrative sample of the platform default linear tier pattern. */
+/** Compact illustrative sample of the standard linear tier pattern. */
 const TIER_SAMPLES: { recharge: string; bonus: string }[] = [
   { recharge: '$10–19', bonus: '1 coin' },
   { recharge: '$20–29', bonus: '2 coins' },
@@ -30,10 +33,27 @@ const TIER_SAMPLES: { recharge: string; bonus: string }[] = [
   { recharge: '$200+', bonus: '20 coins' },
 ];
 
+function isFriendlyPlayerMessage(message: string | null | undefined) {
+  if (!message) return false;
+  const lower = message.toLowerCase();
+  return !(
+    lower.includes('coadmin') ||
+    lower.includes('feature_') ||
+    lower.includes('arb') ||
+    lower.includes('flag') ||
+    lower.includes('eligibility') ||
+    lower.includes('reporting') ||
+    lower.includes('global_kill') ||
+    lower.includes('opt_in') ||
+    lower.includes('published_configuration') ||
+    lower.includes('cannot enable')
+  );
+}
+
 export default function AutomaticRechargeBonusPanel({
   playerModeEnabled,
   mode,
-  enabled,
+  enabled: _enabled,
   cooldownEndsAt,
   canEnable,
   canDisable,
@@ -47,12 +67,18 @@ export default function AutomaticRechargeBonusPanel({
   const titleId = useId();
   const [open, setOpen] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [availabilityKnown, setAvailabilityKnown] = useState(false);
+  const [liveCanEnable, setLiveCanEnable] = useState(canEnable);
 
   useEffect(() => {
     if (mode !== 'cooldown' || !cooldownEndsAt) return;
     const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [mode, cooldownEndsAt]);
+
+  useEffect(() => {
+    setLiveCanEnable(canEnable);
+  }, [canEnable]);
 
   useEffect(() => {
     if (!open) return;
@@ -63,6 +89,39 @@ export default function AutomaticRechargeBonusPanel({
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
 
+  useEffect(() => {
+    if (!open || !playerModeEnabled) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const snap = await fetchArbPlayerPreference();
+        if (cancelled) return;
+        const blockers = snap.eligibility?.blockers?.enable || [];
+        const gates = snap.gates || null;
+        setLiveCanEnable(snap.eligibility?.canEnable === true);
+        setAvailabilityKnown(true);
+        if (snap.eligibility?.canEnable !== true) {
+          logArbActivationBlockers({
+            source: 'modal_open_preference_snapshot',
+            blockers,
+            gates: gates as unknown as Record<string, unknown>,
+            message: 'Enable gates failed for Automatic Recharge Bonus.',
+          });
+        }
+      } catch (error) {
+        if (cancelled) return;
+        setAvailabilityKnown(true);
+        logArbActivationBlockers({
+          source: 'modal_open_preference_fetch_failed',
+          message: error instanceof Error ? error.message : 'preference_fetch_failed',
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, playerModeEnabled]);
+
   if (!playerModeEnabled) {
     return null;
   }
@@ -70,13 +129,19 @@ export default function AutomaticRechargeBonusPanel({
   const cooldownLabel = formatArbCooldownRemaining(cooldownEndsAt, nowMs);
   const isOn = mode === 'enabled';
   const isCooldown = mode === 'cooldown';
+  const enableAllowed = liveCanEnable;
   const toggleDisabled =
     toggling ||
     riskBlocked ||
     (isOn && !canDisable) ||
-    (!isOn && !isCooldown && !canEnable);
+    (!isOn && !isCooldown && !enableAllowed);
 
-  let statusLine = 'Off — Bonus Events available when drops appear.';
+  const showUnavailable =
+    !isOn &&
+    !isCooldown &&
+    (riskBlocked || !featureEnabled || !enableAllowed || (availabilityKnown && !enableAllowed));
+
+  let statusLine = 'Off — Bonus Events are available when drops appear.';
   if (isOn) {
     statusLine =
       'On — eligible recharges can earn promo-locked bonus coins. Bonus Events are locked.';
@@ -85,9 +150,9 @@ export default function AutomaticRechargeBonusPanel({
       ? `Cooldown — Bonus Events unlock in ${cooldownLabel}. Auto grants are off.`
       : 'Cooldown — Bonus Events unlock soon. Auto grants are off.';
   } else if (riskBlocked) {
-    statusLine = 'Temporarily unavailable for this account.';
-  } else if (!featureEnabled) {
-    statusLine = 'Not available from your coadmin right now.';
+    statusLine = 'This feature is temporarily unavailable for your account.';
+  } else if (showUnavailable) {
+    statusLine = friendlyArbUnavailableMessage();
   }
 
   const chipLabel = isOn
@@ -102,7 +167,7 @@ export default function AutomaticRechargeBonusPanel({
     ? 'border-emerald-300/70 bg-emerald-400 text-black shadow-[0_0_18px_-6px_rgba(52,211,153,0.75)]'
     : isCooldown
       ? 'border-orange-300/60 bg-orange-500 text-white shadow-[0_0_16px_-6px_rgba(249,115,22,0.7)]'
-      : 'border-emerald-300/55 bg-emerald-500 text-black shadow-[0_0_16px_-6px_rgba(16,185,129,0.65)] hover:brightness-110';
+      : 'border-rose-300/70 bg-rose-500 text-white shadow-[0_0_16px_-6px_rgba(244,63,94,0.75)] hover:brightness-110';
 
   const primaryActionLabel = isOn
     ? toggling
@@ -115,7 +180,25 @@ export default function AutomaticRechargeBonusPanel({
         : 'Turn Auto Bonus on';
 
   const handlePrimaryAction = () => {
-    if (toggleDisabled) return;
+    if (toggleDisabled) {
+      if (!isOn && !isCooldown) {
+        logArbActivationBlockers({
+          source: 'modal_primary_blocked',
+          blockers: [
+            !featureEnabled ? 'feature_disabled' : null,
+            riskBlocked ? 'risk_blocked' : null,
+            !enableAllowed ? 'can_enable_false' : null,
+          ].filter(Boolean) as string[],
+          gates: {
+            featureEnabled,
+            riskBlocked,
+            canEnable: enableAllowed,
+          },
+          message: 'Player attempted enable while gates block activation.',
+        });
+      }
+      return;
+    }
     if (isOn) {
       onToggle(false);
       return;
@@ -124,6 +207,14 @@ export default function AutomaticRechargeBonusPanel({
       onToggle(true);
     }
   };
+
+  const visibleMessage = isFriendlyPlayerMessage(message) ? message : null;
+  if (message && !visibleMessage) {
+    logArbActivationBlockers({
+      source: 'panel_message_scrubbed',
+      message,
+    });
+  }
 
   return (
     <>
@@ -169,13 +260,13 @@ export default function AutomaticRechargeBonusPanel({
             </div>
 
             <p className="mt-3 rounded-2xl border border-white/10 bg-black/35 px-3 py-2 text-xs font-semibold text-emerald-50/90">
-              Status: {statusLine}
+              {statusLine}
             </p>
 
             <div className="mt-4 space-y-2 text-sm leading-relaxed text-emerald-50/80">
               <p>
                 When Auto Bonus is on, eligible completed recharges can earn
-                promo-locked bonus coins from your coadmin&apos;s published tiers.
+                promo-locked bonus coins based on published reward tiers.
               </p>
               <p>
                 Bonus Event claims stay locked while Auto is on. Turning Auto off
@@ -205,7 +296,7 @@ export default function AutomaticRechargeBonusPanel({
                 </tbody>
               </table>
               <p className="border-t border-white/5 bg-black/30 px-3 py-2 text-[10px] leading-snug text-emerald-100/55">
-                Exact tiers come from your coadmin&apos;s published configuration.
+                Exact tiers follow the published configuration for your account.
               </p>
             </div>
 
@@ -219,9 +310,15 @@ export default function AutomaticRechargeBonusPanel({
               </p>
             ) : null}
 
-            {message ? (
+            {visibleMessage ? (
               <p className="mt-3 rounded-2xl border border-violet-400/30 bg-violet-500/15 px-3 py-2 text-xs font-semibold text-violet-100">
-                {message}
+                {visibleMessage}
+              </p>
+            ) : null}
+
+            {showUnavailable ? (
+              <p className="mt-3 rounded-2xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-50">
+                {friendlyArbUnavailableMessage()}
               </p>
             ) : null}
 
