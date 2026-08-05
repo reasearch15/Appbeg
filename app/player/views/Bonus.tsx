@@ -6,13 +6,12 @@ import { AnimatePresence, motion } from 'motion/react';
 import { getPlayerBonusEventDescription } from '../utils';
 import { usePlayerRenderPerf } from '../performance';
 import {
-  arbClaimLockReasonFromMode,
   type ArbPlayerMode,
 } from '@/features/automaticRechargeBonus/playerArbPreference';
 
 type Props = Record<string, any>;
 
-function formatBonusArbCooldownClock(
+function formatBonusEventCooldownClock(
   endsAt: string | null | undefined,
   nowMs: number
 ): string | null {
@@ -49,19 +48,37 @@ function Bonus(props: Props) {
     arbCanClaimBonusEvent = true,
   } = props;
 
-  const claimLockReason = arbClaimLockReasonFromMode(arbMode, arbCanClaimBonusEvent);
-  const claimDisabled = Boolean(claimLockReason) || maintenanceBreak.enabled;
+  const bonusEventsLockedByAuto = arbMode === 'enabled';
+  const bonusEventsInCooldown = arbMode === 'cooldown';
+  const bonusEventsAvailable =
+    arbCanClaimBonusEvent && !bonusEventsLockedByAuto && !bonusEventsInCooldown;
+  const claimDisabled =
+    !arbCanClaimBonusEvent ||
+    bonusEventsLockedByAuto ||
+    bonusEventsInCooldown ||
+    maintenanceBreak.enabled;
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const showArbInfoCard =
-    arbPlayerModeEnabled && (arbMode === 'enabled' || arbMode === 'cooldown');
 
   useEffect(() => {
-    if (!showArbInfoCard || arbMode !== 'cooldown' || !arbCooldownEndsAt) return;
+    if (!arbPlayerModeEnabled || !bonusEventsInCooldown || !arbCooldownEndsAt) return;
     const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(timer);
-  }, [showArbInfoCard, arbMode, arbCooldownEndsAt]);
+  }, [arbPlayerModeEnabled, bonusEventsInCooldown, arbCooldownEndsAt]);
 
-  const cooldownLabel = formatBonusArbCooldownClock(arbCooldownEndsAt, nowMs);
+  const cooldownLabel = formatBonusEventCooldownClock(arbCooldownEndsAt, nowMs);
+
+  let claimLockBanner: string | null = null;
+  if (maintenanceBreak.enabled) {
+    claimLockBanner = null;
+  } else if (bonusEventsLockedByAuto) {
+    claimLockBanner = 'Bonus Events Locked — Automatic Bonus is on.';
+  } else if (bonusEventsInCooldown) {
+    claimLockBanner = cooldownLabel
+      ? `Bonus Event Cooldown — unlocks in ${cooldownLabel}`
+      : 'Bonus Event Cooldown — unlocks soon.';
+  } else if (!arbCanClaimBonusEvent) {
+    claimLockBanner = 'Bonus Events are currently unavailable.';
+  }
 
   usePlayerRenderPerf('Bonus', () => ({
     bonusEventCount: playerBonusEvents.length,
@@ -124,30 +141,26 @@ function Bonus(props: Props) {
                   ) : null}
                 </AnimatePresence>
                 </div>
-                {showArbInfoCard ? (
-                  <div className="rounded-3xl border border-cyan-400/25 bg-gradient-to-br from-[#0d2433]/80 via-[#14091f]/80 to-black/80 p-4 sm:p-5">
-                    <p className="text-xs font-black uppercase tracking-[0.28em] text-cyan-200/80">
-                      Automatic Recharge Bonus
+                {arbPlayerModeEnabled ? (
+                  <div className="rounded-3xl border border-violet-400/25 bg-gradient-to-br from-violet-950/50 via-[#14091f]/80 to-black/80 p-4 sm:p-5">
+                    <p className="text-xs font-black uppercase tracking-[0.28em] text-violet-200/80">
+                      Bonus Events
                     </p>
-                    {arbMode === 'enabled' ? (
-                      <div className="mt-3 space-y-2 text-sm leading-relaxed text-cyan-50/85 sm:text-base">
-                        <p className="font-semibold text-white">
-                          Automatic Recharge Bonus is currently active.
-                        </p>
+                    {bonusEventsLockedByAuto ? (
+                      <div className="mt-3 space-y-2 text-sm leading-relaxed text-violet-50/85 sm:text-base">
+                        <p className="font-semibold text-white">Bonus Events Locked</p>
                         <p>
-                          Bonus Events cannot be claimed while Auto Bonus is enabled.
-                        </p>
-                        <p className="text-cyan-100/70">
-                          Manage Auto Bonus from the Play page.
+                          Automatic Bonus is on. Bonus Event claims are locked.
+                          Cooldown is ignored while Automatic Bonus stays on.
                         </p>
                       </div>
-                    ) : (
-                      <div className="mt-3 space-y-2 text-sm leading-relaxed text-cyan-50/85 sm:text-base">
-                        <p className="font-semibold text-white">
-                          Automatic Recharge Bonus was recently disabled.
-                        </p>
+                    ) : bonusEventsInCooldown ? (
+                      <div className="mt-3 space-y-2 text-sm leading-relaxed text-violet-50/85 sm:text-base">
+                        <p className="font-semibold text-white">Bonus Event Cooldown</p>
                         <p>
-                          Bonus Events unlock in:
+                          Automatic Bonus is off. Bonus Events unlock when this
+                          cooldown ends (a new full cooldown starts every time
+                          you turn Automatic Bonus off):
                           {cooldownLabel ? (
                             <span className="mt-1 block font-mono text-lg font-black text-amber-100">
                               {cooldownLabel}
@@ -156,9 +169,16 @@ function Bonus(props: Props) {
                             <span className="mt-1 block text-amber-100/90">soon</span>
                           )}
                         </p>
-                        <p className="text-cyan-100/70">
-                          Manage Auto Bonus from the Play page.
-                        </p>
+                      </div>
+                    ) : bonusEventsAvailable ? (
+                      <div className="mt-3 space-y-2 text-sm leading-relaxed text-violet-50/85 sm:text-base">
+                        <p className="font-semibold text-white">Bonus Events Available</p>
+                        <p>Claim a drop below when one appears.</p>
+                      </div>
+                    ) : (
+                      <div className="mt-3 space-y-2 text-sm leading-relaxed text-violet-50/85 sm:text-base">
+                        <p className="font-semibold text-white">Bonus Events</p>
+                        <p>Claims are temporarily unavailable.</p>
                       </div>
                     )}
                   </div>
@@ -168,9 +188,9 @@ function Bonus(props: Props) {
                   onPointerEnter={() => setBonusStripPaused(true)}
                   onPointerLeave={() => setBonusStripPaused(false)}
                 >
-                  {claimLockReason ? (
+                  {claimLockBanner ? (
                     <div className="absolute inset-x-4 top-4 z-20 rounded-2xl border border-amber-400/35 bg-amber-500/20 px-3 py-2 text-center text-xs font-semibold text-amber-50 sm:inset-x-8">
-                      {claimLockReason}
+                      {claimLockBanner}
                     </div>
                   ) : null}
                   <div
@@ -296,7 +316,7 @@ function Bonus(props: Props) {
                                       Status
                                     </p>
                                     <p className="mt-1 font-bold text-fuchsia-50">
-                                      {claimLockReason ? 'Locked' : 'Available now'}
+                                      {claimDisabled ? 'Locked' : 'Available now'}
                                     </p>
                                   </div>
                                 </div>
@@ -314,7 +334,7 @@ function Bonus(props: Props) {
                                       <i className="fas fa-circle-notch fa-spin" aria-hidden />
                                       Opening drop...
                                     </>
-                                  ) : claimLockReason ? (
+                                  ) : claimDisabled ? (
                                     <>Locked</>
                                   ) : (
                                     <>Claim / Open Bonus</>
@@ -351,9 +371,9 @@ function Bonus(props: Props) {
                       wait for the next bonus event.
                     </p>
                     <p>
-                      Automatic Recharge Bonus is a separate mode managed on the Play
-                      page. While Auto is on — or during its cooldown — Bonus Event claims
-                      stay locked.
+                      Automatic Bonus on the Play page is a separate preference.
+                      While it is on — or during the Bonus Event cooldown after
+                      you turn it off — Bonus Event claims stay locked.
                     </p>
                   </div>
                 </div>

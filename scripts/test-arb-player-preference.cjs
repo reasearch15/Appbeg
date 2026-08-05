@@ -153,6 +153,64 @@ test('duplicate enable / disable are no-ops', () => {
   assert.ok(off.next.bonusCooldownEndsAt);
 });
 
+test('every OFF restarts a full Bonus Event cooldown (no resume)', () => {
+  // 12:00 ON
+  let state = pref.planArbPlayerPreferenceToggle({
+    current: {
+      automaticBonusEnabled: false,
+      bonusCooldownEndsAt: null,
+      updatedAt: null,
+    },
+    requestedEnabled: true,
+    nowMs: NOW,
+    cooldownDurationMinutes: 120,
+  }).next;
+  assert.strictEqual(state.automaticBonusEnabled, true);
+  assert.strictEqual(state.bonusCooldownEndsAt, null);
+
+  // 12:10 OFF → cooldown ends 14:10
+  const off1210 = pref.planArbPlayerPreferenceToggle({
+    current: state,
+    requestedEnabled: false,
+    nowMs: NOW + 10 * 60_000,
+    cooldownDurationMinutes: 120,
+  });
+  assert.strictEqual(off1210.startedCooldown, true);
+  assert.strictEqual(
+    off1210.next.bonusCooldownEndsAt,
+    new Date(NOW + 10 * 60_000 + 120 * 60_000).toISOString()
+  );
+  state = off1210.next;
+
+  // 12:40 ON → Bonus Events locked; cooldown discarded
+  const on1240 = pref.planArbPlayerPreferenceToggle({
+    current: state,
+    requestedEnabled: true,
+    nowMs: NOW + 40 * 60_000,
+    cooldownDurationMinutes: 120,
+  });
+  assert.strictEqual(on1240.cancelledCooldown, true);
+  assert.strictEqual(on1240.next.bonusCooldownEndsAt, null);
+  state = on1240.next;
+
+  // 13:00 OFF → previous window discarded; new cooldown ends 15:00
+  const off1300 = pref.planArbPlayerPreferenceToggle({
+    current: state,
+    requestedEnabled: false,
+    nowMs: NOW + 60 * 60_000,
+    cooldownDurationMinutes: 120,
+  });
+  assert.strictEqual(off1300.startedCooldown, true);
+  assert.strictEqual(
+    off1300.next.bonusCooldownEndsAt,
+    new Date(NOW + 60 * 60_000 + 120 * 60_000).toISOString()
+  );
+  assert.notStrictEqual(
+    off1300.next.bonusCooldownEndsAt,
+    off1210.next.bonusCooldownEndsAt
+  );
+});
+
 test('repeated toggles alternate cooldown start/cancel', () => {
   let state = {
     automaticBonusEnabled: false,

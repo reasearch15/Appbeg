@@ -3,9 +3,14 @@
  * Pure. Deterministic. No I/O. No financial side effects.
  *
  * Rules:
- * - Cooldown NEVER runs while Auto Bonus is enabled.
- * - Cooldown ONLY begins after an ON → OFF transition.
- * - OFF → ON cancels any active cooldown.
+ * - Auto Bonus is a preference: ON and OFF may be requested at any time
+ *   (operational gates may still reject enable; disable always plans).
+ * - Cooldown is a Bonus Event lock, NOT an Auto Bonus lock.
+ * - Cooldown NEVER runs while Auto Bonus is enabled (ignored / cleared).
+ * - Every ON → OFF starts a brand-new Bonus Event cooldown for the full
+ *   configured duration from "now". Previous remaining time is discarded.
+ * - There is never a resume/remaining continuation across re-enable cycles.
+ * - OFF → ON cancels any active Bonus Event cooldown.
  */
 
 import { ARB_PLATFORM_DEFAULT_COOLDOWN_MINUTES } from '@/lib/economy/automaticRechargeBonus/constants';
@@ -168,7 +173,8 @@ export function planArbPlayerPreferenceToggle(
       : ARB_PLATFORM_DEFAULT_COOLDOWN_MINUTES;
 
   if (currentEnabled && !requested) {
-    // ON → OFF: start cooldown.
+    // ON → OFF: always start a NEW full Bonus Event cooldown from now.
+    // Never resume a previous remaining window.
     const endsAt = new Date(
       input.nowMs + cooldownMinutes * 60_000
     ).toISOString();
@@ -185,7 +191,7 @@ export function planArbPlayerPreferenceToggle(
     };
   }
 
-  // OFF → ON: cancel cooldown.
+  // OFF → ON: cancel Bonus Event cooldown (timer ignored while Auto is on).
   return {
     changed: true,
     transition: 'off_to_on',

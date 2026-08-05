@@ -158,10 +158,10 @@ export function arbClaimLockReasonFromMode(
 ): string | null {
   if (canClaim) return null;
   if (mode === 'enabled') {
-    return 'Bonus Events are locked while Automatic Recharge Bonus is on.';
+    return 'Bonus Events are locked while Automatic Bonus is on.';
   }
   if (mode === 'cooldown') {
-    return 'Bonus Events are locked during the Automatic Recharge Bonus cooldown.';
+    return 'Bonus Events are in cooldown.';
   }
   return 'Bonus Events are currently unavailable.';
 }

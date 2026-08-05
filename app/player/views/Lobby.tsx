@@ -429,8 +429,10 @@ function Lobby(props: Props) {
                                   ) : !arbCanClaimBonusEvent ? (
                                     <>
                                       {arbMode === 'cooldown'
-                                        ? 'Locked (Auto cooldown)'
-                                        : 'Locked (Auto on)'}
+                                        ? 'Locked (Bonus cooldown)'
+                                        : arbMode === 'enabled'
+                                          ? 'Locked (Auto Bonus on)'
+                                          : 'Locked'}
                                     </>
                                   ) : (
                                     <>🎰 Claim this drop</>
