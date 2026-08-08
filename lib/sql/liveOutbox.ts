@@ -1018,3 +1018,87 @@ export async function getLatestOutboxIdForChannels(
     return { latestOutboxId: 0, timing: emptyTiming };
   }
 }
+
+/**
+ * Cash-out Telegram consumer transport: coadmin cashout channels only.
+ * Authority writes twin rows (player + coadmin); Ledger must read coadmin rows
+ * to avoid double fan-out. Soft-deleted rows are excluded. Events are not
+ * marked consumed in-place — consumers use durable after-id checkpoints.
+ */
+export async function getCashoutCoadminOutboxRowsAfter(
+  afterOutboxId: number,
+  limit = 50
+): Promise<LiveOutboxRow[]> {
+  const db = getPlayerMirrorPool();
+  if (!db) {
+    return [];
+  }
+
+  try {
+    const result = await db.query(
+      `
+        SELECT
+          outbox_id,
+          channel,
+          event_type,
+          entity_type,
+          entity_id,
+          payload,
+          payload_hash,
+          source,
+          mirrored_at,
+          created_at
+        FROM public.live_outbox
+        WHERE entity_type = 'player_cashout_task'
+          AND channel LIKE 'coadmin:%:cashouts'
+          AND outbox_id > $1
+          AND deleted_at IS NULL
+        ORDER BY outbox_id ASC
+        LIMIT $2
+      `,
+      [Math.max(0, afterOutboxId), Math.min(Math.max(limit, 1), 200)]
+    );
+
+    return result.rows.map((row) => ({
+      outbox_id: Number(row.outbox_id),
+      channel: cleanText(row.channel),
+      event_type: cleanText(row.event_type),
+      entity_type: cleanText(row.entity_type),
+      entity_id: cleanText(row.entity_id),
+      payload:
+        row.payload && typeof row.payload === 'object' && !Array.isArray(row.payload)
+          ? (row.payload as Record<string, unknown>)
+          : {},
+      payload_hash: cleanText(row.payload_hash) || null,
+      source: cleanText(row.source) || 'mirror',
+      mirrored_at: toIsoString(row.mirrored_at),
+      created_at: toIsoString(row.created_at) || new Date().toISOString(),
+    }));
+  } catch (error) {
+    console.info('[LIVE_OUTBOX] failed', { reason: 'get_cashout_coadmin_rows_after', error });
+    return [];
+  }
+}
+
+export async function getLatestCashoutCoadminOutboxId(): Promise<number> {
+  const db = getPlayerMirrorPool();
+  if (!db) {
+    return 0;
+  }
+
+  try {
+    const result = await db.query(
+      `
+        SELECT COALESCE(MAX(outbox_id), 0)::bigint AS outbox_id
+        FROM public.live_outbox
+        WHERE entity_type = 'player_cashout_task'
+          AND channel LIKE 'coadmin:%:cashouts'
+          AND deleted_at IS NULL
+      `
+    );
+    return Number(result.rows[0]?.outbox_id || 0);
+  } catch (error) {
+    console.info('[LIVE_OUTBOX] failed', { reason: 'get_latest_cashout_coadmin_outbox_id', error });
+    return 0;
+  }
+}

@@ -22,6 +22,11 @@ import {
   readStoredVendorFieldsFromRow,
 } from '@/lib/sql/vendorCashoutAttribution';
 import { hasVendorAwareness } from '@/features/vendors/vendorAwareness';
+import {
+  readOperationalAttributionFromTaskRow,
+  readOperationalClaimFromTaskRow,
+  readOperationalCompletionFromTaskRow,
+} from '@/lib/sql/cashoutOperationalEvents';
 
 export type PlayerCashoutTaskCacheInput = {
   firebaseId: string;
@@ -244,6 +249,29 @@ export type CachedPlayerCashoutTask = {
   expiresAt: string | null;
   createdAt: string | null;
   completedAt: string | null;
+  operationalAttribution?: {
+    actionSource: string;
+    telegramUserId: string | null;
+    telegramUsername: string | null;
+    telegramDisplayName: string | null;
+    telegramClaimedAt: string | null;
+    telegramCompletedAt?: string | null;
+    completionSource?: string | null;
+  } | null;
+  operationalClaim?: {
+    actionSource: string;
+    telegramUserId: string | null;
+    telegramUsername: string | null;
+    telegramDisplayName: string | null;
+    telegramClaimedAt: string | null;
+  } | null;
+  operationalCompletion?: {
+    actionSource: string;
+    telegramUserId: string | null;
+    telegramUsername: string | null;
+    telegramDisplayName: string | null;
+    telegramCompletedAt: string | null;
+  } | null;
   vendor?: VendorAwareness | null;
 };
 
@@ -281,6 +309,9 @@ function mapCachedPlayerCashoutTaskRow(row: Record<string, unknown>): CachedPlay
     expiresAt: toIsoString(row.expires_at),
     createdAt: toIsoString(row.created_at),
     completedAt: toIsoString(row.completed_at),
+    operationalAttribution: readOperationalAttributionFromTaskRow(row),
+    operationalClaim: readOperationalClaimFromTaskRow(row),
+    operationalCompletion: readOperationalCompletionFromTaskRow(row),
     vendor: storedVendor,
   };
 }
@@ -470,8 +501,14 @@ export async function readStaffActiveCashoutTasks(
       WHERE deleted_at IS NULL
         AND coadmin_uid = $1
         AND LOWER(COALESCE(status, '')) = 'in_progress'
-        AND assigned_handler_uid = $2
         AND (expires_at IS NULL OR expires_at > NOW())
+        AND (
+          assigned_handler_uid = $2
+          OR (
+            LOWER(COALESCE(operational_action_source, '')) = 'telegram'
+            AND NULLIF(BTRIM(COALESCE(operational_telegram_user_id, '')), '') IS NOT NULL
+          )
+        )
       ORDER BY started_at DESC NULLS LAST, created_at DESC NULLS LAST
       LIMIT $3
     `,

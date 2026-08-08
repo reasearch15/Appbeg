@@ -58,6 +58,12 @@ import {
   startPlayerCashoutTask,
 } from '@/features/cashouts/playerCashoutTasks';
 import {
+  telegramOperationalPersonLabel,
+  telegramOperationalUsernameLine,
+  taskHasTelegramClaim,
+  taskHasTelegramCompletion,
+} from '@/features/cashouts/cashoutOperationalAttribution';
+import {
   getPlayerRiskSnapshot,
   listenPlayerRiskSnapshotsByCoadmin,
   markRiskReviewed,
@@ -1663,6 +1669,59 @@ export default function StaffPage() {
     );
   }
 
+  function renderStaffCashoutOperationalLines(
+    task: PlayerCashoutTask,
+    {
+      toneClass = 'text-amber-100/70',
+      showExpires = false,
+    }: { toneClass?: string; showExpires?: boolean } = {}
+  ) {
+    const claimName = telegramOperationalPersonLabel(task.operationalClaim);
+    const claimUser = telegramOperationalUsernameLine(task.operationalClaim);
+    const completeName = telegramOperationalPersonLabel(task.operationalCompletion);
+    const completeUser = telegramOperationalUsernameLine(task.operationalCompletion);
+    const expiresLabel =
+      showExpires && task.expiresAt ? formatDateTime(task.expiresAt) : null;
+
+    if (task.status === 'in_progress' && taskHasTelegramClaim(task) && claimName) {
+      return (
+        <div className={`mt-1 space-y-0.5 text-xs ${toneClass}`}>
+          <p className="font-semibold">Claimed via Telegram by {claimName}</p>
+          {claimUser ? <p>{claimUser}</p> : null}
+          {expiresLabel ? <p>Claim expires: {expiresLabel}</p> : null}
+          <p className="opacity-80">
+            Owned through Telegram — not a personal AppBeg claim by the Coadmin account.
+          </p>
+        </div>
+      );
+    }
+
+    if (task.status === 'completed' && taskHasTelegramCompletion(task) && completeName) {
+      return (
+        <div className={`mt-1 space-y-0.5 text-xs ${toneClass}`}>
+          <p className="font-semibold">Completed via Telegram by {completeName}</p>
+          {completeUser ? <p>{completeUser}</p> : null}
+          {task.assignedHandlerUsername ? (
+            <p className="opacity-80">Financial handler: {task.assignedHandlerUsername}</p>
+          ) : null}
+        </div>
+      );
+    }
+
+    if (task.status === 'completed') {
+      return (
+        <div className={`mt-1 space-y-0.5 text-xs ${toneClass}`}>
+          <p>Handler: {task.assignedHandlerUsername || currentUserUid || 'Unknown'}</p>
+          {taskHasTelegramClaim(task) && claimName ? (
+            <p className="opacity-80">Previously claimed via Telegram by {claimName}</p>
+          ) : null}
+        </div>
+      );
+    }
+
+    return null;
+  }
+
   function renderStaffCashoutTasksView() {
     return (
       <div className="space-y-6">
@@ -1757,7 +1816,7 @@ export default function StaffPage() {
         </div>
 
         <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5">
-          <h3 className="text-lg font-bold text-amber-200">My Active Cashout Task</h3>
+          <h3 className="text-lg font-bold text-amber-200">Active Cashout Tasks</h3>
           {playerCashoutTasksLoading ? (
             <p className="mt-3 text-sm text-amber-100/70">Loading active task...</p>
           ) : activeCashoutTasks.length === 0 ? (
@@ -1766,6 +1825,9 @@ export default function StaffPage() {
             <div className="mt-3 space-y-3">
               {activeCashoutTasks.map((task) => {
                 const remainingMs = getPlayerCashoutTaskCountdown(task);
+                const telegramOwned =
+                  taskHasTelegramClaim(task)
+                  && String(task.assignedHandlerUid || '') !== String(currentUserUid || '');
                 return (
                   <div
                     key={task.id}
@@ -1780,31 +1842,44 @@ export default function StaffPage() {
                           Amount: {formatUsdFromNpr(task.amountNpr || 0)}
                         </p>
                         {renderVendorTaskBadge(task.vendor)}
-                        <p className="mt-1 text-xs text-amber-100/70">
-                          Time left: {formatCountdownMs(remainingMs + countdownTick * 0)}
-                        </p>
+                        {telegramOwned ? (
+                          renderStaffCashoutOperationalLines(task, {
+                            toneClass: 'text-amber-100/70',
+                            showExpires: true,
+                          })
+                        ) : (
+                          <p className="mt-1 text-xs text-amber-100/70">
+                            Time left: {formatCountdownMs(remainingMs + countdownTick * 0)}
+                          </p>
+                        )}
                         {renderPlayerCashoutPayment(task)}
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => void handleCompletePlayerCashoutTask(task.id)}
-                          disabled={playerCashoutTaskLoadingId === task.id}
-                          className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-neutral-200 disabled:opacity-60"
-                        >
-                          {playerCashoutTaskLoadingId === task.id
-                            ? 'Saving...'
-                            : `Done (${formatCountdownMs(remainingMs + countdownTick * 0)})`}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleReleasePlayerCashoutTask(task.id)}
-                          disabled={playerCashoutTaskLoadingId === task.id}
-                          className="rounded-lg border border-amber-400/35 bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-500/25 disabled:opacity-60"
-                        >
-                          Release
-                        </button>
-                      </div>
+                      {telegramOwned ? (
+                        <p className="text-xs text-amber-100/70">
+                          Claimed in Telegram — you cannot claim this task until it is released.
+                        </p>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void handleCompletePlayerCashoutTask(task.id)}
+                            disabled={playerCashoutTaskLoadingId === task.id}
+                            className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-neutral-200 disabled:opacity-60"
+                          >
+                            {playerCashoutTaskLoadingId === task.id
+                              ? 'Saving...'
+                              : `Done (${formatCountdownMs(remainingMs + countdownTick * 0)})`}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleReleasePlayerCashoutTask(task.id)}
+                            disabled={playerCashoutTaskLoadingId === task.id}
+                            className="rounded-lg border border-amber-400/35 bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-500/25 disabled:opacity-60"
+                          >
+                            Release
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -1837,9 +1912,9 @@ export default function StaffPage() {
                   <p className="mt-1 text-xs text-emerald-100/70">
                     Completed: {formatDateTime(task.completedAt, 'Done')}
                   </p>
-                  <p className="mt-1 text-xs text-emerald-100/70">
-                    Handler: {task.assignedHandlerUsername || currentUserUid || 'Unknown'}
-                  </p>
+                  {renderStaffCashoutOperationalLines(task, {
+                    toneClass: 'text-emerald-100/70',
+                  })}
                 </div>
               ))}
             </div>
