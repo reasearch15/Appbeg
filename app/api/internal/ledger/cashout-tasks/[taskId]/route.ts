@@ -55,6 +55,9 @@ export async function GET(
       vendor && vendor.configured === true && vendor.owned === true
         ? cleanText(vendor.name) || null
         : null;
+    // Expose only the QR image URL for Telegram photo delivery.
+    // Never include paymentDetails / Cash Tag / other payout destination secrets.
+    const qrImageUrl = cleanText(task.qrImageUrl) || null;
 
     return NextResponse.json({
       ok: true,
@@ -65,6 +68,7 @@ export async function GET(
         amountNpr: Number(task.amountNpr || 0),
         payoutMethod: task.payoutMethod || null,
         paymentAppName: task.paymentAppName || null,
+        ...(qrImageUrl ? { qrImageUrl } : {}),
         createdAt: task.createdAt || null,
         status: task.status || null,
         expiresAt: task.expiresAt || null,
