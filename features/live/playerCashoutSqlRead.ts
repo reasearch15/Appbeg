@@ -1,6 +1,7 @@
 'use client';
 
 import type { PlayerCashoutTask } from '@/features/cashouts/playerCashoutTasks';
+import { mapOperationalFieldsFromCacheRow } from '@/features/cashouts/cashoutOperationalAttribution';
 import { getLocalAppSessionId } from '@/features/auth/appSession';
 import { getLocalPlayerSessionId } from '@/features/auth/playerSession';
 import { getCachedSessionUser } from '@/features/auth/sessionUser';
@@ -98,6 +99,7 @@ function isoToTimestamp(iso: string | null | undefined): Date | null {
 }
 
 function mapCachedTask(row: Record<string, unknown>): PlayerCashoutTask {
+  const { operationalClaim, operationalCompletion } = mapOperationalFieldsFromCacheRow(row);
   return {
     id: String(row.id || ''),
     coadminUid: String(row.coadminUid || ''),
@@ -123,6 +125,8 @@ function mapCachedTask(row: Record<string, unknown>): PlayerCashoutTask {
     createdAt: isoToTimestamp(String(row.createdAt || '') || null),
     completedAt: isoToTimestamp(String(row.completedAt || '') || null),
     vendor: normalizeVendorAwareness(row.vendor),
+    operationalClaim,
+    operationalCompletion,
   };
 }
 

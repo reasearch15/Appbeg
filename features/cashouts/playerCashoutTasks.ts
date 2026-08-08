@@ -41,6 +41,24 @@ import type { VendorAwareness } from '@/features/vendors/vendorAwareness';
 export type PlayerCashoutTaskStatus = 'pending' | 'in_progress' | 'completed' | 'declined';
 export type PlayerCashoutPayoutMethod = 'qr' | 'app';
 
+/** Current Telegram operational claim snapshot (Phase 5). Cleared on release/timeout. */
+export type CashoutOperationalClaim = {
+  actionSource: string;
+  telegramUserId: string | null;
+  telegramUsername: string | null;
+  telegramDisplayName: string | null;
+  telegramClaimedAt: string | null;
+};
+
+/** Telegram operational completion snapshot (Phase 6). Only set for Telegram DONE. */
+export type CashoutOperationalCompletion = {
+  actionSource: string;
+  telegramUserId: string | null;
+  telegramUsername: string | null;
+  telegramDisplayName: string | null;
+  telegramCompletedAt: string | null;
+};
+
 export type PlayerCashoutTask = {
   id: string;
   coadminUid: string;
@@ -63,6 +81,8 @@ export type PlayerCashoutTask = {
   createdAt?: Date | null;
   completedAt?: Date | null;
   vendor?: VendorAwareness | null;
+  operationalClaim?: CashoutOperationalClaim | null;
+  operationalCompletion?: CashoutOperationalCompletion | null;
 };
 
 const CASHOUT_ACTIVE_LISTENER_LIMIT = 100;

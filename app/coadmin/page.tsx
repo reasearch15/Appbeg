@@ -119,6 +119,12 @@ import {
   startPlayerCashoutTask,
 } from '@/features/cashouts/playerCashoutTasks';
 import {
+  telegramOperationalPersonLabel,
+  telegramOperationalUsernameLine,
+  taskHasTelegramClaim,
+  taskHasTelegramCompletion,
+} from '@/features/cashouts/cashoutOperationalAttribution';
+import {
   logStaffCashoutAlertClaimReceived,
   useStaffCashoutAlerts,
 } from '@/lib/pwa/staffCashoutAlert';
@@ -588,6 +594,29 @@ export default function CoadminPage() {
   const [playerSignupCode, setPlayerSignupCode] = useState('');
   const [playerSignupCodeLoading, setPlayerSignupCodeLoading] = useState(false);
   const [playerSignupCodeRotating, setPlayerSignupCodeRotating] = useState(false);
+  const [staffTelegramIntegrationCode, setStaffTelegramIntegrationCode] = useState('');
+  const [staffTelegramIntegrationCodeLoading, setStaffTelegramIntegrationCodeLoading] =
+    useState(false);
+  const [staffTelegramIntegrationCodeRotating, setStaffTelegramIntegrationCodeRotating] =
+    useState(false);
+  const [staffTelegramSubscribers, setStaffTelegramSubscribers] = useState<
+    Array<{
+      telegramUserId: string;
+      telegramUsername: string | null;
+      telegramDisplayName: string | null;
+      linkedAt: string | null;
+      isActive: boolean;
+      disabledByCoadmin: boolean;
+      subscribedAt: string | null;
+      lastDeliveryAt: string | null;
+      lastError: string | null;
+    }>
+  >([]);
+  const [staffTelegramSubscribersLoading, setStaffTelegramSubscribersLoading] = useState(false);
+  const [staffTelegramSubscribersError, setStaffTelegramSubscribersError] = useState('');
+  const [staffTelegramSubscriberBusyId, setStaffTelegramSubscriberBusyId] = useState<string | null>(
+    null
+  );
 
   const [chatUsers, setChatUsers] = useState<AdminUser[]>([]);
   const [reachOutChatUser, setReachOutChatUser] = useState<AdminUser | null>(null);
@@ -661,9 +690,72 @@ export default function CoadminPage() {
     }
   }
 
+  async function loadStaffTelegramIntegrationCode() {
+    setStaffTelegramIntegrationCodeLoading(true);
+    try {
+      const response = await fetch('/api/coadmin/staff-telegram-integration-code', {
+        headers: await getApiAuthHeaders(false, { action: 'read' }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Unable to load Staff Telegram Integration Code.');
+      }
+      setStaffTelegramIntegrationCode(String(data.code || ''));
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : 'Unable to load Staff Telegram Integration Code.'
+      );
+    } finally {
+      setStaffTelegramIntegrationCodeLoading(false);
+    }
+  }
+
+  async function loadStaffTelegramSubscribers() {
+    setStaffTelegramSubscribersLoading(true);
+    setStaffTelegramSubscribersError('');
+    try {
+      const response = await fetch('/api/coadmin/staff-telegram-subscribers', {
+        headers: await getApiAuthHeaders(false, { action: 'read' }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Unable to load connected Telegram staff.');
+      }
+      const rows = Array.isArray(data.subscribers) ? data.subscribers : [];
+      setStaffTelegramSubscribers(
+        rows
+          .map((row: Record<string, unknown>) => ({
+            telegramUserId: String(row.telegramUserId || '').trim(),
+            telegramUsername: String(row.telegramUsername || '').trim() || null,
+            telegramDisplayName: String(row.telegramDisplayName || '').trim() || null,
+            linkedAt: String(row.linkedAt || '').trim() || null,
+            isActive: Boolean(row.isActive),
+            disabledByCoadmin: Boolean(row.disabledByCoadmin),
+            subscribedAt: String(row.subscribedAt || '').trim() || null,
+            lastDeliveryAt: String(row.lastDeliveryAt || '').trim() || null,
+            lastError: String(row.lastError || '').trim() || null,
+          }))
+          .filter((row: { telegramUserId: string }) => Boolean(row.telegramUserId))
+      );
+    } catch (error) {
+      setStaffTelegramSubscribers([]);
+      setStaffTelegramSubscribersError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to load connected Telegram staff.'
+      );
+    } finally {
+      setStaffTelegramSubscribersLoading(false);
+    }
+  }
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void loadPlayerSignupCode();
+      void loadStaffTelegramIntegrationCode();
+      void loadStaffTelegramSubscribers();
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
@@ -675,6 +767,16 @@ export default function CoadminPage() {
       setMessage('Player Signup Code copied.');
     } catch {
       setMessage('Unable to copy the Player Signup Code.');
+    }
+  }
+
+  async function handleCopyStaffTelegramIntegrationCode() {
+    if (!staffTelegramIntegrationCode) return;
+    try {
+      await navigator.clipboard.writeText(staffTelegramIntegrationCode);
+      setMessage('Staff Telegram Integration Code copied.');
+    } catch {
+      setMessage('Unable to copy the Staff Telegram Integration Code.');
     }
   }
 
@@ -694,6 +796,115 @@ export default function CoadminPage() {
       setMessage(error instanceof Error ? error.message : 'Unable to rotate player signup code.');
     } finally {
       setPlayerSignupCodeRotating(false);
+    }
+  }
+
+  async function handleRotateStaffTelegramIntegrationCode() {
+    if (
+      !window.confirm(
+        'Generating a new code will stop the old code from being used for new Telegram connections. Already connected Telegram staff will remain connected.'
+      )
+    ) {
+      return;
+    }
+    setStaffTelegramIntegrationCodeRotating(true);
+    try {
+      const response = await fetch('/api/coadmin/staff-telegram-integration-code', {
+        method: 'POST',
+        headers: await getApiAuthHeaders(true, { action: 'update' }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Unable to rotate Staff Telegram Integration Code.');
+      }
+      setStaffTelegramIntegrationCode(String(data.code || ''));
+      setMessage('Staff Telegram Integration Code rotated.');
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : 'Unable to rotate Staff Telegram Integration Code.'
+      );
+    } finally {
+      setStaffTelegramIntegrationCodeRotating(false);
+    }
+  }
+
+  function staffTelegramSubscriberStatusLabel(row: {
+    isActive: boolean;
+    disabledByCoadmin: boolean;
+  }) {
+    if (row.disabledByCoadmin) return 'Disabled';
+    if (row.isActive) return 'Active';
+    return 'Notifications Off';
+  }
+
+  async function handleDisableStaffTelegramSubscriber(row: {
+    telegramUserId: string;
+    telegramDisplayName: string | null;
+    telegramUsername: string | null;
+  }) {
+    const label =
+      row.telegramDisplayName ||
+      (row.telegramUsername ? `@${row.telegramUsername}` : 'this Telegram staff member');
+    if (
+      !window.confirm(
+        `Disable Telegram access for ${label}?\n\nThey will stop receiving Royal Support notifications and will not be able to use bot staff actions until re-enabled.`
+      )
+    ) {
+      return;
+    }
+    setStaffTelegramSubscriberBusyId(row.telegramUserId);
+    try {
+      const response = await fetch(
+        `/api/coadmin/staff-telegram-subscribers/${encodeURIComponent(row.telegramUserId)}/disable`,
+        {
+          method: 'POST',
+          headers: await getApiAuthHeaders(true, { action: 'update' }),
+        }
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Unable to disable Telegram staff.');
+      }
+      setMessage(`Telegram access disabled for ${label}.`);
+      await loadStaffTelegramSubscribers();
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : 'Unable to disable Telegram staff.'
+      );
+    } finally {
+      setStaffTelegramSubscriberBusyId(null);
+    }
+  }
+
+  async function handleEnableStaffTelegramSubscriber(row: {
+    telegramUserId: string;
+    telegramDisplayName: string | null;
+    telegramUsername: string | null;
+  }) {
+    const label =
+      row.telegramDisplayName ||
+      (row.telegramUsername ? `@${row.telegramUsername}` : 'this Telegram staff member');
+    setStaffTelegramSubscriberBusyId(row.telegramUserId);
+    try {
+      const response = await fetch(
+        `/api/coadmin/staff-telegram-subscribers/${encodeURIComponent(row.telegramUserId)}/enable`,
+        {
+          method: 'POST',
+          headers: await getApiAuthHeaders(true, { action: 'update' }),
+        }
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Unable to enable Telegram staff.');
+      }
+      setMessage(`Telegram access enabled for ${label}.`);
+      await loadStaffTelegramSubscribers();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to enable Telegram staff.');
+    } finally {
+      setStaffTelegramSubscriberBusyId(null);
     }
   }
   const [showCarerEscalationSplash, setShowCarerEscalationSplash] = useState(false);
@@ -4227,6 +4438,69 @@ export default function CoadminPage() {
     );
   }
 
+  function renderCashoutOperationalLines(
+    task: PlayerCashoutTask,
+    {
+      toneClass = 'text-cyan-100/70',
+      showExpires = false,
+    }: { toneClass?: string; showExpires?: boolean } = {}
+  ) {
+    const status = getEffectivePlayerCashoutTaskStatus(task);
+    const claimName = telegramOperationalPersonLabel(task.operationalClaim);
+    const claimUser = telegramOperationalUsernameLine(task.operationalClaim);
+    const completeName = telegramOperationalPersonLabel(task.operationalCompletion);
+    const completeUser = telegramOperationalUsernameLine(task.operationalCompletion);
+    const expiresLabel =
+      showExpires && task.expiresAt ? formatDateTime(task.expiresAt) : null;
+
+    if (status === 'in_progress' && taskHasTelegramClaim(task) && claimName) {
+      return (
+        <div className={`mt-1 space-y-0.5 text-xs ${toneClass}`}>
+          <p className="font-semibold text-amber-100">IN PROGRESS</p>
+          <p className="font-semibold">Claimed via Telegram by {claimName}</p>
+          {claimUser ? <p>{claimUser}</p> : null}
+          {expiresLabel ? <p>Claim expires: {expiresLabel}</p> : null}
+          {task.assignedHandlerUsername ? (
+            <p className="opacity-80">Internal handler: {task.assignedHandlerUsername}</p>
+          ) : null}
+        </div>
+      );
+    }
+
+    if (status === 'completed' && taskHasTelegramCompletion(task) && completeName) {
+      return (
+        <div className={`mt-1 space-y-0.5 text-xs ${toneClass}`}>
+          <p className="font-semibold">Completed via Telegram by {completeName}</p>
+          {completeUser ? <p>{completeUser}</p> : null}
+          {task.assignedHandlerUsername ? (
+            <p className="opacity-80">Financial handler: {task.assignedHandlerUsername}</p>
+          ) : null}
+        </div>
+      );
+    }
+
+    if (status === 'completed') {
+      return (
+        <div className={`mt-1 space-y-0.5 text-xs ${toneClass}`}>
+          <p>Completed by: {task.assignedHandlerUsername || 'Unknown'}</p>
+          {taskHasTelegramClaim(task) && claimName ? (
+            <p className="opacity-80">Previously claimed via Telegram by {claimName}</p>
+          ) : null}
+        </div>
+      );
+    }
+
+    if (status === 'in_progress') {
+      return (
+        <p className={`mt-1 text-xs ${toneClass}`}>
+          Handler: {task.assignedHandlerUsername || 'Unknown'}
+        </p>
+      );
+    }
+
+    return null;
+  }
+
   return (
     <ProtectedRoute allowedRoles={['coadmin']}>
       <RoleSidebarLayout
@@ -4283,6 +4557,144 @@ export default function CoadminPage() {
                   <button type="button" onClick={() => void handleCopyPlayerSignupCode()} disabled={!playerSignupCode || playerSignupCodeLoading} className="rounded-xl bg-cyan-400 px-4 py-2 text-sm font-bold text-slate-950 transition hover:bg-cyan-300 disabled:opacity-50">Copy</button>
                   <button type="button" onClick={() => void handleRotatePlayerSignupCode()} disabled={playerSignupCodeRotating || playerSignupCodeLoading} className="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-bold text-white transition hover:bg-white/15 disabled:opacity-50">{playerSignupCodeRotating ? 'Generating…' : 'Generate New Code'}</button>
                 </div>
+              </div>
+            </section>
+
+            <section className="mt-4 rounded-2xl border border-violet-400/25 bg-violet-500/10 p-5">
+              <p className="text-sm font-semibold uppercase tracking-wide text-violet-200">
+                Staff Telegram Integration
+              </p>
+              <p className="mt-2 text-sm text-neutral-300">
+                Identity and access only — connect staff to the Royal Support notification bot.
+                This section does not show cash-out financial totals.
+              </p>
+              <p className="mt-1 text-xs text-neutral-400">
+                Share your Integration Code. Connected Telegram Staff appear below as Active,
+                Notifications Off, or Disabled.
+              </p>
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div>
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-violet-200/80">
+                    Integration Code
+                  </p>
+                  <code className="rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-lg font-bold tracking-wider text-white">
+                    {staffTelegramIntegrationCodeLoading
+                      ? 'Loading…'
+                      : staffTelegramIntegrationCode || 'Unavailable'}
+                  </code>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleCopyStaffTelegramIntegrationCode()}
+                    disabled={
+                      !staffTelegramIntegrationCode || staffTelegramIntegrationCodeLoading
+                    }
+                    className="rounded-xl bg-violet-400 px-4 py-2 text-sm font-bold text-slate-950 transition hover:bg-violet-300 disabled:opacity-50"
+                  >
+                    Copy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleRotateStaffTelegramIntegrationCode()}
+                    disabled={
+                      staffTelegramIntegrationCodeRotating ||
+                      staffTelegramIntegrationCodeLoading
+                    }
+                    className="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-bold text-white transition hover:bg-white/15 disabled:opacity-50"
+                  >
+                    {staffTelegramIntegrationCodeRotating
+                      ? 'Generating…'
+                      : 'Generate New Code'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-5 border-t border-white/10 pt-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-semibold uppercase tracking-wide text-violet-200">
+                    Connected Telegram Staff
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void loadStaffTelegramSubscribers()}
+                    disabled={staffTelegramSubscribersLoading}
+                    className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-violet-100 hover:bg-white/10 disabled:opacity-50"
+                  >
+                    {staffTelegramSubscribersLoading ? 'Refreshing…' : 'Refresh'}
+                  </button>
+                </div>
+                {staffTelegramSubscribersLoading ? (
+                  <p className="mt-3 text-sm text-neutral-400">Loading connected staff…</p>
+                ) : staffTelegramSubscribersError ? (
+                  <p className="mt-3 text-sm text-rose-200">{staffTelegramSubscribersError}</p>
+                ) : staffTelegramSubscribers.length === 0 ? (
+                  <p className="mt-3 text-sm text-neutral-400">
+                    No Telegram staff are connected yet. Share your Staff Telegram Integration
+                    Code with your staff.
+                  </p>
+                ) : (
+                  <div className="mt-3 space-y-2">
+                    {staffTelegramSubscribers.map((row) => {
+                      const status = staffTelegramSubscriberStatusLabel(row);
+                      const busy = staffTelegramSubscriberBusyId === row.telegramUserId;
+                      return (
+                        <div
+                          key={row.telegramUserId}
+                          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/25 px-4 py-3"
+                        >
+                          <div>
+                            <p className="text-sm font-semibold text-white">
+                              {row.telegramDisplayName ||
+                                (row.telegramUsername
+                                  ? `@${row.telegramUsername}`
+                                  : 'Telegram staff')}
+                            </p>
+                            {row.telegramUsername ? (
+                              <p className="text-xs text-neutral-400">@{row.telegramUsername}</p>
+                            ) : null}
+                            <p className="mt-1 text-xs text-neutral-500">
+                              {row.linkedAt
+                                ? `Linked ${formatDateTime(row.linkedAt)}`
+                                : 'Linked'}
+                              {' · '}
+                              <span
+                                className={
+                                  status === 'Active'
+                                    ? 'text-emerald-300'
+                                    : status === 'Disabled'
+                                      ? 'text-rose-300'
+                                      : 'text-amber-200'
+                                }
+                              >
+                                {status}
+                              </span>
+                            </p>
+                          </div>
+                          {row.disabledByCoadmin ? (
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void handleEnableStaffTelegramSubscriber(row)}
+                              className="rounded-xl bg-emerald-400 px-3 py-2 text-xs font-bold text-slate-950 hover:bg-emerald-300 disabled:opacity-50"
+                            >
+                              {busy ? 'Working…' : 'Enable'}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void handleDisableStaffTelegramSubscriber(row)}
+                              className="rounded-xl border border-rose-400/40 bg-rose-500/15 px-3 py-2 text-xs font-bold text-rose-100 hover:bg-rose-500/25 disabled:opacity-50"
+                            >
+                              {busy ? 'Working…' : 'Disable'}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </section>
 
@@ -4528,6 +4940,12 @@ export default function CoadminPage() {
                                 Amount: {formatUsdFromNprDisplay(task.amountNpr || 0)}
                               </p>
                               {renderPlayerCashoutPayment(task)}
+                              {isInProgress
+                                ? renderCashoutOperationalLines(task, {
+                                    toneClass: 'text-cyan-100/70',
+                                    showExpires: true,
+                                  })
+                                : null}
                             </div>
                             <div className="flex min-w-[130px] flex-col gap-2">
                               <button
@@ -4647,9 +5065,10 @@ export default function CoadminPage() {
                                 Amount: {formatUsdFromNprDisplay(task.amountNpr || 0)}
                               </p>
                               {renderPlayerCashoutPayment(task)}
-                              <p className="mt-1 text-xs text-amber-100/70">
-                                Handler: {task.assignedHandlerUsername || 'Unknown'}
-                              </p>
+                              {renderCashoutOperationalLines(task, {
+                                toneClass: 'text-amber-100/70',
+                                showExpires: true,
+                              })}
                             </div>
                             <button
                               type="button"
@@ -4690,9 +5109,9 @@ export default function CoadminPage() {
                         <p className="mt-1 text-xs text-emerald-100/70">
                           Completed: {formatDateTime(task.completedAt || null) || 'Done'}
                         </p>
-                        <p className="mt-1 text-xs text-emerald-100/70">
-                          Handler: {task.assignedHandlerUsername || 'Unknown'}
-                        </p>
+                        {renderCashoutOperationalLines(task, {
+                          toneClass: 'text-emerald-100/70',
+                        })}
                       </div>
                     ))}
                   </div>

@@ -6,6 +6,18 @@ import type { PoolClient } from 'pg';
 import { evaluateWithdrawalPolicy } from '@/lib/economy/policy';
 import { getCoadminMaintenanceBreak } from '@/lib/maintenance/admin';
 import { CashoutClaimConflictError } from '@/lib/cashouts/playerCashoutClaimConflict';
+import {
+  clearCashoutOperationalClaimSnapshot,
+  insertCashoutOperationalEvent,
+  readOperationalAttributionFromTaskRow,
+  readOperationalClaimFromTaskRow,
+  readOperationalCompletionFromTaskRow,
+  setCashoutOperationalClaimSnapshot,
+  setCashoutOperationalCompletionSnapshot,
+  telegramCashoutClaimIdempotencyKey,
+  telegramCashoutCompleteIdempotencyKey,
+  type TelegramOperationalActor,
+} from '@/lib/sql/cashoutOperationalEvents';
 import { cleanText, getPlayerMirrorPool, toIsoString } from '@/lib/sql/playerMirrorCommon';
 import {
   claimAuthorityOperation,
@@ -73,6 +85,8 @@ export type AuthorityCashoutCompleteInput = {
   isAdmin: boolean;
   scopeUid: string | null;
   idempotencyKey?: string | null;
+  /** Optional Telegram operational actor (Phase 6). Does not replace AppBeg financial actor. */
+  operationalActor?: TelegramOperationalActor | null;
 };
 
 export type AuthorityCashoutCompleteResult = {
@@ -105,6 +119,8 @@ export type AuthorityCashoutStartInput = {
   actorRole: string;
   isAdmin: boolean;
   scopeUid: string | null;
+  /** Optional Telegram operational actor (Phase 5). Does not replace AppBeg financial actor. */
+  operationalActor?: TelegramOperationalActor | null;
 };
 
 export type AuthorityCashoutStartResult = {
@@ -1178,6 +1194,8 @@ export async function completePlayerCashoutTaskInSql(
     if (!taskLock.rows.length) throw new Error('Cashout task not found.');
     const task = taskLock.rows[0] as Record<string, unknown>;
     const status = cleanText(task.status).toLowerCase();
+    const operationalActor = input.operationalActor || null;
+    const operationalTelegramUserId = cleanText(operationalActor?.telegramUserId);
 
     if (status === 'completed') {
       await client.query('COMMIT');
@@ -1185,6 +1203,20 @@ export async function completePlayerCashoutTaskInSql(
     }
     if (status !== 'pending' && status !== 'in_progress') {
       throw new Error('Cashout task is not available to complete.');
+    }
+
+    // Telegram DONE is intentionally stricter than AppBeg UI: CLAIM first.
+    if (operationalActor && operationalTelegramUserId) {
+      if (status !== 'in_progress') {
+        throw new Error('Cashout task must be claimed before Telegram completion.');
+      }
+      const currentClaim = readOperationalClaimFromTaskRow(task);
+      if (
+        cleanText(currentClaim?.actionSource) !== 'telegram' ||
+        cleanText(currentClaim?.telegramUserId) !== operationalTelegramUserId
+      ) {
+        throw new Error('Only the Telegram claimant can complete this cash-out.');
+      }
     }
 
     const taskScope = cleanText(task.coadmin_uid);
@@ -1430,6 +1462,36 @@ export async function completePlayerCashoutTaskInSql(
       updatedAt: nowIso,
     });
 
+    if (operationalActor && operationalTelegramUserId) {
+      const opsIdempotency =
+        cleanText(operationalActor.idempotencyKey) ||
+        telegramCashoutCompleteIdempotencyKey(taskId, operationalTelegramUserId);
+      await insertCashoutOperationalEvent(client, {
+        cashoutTaskId: taskId,
+        coadminUid: taskScope,
+        eventType: 'telegram_complete',
+        actionSource: cleanText(operationalActor.actionSource) || 'telegram',
+        telegramUserId: operationalTelegramUserId,
+        telegramUsername: operationalActor.telegramUsername,
+        telegramDisplayName: operationalActor.telegramDisplayName,
+        actorAppbegUid: actorUid,
+        idempotencyKey: opsIdempotency,
+        occurredAt: nowIso,
+        metadata: {
+          amountNpr: requestedAmount,
+          rewardAppliedNpr,
+        },
+      });
+      await setCashoutOperationalCompletionSnapshot(client, {
+        cashoutTaskId: taskId,
+        actionSource: cleanText(operationalActor.actionSource) || 'telegram',
+        telegramUserId: operationalTelegramUserId,
+        telegramUsername: operationalActor.telegramUsername,
+        telegramDisplayName: operationalActor.telegramDisplayName,
+        completedAt: nowIso,
+      });
+    }
+
     await client.query(
       `UPDATE public.authority_operations SET payload = $2::jsonb WHERE operation_key = $1`,
       [
@@ -1440,6 +1502,7 @@ export async function completePlayerCashoutTaskInSql(
           eventId,
           vendorId: resolvedVendorFields.vendorId,
           vendorCode: resolvedVendorFields.vendorCode,
+          telegramUserId: operationalTelegramUserId || null,
         }),
       ]
     );
@@ -1467,6 +1530,7 @@ export async function completePlayerCashoutTaskInSql(
       actorUid,
       actorRole,
       coadminUid: taskScope,
+      telegramUserId: operationalTelegramUserId || null,
       vendorId: resolvedVendorFields.vendorId,
       vendorCode: resolvedVendorFields.vendorCode,
     });
@@ -1529,7 +1593,37 @@ export async function startPlayerCashoutTaskInSql(
       throw new Error('Forbidden: cashout task is outside your scope.');
     }
     const assignedHandlerUid = cleanText(task.assigned_handler_uid);
+    const operationalActor = input.operationalActor || null;
+    const operationalTelegramUserId = cleanText(operationalActor?.telegramUserId);
+
     if (status !== 'pending' || assignedHandlerUid) {
+      // Idempotent Telegram claim replay: same Coadmin actor + same Telegram user.
+      if (
+        operationalActor &&
+        operationalTelegramUserId &&
+        status === 'in_progress' &&
+        assignedHandlerUid === actorUid
+      ) {
+        const currentOps = readOperationalAttributionFromTaskRow(task);
+        if (cleanText(currentOps?.telegramUserId) === operationalTelegramUserId) {
+          const existingExpiresMs = task.expires_at
+            ? Date.parse(String(task.expires_at))
+            : expiresAtMs;
+          await client.query('COMMIT');
+          console.info('[CASHOUT_TASK_CLAIM] idempotent_replay', {
+            taskId,
+            actorUid,
+            actorRole,
+            telegramUserId: operationalTelegramUserId,
+          });
+          return {
+            success: true,
+            duplicate: true,
+            taskId,
+            expiresAtMs: Number.isFinite(existingExpiresMs) ? existingExpiresMs : expiresAtMs,
+          };
+        }
+      }
       console.warn('[CASHOUT_TASK_CLAIM] conflictAlreadyClaimed', {
         taskId,
         actorUid,
@@ -1550,6 +1644,32 @@ export async function startPlayerCashoutTaskInSql(
       payload: {},
     });
     if (claim.duplicate) {
+      // Same Coadmin claim operation key — reconcile Telegram replay vs other winner.
+      const refreshed = await client.query(
+        `SELECT * FROM public.player_cashout_tasks_cache WHERE firebase_id = $1 AND deleted_at IS NULL FOR UPDATE`,
+        [taskId]
+      );
+      const latest = (refreshed.rows[0] || task) as Record<string, unknown>;
+      if (
+        operationalActor &&
+        operationalTelegramUserId &&
+        cleanText(latest.status).toLowerCase() === 'in_progress' &&
+        cleanText(latest.assigned_handler_uid) === actorUid
+      ) {
+        const currentOps = readOperationalAttributionFromTaskRow(latest);
+        if (cleanText(currentOps?.telegramUserId) === operationalTelegramUserId) {
+          const existingExpiresMs = latest.expires_at
+            ? Date.parse(String(latest.expires_at))
+            : expiresAtMs;
+          await client.query('COMMIT');
+          return {
+            success: true,
+            duplicate: true,
+            taskId,
+            expiresAtMs: Number.isFinite(existingExpiresMs) ? existingExpiresMs : expiresAtMs,
+          };
+        }
+      }
       console.warn('[CASHOUT_TASK_CLAIM] conflictAlreadyClaimed', {
         taskId,
         actorUid,
@@ -1558,7 +1678,7 @@ export async function startPlayerCashoutTaskInSql(
         assignedHandlerUid: assignedHandlerUid || null,
         duplicateOperation: true,
       });
-      throw cashoutClaimConflictFromTaskRow(taskId, task);
+      throw cashoutClaimConflictFromTaskRow(taskId, latest);
     }
 
     const taskRaw = {
@@ -1610,6 +1730,35 @@ export async function startPlayerCashoutTaskInSql(
       updatedAt: nowIso,
     });
 
+    if (operationalActor && operationalTelegramUserId) {
+      const idempotencyKey =
+        cleanText(operationalActor.idempotencyKey) ||
+        telegramCashoutClaimIdempotencyKey(taskId, operationalTelegramUserId);
+      await insertCashoutOperationalEvent(client, {
+        cashoutTaskId: taskId,
+        coadminUid: taskScope,
+        eventType: 'telegram_claim',
+        actionSource: cleanText(operationalActor.actionSource) || 'telegram',
+        telegramUserId: operationalTelegramUserId,
+        telegramUsername: operationalActor.telegramUsername,
+        telegramDisplayName: operationalActor.telegramDisplayName,
+        actorAppbegUid: actorUid,
+        idempotencyKey,
+        occurredAt: nowIso,
+        metadata: {
+          expiresAt: expiresAtIso,
+        },
+      });
+      await setCashoutOperationalClaimSnapshot(client, {
+        cashoutTaskId: taskId,
+        actionSource: cleanText(operationalActor.actionSource) || 'telegram',
+        telegramUserId: operationalTelegramUserId,
+        telegramUsername: operationalActor.telegramUsername,
+        telegramDisplayName: operationalActor.telegramDisplayName,
+        claimedAt: nowIso,
+      });
+    }
+
     await client.query(
       `UPDATE public.authority_operations SET payload = $2::jsonb WHERE operation_key = $1`,
       [operationKey, JSON.stringify({ taskId, expiresAtMs })]
@@ -1622,6 +1771,7 @@ export async function startPlayerCashoutTaskInSql(
       actorRole,
       coadminUid: taskScope,
       expiresAtMs,
+      telegramUserId: operationalTelegramUserId || null,
     });
     return { success: true, duplicate: false, taskId, expiresAtMs };
   } catch (error) {
@@ -1803,6 +1953,9 @@ export async function releasePlayerCashoutTaskInSql(
       source: input.reason === 'timeout' ? 'authority_cashout_timeout_release' : 'authority_cashout_release',
       rawFirestoreData: taskRaw,
     });
+
+    // Clear current Telegram operational claimant; retain historical ops events.
+    await clearCashoutOperationalClaimSnapshot(client, taskId);
 
     await writeCashoutOutbox(client, {
       playerUid,
