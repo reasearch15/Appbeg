@@ -105,7 +105,7 @@ function Bonus(props: Props) {
 
   return (
 
-              <div className="relative space-y-5 sm:space-y-6">
+              <div className="player-bonus-page relative space-y-5 sm:space-y-6">
                 <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex flex-col gap-2 px-2 pt-2 sm:px-4 sm:pt-3">
                 <AnimatePresence>
                   {showBonusPanelHint ? (
@@ -142,7 +142,7 @@ function Bonus(props: Props) {
                 </AnimatePresence>
                 </div>
                 {arbPlayerModeEnabled ? (
-                  <div className="rounded-3xl border border-violet-400/25 bg-gradient-to-br from-violet-950/50 via-[#14091f]/80 to-black/80 p-4 sm:p-5">
+                  <div className="player-bonus-lock-panel rounded-3xl border border-violet-400/25 bg-gradient-to-br from-violet-950/50 via-[#14091f]/80 to-black/80 p-4 sm:p-5">
                     <p className="text-xs font-black uppercase tracking-[0.28em] text-violet-200/80">
                       Bonus Events
                     </p>
@@ -209,7 +209,7 @@ function Bonus(props: Props) {
                       </p>
                     </div>
                   ) : (
-                    <div className="relative z-10 flex w-full min-w-0 max-w-2xl flex-col items-center justify-center lg:max-w-4xl">
+                    <div className="player-bonus-event-wrap relative z-10 flex w-full min-w-0 max-w-2xl flex-col items-center justify-center lg:max-w-4xl">
                       <AnimatePresence initial={false} mode="wait">
                         <motion.div
                           key={playerBonusEvents[activeBonusCarouselIndex]?.id || 'bonus-events-card'}
@@ -217,7 +217,7 @@ function Bonus(props: Props) {
                           animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                           exit={{ opacity: 0, y: -12, filter: 'blur(8px)' }}
                           transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-                          className="mx-auto w-full rounded-3xl border border-fuchsia-400/25 bg-gradient-to-br from-white/[0.08] via-violet-950/45 to-black/70 p-5 text-center shadow-[0_0_36px_-12px_rgba(244,114,182,0.45)] sm:p-6"
+                          className="player-bonus-event-card mx-auto w-full rounded-3xl border border-fuchsia-400/25 bg-gradient-to-br from-white/[0.08] via-violet-950/45 to-black/70 p-5 text-center shadow-[0_0_36px_-12px_rgba(244,114,182,0.45)] sm:p-6"
                           onTouchStart={(event) => {
                             bonusSwipeStartXRef.current = event.touches[0]?.clientX ?? null;
                           }}
@@ -349,14 +349,14 @@ function Bonus(props: Props) {
                   )}
                 </div>
 
-                <div className="fire-panel fire-purple rounded-3xl border border-violet-400/25 bg-gradient-to-br from-[#21102f]/90 via-[#14091f]/92 to-black/85 p-5 shadow-[0_0_34px_-16px_rgba(168,85,247,0.55)] sm:p-6">
+                <div className="player-bonus-guide fire-panel fire-purple rounded-3xl border border-violet-400/25 bg-gradient-to-br from-[#21102f]/90 via-[#14091f]/92 to-black/85 p-5 shadow-[0_0_34px_-16px_rgba(168,85,247,0.55)] sm:p-6">
                   <p className="text-xs font-black uppercase tracking-[0.28em] text-fuchsia-200/80">
                     Bonus Event Guide
                   </p>
                   <h3 className="mt-2 text-2xl font-black text-white sm:text-[1.8rem]">
                     How bonus events work
                   </h3>
-                  <div className="mt-4 max-w-[48rem] space-y-3 text-sm leading-relaxed text-violet-100/82 sm:text-base">
+                  <div className="player-bonus-guide__copy mt-4 max-w-[48rem] space-y-3 text-sm leading-relaxed text-violet-100/82 sm:text-base">
                     <p>
                       Bonus events are limited drops. When a bonus appears, you can open it and
                       try to claim it before another player does.

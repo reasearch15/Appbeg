@@ -178,11 +178,16 @@ export default function ReachOutView({
 
   if (playerLightweightMode && !selectedChatUser) {
     return (
-      <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-amber-300/20 bg-gradient-to-b from-[#1d1009] to-[#0d0705] p-3 shadow-2xl shadow-black/35 sm:p-4">
+      <div className="player-agents-list flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-amber-300/20 bg-gradient-to-b from-[#1d1009] to-[#0d0705] p-3 shadow-2xl shadow-black/35 sm:p-4">
         <div className="mb-3 flex shrink-0 items-center justify-between">
-          <h2 className="text-lg font-black tracking-tight text-amber-100 lg:text-xl">
-            Agents
-          </h2>
+          <div className="min-w-0">
+            <h2 className="text-lg font-black tracking-tight text-amber-100 lg:text-xl">
+              Agents
+            </h2>
+            <p className="player-agents-list__lede mt-0.5 hidden text-xs font-semibold text-amber-100/55 lg:block">
+              Connect with our team
+            </p>
+          </div>
 
           {totalUnread > 0 && (
             <span className="rounded-full bg-red-500 px-2.5 py-1 text-xs font-bold text-white">
@@ -196,8 +201,8 @@ export default function ReachOutView({
             No agents available.
           </div>
         ) : (
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="player-agents-list__scroller min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
+            <div className="player-agents-list__grid grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {chatUsers.map((user) => {
                 const unreadCount = unreadCounts[user.uid] || 0;
 
@@ -205,7 +210,7 @@ export default function ReachOutView({
                   <button
                     key={user.id}
                     onClick={() => onSelectUser(user)}
-                    className={`flex w-full min-w-0 items-center gap-3 rounded-2xl border p-3 text-left shadow-lg transition active:scale-[0.99] ${
+                    className={`player-agents-card flex w-full min-w-0 items-center gap-3 rounded-2xl border p-3 text-left shadow-lg transition active:scale-[0.99] ${
                       unreadCount > 0
                         ? 'border-red-400/30 bg-red-500/10 text-white shadow-red-950/20 hover:bg-red-500/15'
                         : 'border-amber-200/10 bg-amber-100/8 text-amber-50 shadow-black/20 hover:border-amber-200/20 hover:bg-amber-100/10'
@@ -247,6 +252,9 @@ export default function ReachOutView({
                       <p className="truncate text-xs font-medium text-amber-100/50">
                         {getOnlineStatusLabel(onlineByUid, user)} -{' '}
                         {reachOutAgentRoleLabel(user)}
+                      </p>
+                      <p className="player-agents-card__hint mt-1 hidden text-[11px] font-black uppercase tracking-wide text-amber-200/70 lg:block">
+                        Open chat
                       </p>
                     </div>
                   </button>

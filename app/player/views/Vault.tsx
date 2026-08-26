@@ -335,8 +335,8 @@ function Vault(props: VaultProps) {
   }, [gameBackgroundImageByKey, loadingList, visibleCredentials]);
 
   return (
-    <div className="space-y-5 sm:space-y-6">
-      <div className="fire-panel fire-orange fire-hero rounded-3xl border border-amber-400/35 bg-gradient-to-br from-amber-500/15 via-fuchsia-900/20 to-black/50 p-5 shadow-lg sm:p-6">
+    <div className="player-vault-page space-y-5 sm:space-y-6">
+      <div className="player-vault-header fire-panel fire-orange fire-hero rounded-3xl border border-amber-400/35 bg-gradient-to-br from-amber-500/15 via-fuchsia-900/20 to-black/50 p-5 shadow-lg sm:p-6">
         <p className="text-xs font-black uppercase tracking-[0.35em] text-amber-200/90 sm:text-sm">
           VIP vault
         </p>
@@ -398,7 +398,7 @@ function Vault(props: VaultProps) {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:gap-5">
+              <div className="player-vault-grid grid grid-cols-1 gap-3 sm:grid-cols-2 lg:gap-5">
                 {visibleCredentials.map((login: PlayerGameLogin) => {
                   const fallbackFrontendUrl =
                     coadminFrontendLinkByGameKey[
