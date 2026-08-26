@@ -186,17 +186,17 @@ function Lobby(props: Props) {
                   </div>
                 </motion.div>
 
-                <div className="fire-panel fire-orange rounded-2xl border border-rose-500/35 bg-gradient-to-br from-rose-950/50 to-black/50 p-4 shadow-lg backdrop-blur-md sm:p-5">
+                <div className="fire-panel fire-orange rounded-2xl border border-rose-500/35 bg-gradient-to-br from-rose-950/50 to-black/50 p-4 shadow-lg backdrop-blur-md sm:p-5 lg:px-6 lg:py-5">
                   <p className="flex items-center gap-2 text-xl font-black uppercase tracking-wide text-rose-200/95">
                     <span className="text-lg">⚠️</span> Redeem accuracy
                   </p>
-                  <p className="mt-2 text-base leading-relaxed text-rose-100/90 sm:text-[1.05rem]">
+                  <p className="mt-2 max-w-[42rem] text-base leading-relaxed text-rose-100/90 sm:text-[1.05rem]">
                     If a redeem looks too big or wrong, you risk penalties or account block. Only
                     submit truthful amounts.
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
                   {[
                     { icon: '🎮', label: 'Games', value: gameLogins.length, tone: 'amber' },
                     { icon: '🎧', label: 'Agents', value: agents.length, tone: 'purple' },

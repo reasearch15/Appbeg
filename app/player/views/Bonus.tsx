@@ -209,7 +209,7 @@ function Bonus(props: Props) {
                       </p>
                     </div>
                   ) : (
-                    <div className="relative z-10 flex w-full min-w-0 max-w-2xl flex-col items-center justify-center">
+                    <div className="relative z-10 flex w-full min-w-0 max-w-2xl flex-col items-center justify-center lg:max-w-4xl">
                       <AnimatePresence initial={false} mode="wait">
                         <motion.div
                           key={playerBonusEvents[activeBonusCarouselIndex]?.id || 'bonus-events-card'}
@@ -356,7 +356,7 @@ function Bonus(props: Props) {
                   <h3 className="mt-2 text-2xl font-black text-white sm:text-[1.8rem]">
                     How bonus events work
                   </h3>
-                  <div className="mt-4 space-y-3 text-sm leading-relaxed text-violet-100/82 sm:text-base">
+                  <div className="mt-4 max-w-[48rem] space-y-3 text-sm leading-relaxed text-violet-100/82 sm:text-base">
                     <p>
                       Bonus events are limited drops. When a bonus appears, you can open it and
                       try to claim it before another player does.

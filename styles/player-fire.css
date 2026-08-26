@@ -62,6 +62,20 @@
   padding: clamp(1rem, 2vw, 1.5rem) 0 clamp(1.5rem, 4vw, 3rem);
 }
 
+/* Live player content column: cap at the existing 1380px shell width.
+   Applied only from lg so mobile/tablet stay full-bleed inside the main column. */
+.player-desktop-content {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .player-desktop-content {
+    max-width: 1380px;
+    margin-inline: auto;
+  }
+}
+
 .player-fire-background {
   position: absolute;
   inset: 0;
@@ -1004,31 +1018,59 @@
     min-height: 0 !important;
     height: auto !important;
     margin-top: 0 !important;
-    padding: 1.1rem 1.15rem 1.2rem !important;
+    padding: 1.15rem 1.35rem 1.3rem !important;
   }
 
   .player-fire-page .player-dashboard-hero .player-dashboard-hero__content {
-    display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: wrap !important;
-    column-gap: 1.25rem !important;
-    row-gap: 0.75rem !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1.4fr) minmax(18rem, 22rem) !important;
+    column-gap: 1.5rem !important;
+    row-gap: 0.85rem !important;
     align-items: center !important;
-    justify-content: center !important;
+    justify-content: stretch !important;
+    flex-wrap: unset !important;
+    flex-direction: unset !important;
   }
 
   .player-fire-page .player-dashboard-hero .player-dashboard-hero__intro {
-    flex: 1 1 calc(100% - min(17rem, 34vw) - 1.25rem);
+    grid-column: 1;
+    grid-row: 1;
+    flex: none;
+    max-width: none;
+    text-align: left;
+  }
+
+  .player-fire-page .player-dashboard-hero .player-dashboard-hero__intro > p:first-of-type,
+  .player-fire-page .player-dashboard-hero .player-dashboard-hero__intro h2,
+  .player-fire-page .player-dashboard-hero .player-dashboard-hero__intro > p:last-of-type {
+    margin-left: 0;
+    margin-right: 0;
+    text-align: left;
+    justify-content: flex-start;
   }
 
   .player-fire-page .player-dashboard-hero .player-dashboard-hero__main {
-    flex: 1 1 calc(100% - min(17rem, 34vw) - 1.25rem);
+    grid-column: 1;
+    grid-row: 2;
+    flex: none;
+    max-width: none;
+  }
+
+  .player-fire-page .player-dashboard-hero .player-dashboard-hero__main .max-w-lg {
+    max-width: 100%;
   }
 
   .player-fire-page .player-dashboard-hero .player-dashboard-hero__cta {
-    flex: 0 0 min(17rem, 34vw);
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    flex: none;
     width: 100% !important;
-    align-self: center !important;
+    max-width: none !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    align-self: stretch !important;
+    justify-content: center !important;
+    height: 100%;
   }
 }
 
@@ -1301,5 +1343,82 @@
   .player-fire-page.player-mobile-lite [class*="drop-shadow"],
   .player-fire-page.player-mobile-lite [class*="shadow-"] {
     filter: none !important;
+  }
+}
+
+/* Play cards: mobile keeps full-bleed 100% 100% art behind chrome.
+   Desktop (lg+) uses a 4:3 cover tile so near-square artwork is not stretched. */
+.player-fire-page .player-play-game-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  filter: brightness(1.12) saturate(1.08);
+}
+
+.player-fire-page .player-play-game-card__art,
+.player-fire-page .player-play-game-card__body {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.player-fire-page .player-play-game-card__art {
+  z-index: 0;
+  pointer-events: none;
+  align-self: stretch;
+  background-size: 100% 100%;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.player-fire-page .player-play-game-card__body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+@media (min-width: 1024px) {
+  .player-fire-page .player-play-game-card {
+    display: flex;
+    flex-direction: column;
+    filter: none;
+  }
+
+  .player-fire-page .player-play-game-card__art,
+  .player-fire-page .player-play-game-card__body {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .player-fire-page .player-play-game-card__art {
+    aspect-ratio: 4 / 3;
+    width: 100%;
+    flex: 0 0 auto;
+    align-self: auto;
+    border-radius: 0.85rem;
+    background-size: cover;
+    background-position: center;
+    filter: brightness(1.12) saturate(1.08);
+  }
+
+  .player-fire-page .player-play-game-card__body {
+    margin-top: 0.45rem;
+  }
+}
+
+/* Bonus showcase: drop viewport min-height on desktop so the event card is the focus. */
+@media (min-width: 1024px) {
+  .player-fire-page .player-bonus-drops-panel {
+    min-height: 0;
+    justify-content: flex-start;
+    padding-top: 2.25rem;
+    padding-bottom: 2.25rem;
+  }
+
+  /* fire-panel sets position:relative with higher specificity than lg:sticky. */
+  .player-fire-page aside.fire-panel {
+    position: sticky;
+    top: 0;
+    height: 100dvh;
   }
 }

@@ -243,7 +243,7 @@ function PlayLoadingShell() {
         <div className="mt-3 h-8 w-48 rounded bg-white/15" />
         <div className="mt-3 h-4 w-full max-w-md rounded bg-amber-100/10" />
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2 xl:grid-cols-3 xl:gap-3">
         {Array.from({ length: 4 }).map((_, index) => (
           <div
             key={index}
@@ -7019,11 +7019,11 @@ export default function PlayerPage() {
           ) : null}
         </AnimatePresence>
 
-        <aside className="fire-panel fire-orange relative z-20 hidden w-72 shrink-0 overflow-y-auto border-r border-amber-500/25 bg-black/45 p-5 backdrop-blur-2xl md:block xl:w-80">
+        <aside className="fire-panel fire-orange relative z-20 hidden w-72 shrink-0 overflow-y-auto border-r border-amber-500/25 bg-black/45 p-5 backdrop-blur-2xl md:block lg:sticky lg:top-0 lg:flex lg:h-[100dvh] lg:flex-col lg:overflow-hidden xl:w-80">
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-amber-500/[0.07] via-transparent to-purple-600/10" />
           <div className="pointer-events-none absolute top-0 left-0 h-40 w-full bg-[radial-gradient(ellipse_at_top,rgba(250,204,21,0.18),transparent_70%)]" />
 
-          <div className="relative z-10">
+          <div className="relative z-10 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-y-auto lg:overscroll-contain">
             <div className="fire-panel fire-orange fire-hero mb-8 rounded-2xl border border-amber-400/35 bg-gradient-to-br from-amber-500/15 to-purple-900/25 p-5 text-center shadow-[0_0_40px_-12px_rgba(234,179,8,0.4)]">
               <p className="text-xs font-black uppercase tracking-[0.4em] text-amber-300">
                 Royal
@@ -7081,7 +7081,7 @@ export default function PlayerPage() {
 
           <div className="relative z-10 flex min-h-0 flex-1 flex-col">
             <div
-              className="flex min-h-0 flex-1 flex-col overflow-x-hidden px-3 pb-4 pt-4 md:px-7 md:pb-8 md:pt-6"
+              className="player-desktop-content flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-x-hidden px-3 pb-4 pt-4 md:px-7 md:pb-8 md:pt-6"
               onTouchStart={handlePanelTouchStart}
               onTouchEnd={handlePanelTouchEnd}
             >

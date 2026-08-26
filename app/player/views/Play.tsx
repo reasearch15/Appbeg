@@ -180,7 +180,7 @@ function Play(props: Props) {
                 </div>
 
                 {loadingList ? (
-                  <div className="grid grid-cols-2 gap-2 sm:items-start" aria-busy="true">
+                  <div className="grid grid-cols-2 gap-2 sm:items-start xl:grid-cols-3 xl:gap-3" aria-busy="true">
                     {Array.from({ length: 4 }).map((_, index) => (
                       <div
                         key={index}
@@ -204,7 +204,7 @@ function Play(props: Props) {
                   </div>
                 ) : (
                   <>
-                    <div className="grid grid-cols-2 gap-2 sm:items-start">
+                    <div className="grid grid-cols-2 gap-2 sm:items-start xl:grid-cols-3 xl:gap-3">
                       {visibleGameLogins.map((game: PlayerGameLogin, index: number) => {
                         const resolvedUsername = (game.gameUsername || '').trim();
                         const hasUsername = Boolean(resolvedUsername);
@@ -233,63 +233,63 @@ function Play(props: Props) {
                             role="button"
                             tabIndex={0}
                             aria-pressed={isSelected}
-                            className={`player-game-card-image fire-panel fire-orange group relative w-full self-start overflow-hidden rounded-2xl border p-2 text-left shadow-xl transition-all active:scale-[0.98] hover:scale-[1.01] hover:shadow-[0_0_26px_-8px_rgba(251,191,36,0.5)] ${
+                            className={`player-play-game-card player-game-card-image fire-panel fire-orange group relative w-full self-start overflow-hidden rounded-2xl border p-2 text-left shadow-xl transition-all active:scale-[0.98] hover:scale-[1.01] hover:shadow-[0_0_26px_-8px_rgba(251,191,36,0.5)] ${
                               isSelected
                                 ? 'border-amber-400/60 bg-gradient-to-br from-amber-500/25 to-purple-900/40 shadow-[0_0_32px_-8px_rgba(234,179,8,0.55)]'
                                 : 'border-white/10 bg-black/45 hover:border-amber-400/35'
                             }`}
-                            style={
-                              gameCardBackgroundImage
-                                ? {
-                                    backgroundImage: `linear-gradient(180deg, rgba(0, 0, 0, 0.2) 0%, rgba(0, 0, 0, 0.42) 100%), url("${gameCardBackgroundImage}")`,
-                                    backgroundSize: '100% 100%',
-                                    backgroundPosition: 'center',
-                                    backgroundRepeat: 'no-repeat',
-                                    filter: 'brightness(1.12) saturate(1.08)',
-                                  }
-                                : undefined
-                            }
                           >
+                            {gameCardBackgroundImage ? (
+                              <div
+                                className="player-play-game-card__art"
+                                style={{
+                                  backgroundImage: `linear-gradient(180deg, rgba(0, 0, 0, 0.2) 0%, rgba(0, 0, 0, 0.42) 100%), url("${gameCardBackgroundImage}")`,
+                                }}
+                                aria-hidden
+                              />
+                            ) : null}
                             <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-amber-400/15 blur-2xl" />
-                            <div className="relative flex items-start justify-center gap-2 rounded-xl border border-white/10 bg-gradient-to-b from-black/65 via-black/50 to-black/35 px-2 py-1 shadow-[0_2px_12px_rgba(0,0,0,0.35)]">
-                              <div className="min-w-0 flex-1 text-center">
-                                <h3 className="truncate bg-gradient-to-r from-amber-100 via-yellow-200 to-orange-300 bg-clip-text text-lg font-black text-transparent drop-shadow-[0_0_12px_rgba(251,191,36,0.45)]">
-                                  {game.gameName}
-                                </h3>
-                              </div>
-                            </div>
-                            {hasUsername && (
-                              <div className="relative mt-1 rounded-xl border border-white/15 bg-black/60 px-2 py-1 shadow-[0_2px_12px_rgba(0,0,0,0.35)]">
-                                <div className="flex items-center justify-between gap-1">
-                                  <p className="whitespace-nowrap text-[9px] font-bold uppercase leading-tight tracking-[0.16em] text-amber-100/80">
-                                    Game username
-                                  </p>
-                                  <button
-                                    type="button"
-                                    onClick={(event) => {
-                                      event.preventDefault();
-                                      event.stopPropagation();
-                                      void copyCredentialValue(resolvedUsername, 'Username', event);
-                                    }}
-                                    className="shrink-0 rounded-lg border border-amber-300/35 bg-amber-400/10 px-2 py-0.5 text-[9px] font-black leading-tight text-amber-50 transition hover:bg-amber-400/20"
-                                  >
-                                    Copy
-                                  </button>
+                            <div className="player-play-game-card__body">
+                              <div className="relative flex items-start justify-center gap-2 rounded-xl border border-white/10 bg-gradient-to-b from-black/65 via-black/50 to-black/35 px-2 py-1 shadow-[0_2px_12px_rgba(0,0,0,0.35)]">
+                                <div className="min-w-0 flex-1 text-center">
+                                  <h3 className="truncate bg-gradient-to-r from-amber-100 via-yellow-200 to-orange-300 bg-clip-text text-lg font-black text-transparent drop-shadow-[0_0_12px_rgba(251,191,36,0.45)]">
+                                    {game.gameName}
+                                  </h3>
                                 </div>
-                                <p className="truncate font-mono text-xs font-bold leading-tight text-white">
-                                  {resolvedUsername}
-                                </p>
                               </div>
-                            )}
-                            <span
-                              className={`relative mt-2 flex min-h-[38px] w-full items-center justify-center rounded-xl px-2 text-sm font-black transition-all duration-300 group-hover:tracking-wide ${
-                                isSelected
-                                  ? 'bg-gradient-to-r from-amber-300 via-yellow-300 to-orange-300 text-black shadow-[0_0_22px_-2px_rgba(251,191,36,0.7)]'
-                                  : 'border border-orange-200/80 bg-orange-500 text-white shadow-[0_0_18px_-6px_rgba(249,115,22,0.75)] group-hover:bg-orange-600 group-hover:shadow-[0_0_26px_-4px_rgba(249,115,22,0.95)]'
-                              }`}
-                            >
-                              {isSelected ? '🔥 Selected' : 'Tap to open'}
-                            </span>
+                              {hasUsername && (
+                                <div className="relative mt-1 rounded-xl border border-white/15 bg-black/60 px-2 py-1 shadow-[0_2px_12px_rgba(0,0,0,0.35)]">
+                                  <div className="flex items-center justify-between gap-1">
+                                    <p className="whitespace-nowrap text-[9px] font-bold uppercase leading-tight tracking-[0.16em] text-amber-100/80">
+                                      Game username
+                                    </p>
+                                    <button
+                                      type="button"
+                                      onClick={(event) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        void copyCredentialValue(resolvedUsername, 'Username', event);
+                                      }}
+                                      className="shrink-0 rounded-lg border border-amber-300/35 bg-amber-400/10 px-2 py-0.5 text-[9px] font-black leading-tight text-amber-50 transition hover:bg-amber-400/20"
+                                    >
+                                      Copy
+                                    </button>
+                                  </div>
+                                  <p className="truncate font-mono text-xs font-bold leading-tight text-white">
+                                    {resolvedUsername}
+                                  </p>
+                                </div>
+                              )}
+                              <span
+                                className={`relative mt-2 flex min-h-[38px] w-full items-center justify-center rounded-xl px-2 text-sm font-black transition-all duration-300 group-hover:tracking-wide ${
+                                  isSelected
+                                    ? 'bg-gradient-to-r from-amber-300 via-yellow-300 to-orange-300 text-black shadow-[0_0_22px_-2px_rgba(251,191,36,0.7)]'
+                                    : 'border border-orange-200/80 bg-orange-500 text-white shadow-[0_0_18px_-6px_rgba(249,115,22,0.75)] group-hover:bg-orange-600 group-hover:shadow-[0_0_26px_-4px_rgba(249,115,22,0.95)]'
+                                }`}
+                              >
+                                {isSelected ? '🔥 Selected' : 'Tap to open'}
+                              </span>
+                            </div>
                           </motion.div>
                         );
                       })}
