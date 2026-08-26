@@ -88,7 +88,7 @@ const CredentialCard = memo(function CredentialCard({
 }: CredentialCardProps) {
   const isResetLoading = credentialTaskLoadingKey === `reset_password:${login.id}`;
   const cardClassName =
-    'player-game-card-image vault-credential-card fire-panel fire-orange group relative overflow-hidden rounded-[1.7rem] border border-amber-300/25 bg-gradient-to-br from-[#3a140b]/88 via-[#5d2411]/78 to-[#261018]/92 p-3 shadow-[0_18px_40px_-18px_rgba(56,11,4,0.9)] backdrop-blur-xl transition-all sm:p-3.5 sm:hover:border-amber-300/45 sm:hover:shadow-[0_0_30px_-10px_rgba(251,191,36,0.38)]';
+    'player-game-card-image vault-credential-card fire-panel fire-orange group relative overflow-hidden rounded-[1.7rem] border border-amber-300/25 bg-gradient-to-br from-[#3a140b]/88 via-[#5d2411]/78 to-[#261018]/92 p-3 shadow-[0_18px_40px_-18px_rgba(56,11,4,0.9)] backdrop-blur-xl transition-all sm:p-3.5 sm:hover:border-amber-300/45 sm:hover:shadow-[0_0_30px_-10px_rgba(251,191,36,0.38)] lg:flex lg:h-full lg:flex-col lg:rounded-3xl';
   const cardStyle = gameCardBackgroundImage
     ? {
         backgroundImage: `linear-gradient(180deg, rgba(0, 0, 0, 0.24) 0%, rgba(0, 0, 0, 0.54) 100%), url("${gameCardBackgroundImage}")`,
@@ -100,7 +100,7 @@ const CredentialCard = memo(function CredentialCard({
     : undefined;
   const cardContent = (
     <>
-      <div className="mb-1.5 flex items-start justify-between gap-3 border-b border-amber-200/10 pb-1.5">
+      <div className="mb-1.5 flex items-start justify-between gap-3 border-b border-amber-200/10 pb-1.5 lg:mb-3 lg:pb-3">
         <div className="min-w-0">
           <p className="text-[0.68rem] font-black uppercase tracking-[0.24em] text-amber-100/50">
             Game
@@ -113,7 +113,7 @@ const CredentialCard = memo(function CredentialCard({
               href={downloadGameUrl}
               target="_blank"
               rel="noreferrer"
-              className="mt-1.5 inline-flex min-h-[34px] items-center rounded-xl border border-red-200/80 bg-red-600 px-3 py-1 text-xs font-black uppercase tracking-[0.12em] text-white shadow-[0_0_22px_-6px_rgba(248,113,113,0.95),0_0_38px_-14px_rgba(220,38,38,0.98)] transition hover:bg-red-700 hover:text-white hover:shadow-[0_0_28px_-4px_rgba(252,165,165,1),0_0_46px_-12px_rgba(220,38,38,1)]"
+              className="mt-1.5 inline-flex min-h-[34px] items-center rounded-xl border border-red-200/80 bg-red-600 px-3 py-1 text-xs font-black uppercase tracking-[0.12em] text-white shadow-[0_0_22px_-6px_rgba(248,113,113,0.95),0_0_38px_-14px_rgba(220,38,38,0.98)] transition hover:bg-red-700 hover:text-white hover:shadow-[0_0_28px_-4px_rgba(252,165,165,1),0_0_46px_-12px_rgba(220,38,38,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300/70 lg:min-h-[30px] lg:px-2.5"
             >
               Download Game
             </a>
@@ -124,7 +124,7 @@ const CredentialCard = memo(function CredentialCard({
         </span>
       </div>
 
-      <div className="space-y-1.5">
+      <div className="vault-credential-card__body space-y-1.5 lg:flex lg:flex-1 lg:flex-col lg:space-y-2">
         <div className="vault-credential-field rounded-2xl border border-white/10 bg-white/[0.05] px-2 py-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
           <div className="flex items-center justify-between gap-2">
             <p className="whitespace-nowrap text-[0.66rem] font-black uppercase leading-tight tracking-[0.14em] text-amber-100/58">
@@ -135,7 +135,7 @@ const CredentialCard = memo(function CredentialCard({
               onClick={(clickEvent) =>
                 void copyCredentialValue(String(login.gameUsername || ''), 'Username', clickEvent)
               }
-              className="min-h-[28px] rounded-xl border border-amber-300/35 bg-amber-400/10 px-2.5 py-0.5 text-[0.68rem] font-black leading-tight text-amber-50 transition hover:bg-amber-400/20"
+              className="min-h-[28px] rounded-xl border border-amber-300/35 bg-amber-400/10 px-2.5 py-0.5 text-[0.68rem] font-black leading-tight text-amber-50 transition hover:bg-amber-400/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60"
             >
               Copy
             </button>
@@ -161,14 +161,14 @@ const CredentialCard = memo(function CredentialCard({
                   )
                 }
                 disabled={!visible}
-                className="min-h-[28px] rounded-xl border border-violet-300/35 bg-violet-400/10 px-2.5 py-0.5 text-[0.68rem] font-black leading-tight text-violet-50 transition hover:bg-violet-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+                className="min-h-[28px] rounded-xl border border-violet-300/35 bg-violet-400/10 px-2.5 py-0.5 text-[0.68rem] font-black leading-tight text-violet-50 transition hover:bg-violet-400/20 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60"
               >
                 Copy
               </button>
               <button
                 type="button"
                 onClick={() => togglePassword(login.id)}
-                className="min-h-[28px] rounded-xl border border-amber-200/30 bg-amber-400 px-2.5 py-0.5 text-xs font-black leading-tight text-black transition hover:bg-amber-300"
+                className="min-h-[28px] rounded-xl border border-amber-200/30 bg-amber-400 px-2.5 py-0.5 text-xs font-black leading-tight text-black transition hover:bg-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200/80"
                 aria-label={visible ? 'Hide password' : 'Show password'}
               >
                 {visible ? 'Hide' : 'Show'}
@@ -180,12 +180,12 @@ const CredentialCard = memo(function CredentialCard({
           </p>
         </div>
 
-        <div className="border-t border-amber-200/10 pt-1">
+        <div className="border-t border-amber-200/10 pt-1 lg:mt-auto">
           <button
             type="button"
             onClick={(event) => openCredentialResetModal(login, 'reset_password', event)}
             disabled={isResetLoading}
-            className="min-h-[42px] w-full rounded-2xl border border-fuchsia-200/15 bg-gradient-to-r from-fuchsia-600 to-violet-600 px-3 py-1.5 text-sm font-black leading-tight text-white shadow-[0_10px_24px_-16px_rgba(217,70,239,0.95)] transition-all hover:from-fuchsia-500 hover:to-violet-500 disabled:opacity-50"
+            className="min-h-[42px] w-full rounded-2xl border border-fuchsia-200/15 bg-gradient-to-r from-fuchsia-600 to-violet-600 px-3 py-1.5 text-sm font-black leading-tight text-white shadow-[0_10px_24px_-16px_rgba(217,70,239,0.95)] transition-all hover:from-fuchsia-500 hover:to-violet-500 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-300/60 lg:shadow-none lg:hover:shadow-[0_8px_20px_-16px_rgba(217,70,239,0.7)]"
           >
             {isResetLoading ? <i className="fas fa-spinner fa-spin"></i> : <>Reset password</>}
           </button>
@@ -363,7 +363,7 @@ function Vault(props: VaultProps) {
                 onClick={() =>
                   setSelectedCreatorUid((prev: string | null) => (prev === uid ? null : uid))
                 }
-                className={`rounded-xl border px-4 py-2 text-left text-sm font-bold transition-all ${
+                className={`rounded-xl border px-4 py-2 text-left text-sm font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60 ${
                   selectedCreatorUid === uid
                     ? 'border-amber-400 bg-amber-500/25 text-amber-100 shadow-lg shadow-amber-500/10'
                     : 'border-amber-500/25 bg-black/40 text-amber-100/80 hover:border-amber-500/50 hover:bg-amber-500/10'
@@ -381,7 +381,7 @@ function Vault(props: VaultProps) {
                     prev === UNKNOWN_CREATOR_FILTER_KEY ? null : UNKNOWN_CREATOR_FILTER_KEY
                   )
                 }
-                className={`rounded-xl border px-4 py-2 text-left text-sm font-bold transition-all ${
+                className={`rounded-xl border px-4 py-2 text-left text-sm font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60 ${
                   selectedCreatorUid === UNKNOWN_CREATOR_FILTER_KEY
                     ? 'border-amber-400 bg-amber-500/25 text-amber-100 shadow-lg shadow-amber-500/10'
                     : 'border-amber-500/25 bg-black/40 text-amber-100/80 hover:border-amber-500/50 hover:bg-amber-500/10'
@@ -398,7 +398,7 @@ function Vault(props: VaultProps) {
             </div>
           ) : (
             <>
-              <div className="player-vault-grid grid grid-cols-1 gap-3 sm:grid-cols-2 lg:gap-5">
+              <div className="player-vault-grid grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fill,minmax(19rem,1fr))] lg:gap-5">
                 {visibleCredentials.map((login: PlayerGameLogin) => {
                   const fallbackFrontendUrl =
                     coadminFrontendLinkByGameKey[
@@ -446,7 +446,7 @@ function Vault(props: VaultProps) {
                       };
                     })
                   }
-                  className="mt-3 min-h-[44px] w-full rounded-2xl border border-amber-400/35 bg-black/45 px-4 py-3 text-sm font-black text-amber-100"
+                  className="mt-3 min-h-[44px] w-full rounded-2xl border border-amber-400/35 bg-black/45 px-4 py-3 text-sm font-black text-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60"
                 >
                   Show more credentials ({usernamesVisibleLogins.length - visibleCredentialCount} more)
                 </button>

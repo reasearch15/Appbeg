@@ -176,9 +176,14 @@ export default function ReachOutView({
   const allowLoadOlder = !disableLoadOlder && Boolean(onLoadOlderMessages) && hasMoreOlderMessages;
   const canSend = Boolean(newMessage.trim() || imagePreview) && !sendingImage;
 
-  if (playerLightweightMode && !selectedChatUser) {
+  if (playerLightweightMode) {
     return (
-      <div className="player-agents-list flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-amber-300/20 bg-gradient-to-b from-[#1d1009] to-[#0d0705] p-3 shadow-2xl shadow-black/35 sm:p-4">
+      <div className="player-agents-workspace flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden lg:grid lg:grid-cols-[minmax(240px,300px)_minmax(0,1fr)] lg:gap-6">
+        <div
+          className={`player-agents-list ${
+            selectedChatUser ? 'hidden lg:flex' : 'flex'
+          } h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-amber-300/20 bg-gradient-to-b from-[#1d1009] to-[#0d0705] p-3 shadow-2xl shadow-black/35 sm:p-4`}
+        >
         <div className="mb-3 flex shrink-0 items-center justify-between">
           <div className="min-w-0">
             <h2 className="text-lg font-black tracking-tight text-amber-100 lg:text-xl">
@@ -205,15 +210,20 @@ export default function ReachOutView({
             <div className="player-agents-list__grid grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {chatUsers.map((user) => {
                 const unreadCount = unreadCounts[user.uid] || 0;
+                const isSelectedAgent = selectedChatUser?.id === user.id;
 
                 return (
                   <button
                     key={user.id}
+                    type="button"
                     onClick={() => onSelectUser(user)}
-                    className={`player-agents-card flex w-full min-w-0 items-center gap-3 rounded-2xl border p-3 text-left shadow-lg transition active:scale-[0.99] ${
-                      unreadCount > 0
-                        ? 'border-red-400/30 bg-red-500/10 text-white shadow-red-950/20 hover:bg-red-500/15'
-                        : 'border-amber-200/10 bg-amber-100/8 text-amber-50 shadow-black/20 hover:border-amber-200/20 hover:bg-amber-100/10'
+                    aria-pressed={isSelectedAgent}
+                    className={`player-agents-card flex w-full min-w-0 items-center gap-3 rounded-2xl border p-3 text-left shadow-lg transition active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60 ${
+                      isSelectedAgent
+                        ? 'border-amber-300/45 bg-amber-400/15 text-white shadow-amber-950/25'
+                        : unreadCount > 0
+                          ? 'border-red-400/30 bg-red-500/10 text-white shadow-red-950/20 hover:bg-red-500/15'
+                          : 'border-amber-200/10 bg-amber-100/8 text-amber-50 shadow-black/20 hover:border-amber-200/20 hover:bg-amber-100/10'
                     }`}
                   >
                     <div className="relative shrink-0">
@@ -254,7 +264,7 @@ export default function ReachOutView({
                         {reachOutAgentRoleLabel(user)}
                       </p>
                       <p className="player-agents-card__hint mt-1 hidden text-[11px] font-black uppercase tracking-wide text-amber-200/70 lg:block">
-                        Open chat
+                        View conversation
                       </p>
                     </div>
                   </button>
@@ -263,19 +273,21 @@ export default function ReachOutView({
             </div>
           </div>
         )}
-      </div>
-    );
-  }
+        </div>
 
-  if (playerLightweightMode && selectedChatUser) {
-    return (
-      <div className="flex h-full max-h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-amber-300/20 bg-[#170c07] shadow-2xl shadow-black/40">
+        <div
+          className={`${
+            selectedChatUser ? 'flex' : 'hidden lg:flex'
+          } h-full max-h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-amber-300/20 bg-[#170c07] shadow-2xl shadow-black/40`}
+        >
+          {selectedChatUser ? (
+            <>
         <div className="sticky top-0 z-20 shrink-0 border-b border-amber-200/10 bg-[#130a06]/95 px-3 py-3 shadow-lg shadow-black/25 backdrop-blur-xl">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
               onClick={onBackToList}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-amber-200/15 bg-amber-100/10 text-sm font-black text-amber-100 transition hover:bg-amber-100/15"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-amber-200/15 bg-amber-100/10 text-sm font-black text-amber-100 transition hover:bg-amber-100/15 lg:hidden"
               aria-label="Back to agents"
             >
               Back
@@ -445,7 +457,7 @@ export default function ReachOutView({
               <button
                 type="button"
                 onClick={onClearImage}
-                className="rounded-full border border-amber-200/15 px-3 py-1.5 text-xs font-bold text-amber-100/70 hover:bg-amber-100/10 hover:text-amber-50"
+                className="rounded-full border border-amber-200/15 px-3 py-1.5 text-xs font-bold text-amber-100/70 hover:bg-amber-100/10 hover:text-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60"
               >
                 Remove
               </button>
@@ -457,7 +469,7 @@ export default function ReachOutView({
               <button
                 type="button"
                 onClick={() => setShowEmojis(!showEmojis)}
-                className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-black text-amber-100/65 transition hover:bg-amber-100/10 hover:text-amber-50"
+                className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-black text-amber-100/65 transition hover:bg-amber-100/10 hover:text-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60"
               >
                 :-)
               </button>
@@ -500,7 +512,7 @@ export default function ReachOutView({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-black text-amber-100/65 transition hover:bg-amber-100/10 hover:text-amber-50"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-black text-amber-100/65 transition hover:bg-amber-100/10 hover:text-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60"
                   aria-label="Attach photo"
                 >
                   +
@@ -519,13 +531,13 @@ export default function ReachOutView({
               onClick={onMessageFocus}
               rows={1}
               placeholder="Message..."
-              className="max-h-32 min-h-10 min-w-0 flex-1 resize-none bg-transparent px-1 py-2 text-base leading-6 text-amber-50 placeholder:text-amber-100/35 focus:outline-none"
+              className="max-h-32 min-h-10 min-w-0 flex-1 resize-none rounded-lg bg-transparent px-1 py-2 text-base leading-6 text-amber-50 placeholder:text-amber-100/35 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/50"
             />
 
             <button
               type="submit"
               disabled={!canSend}
-              className={`flex h-10 min-w-16 shrink-0 items-center justify-center rounded-full px-4 text-sm font-black transition ${
+              className={`flex h-10 min-w-16 shrink-0 items-center justify-center rounded-full px-4 text-sm font-black transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60 ${
                 canSend
                   ? 'bg-gradient-to-r from-amber-200 via-yellow-100 to-[#d69b3d] text-[#170c07] shadow-lg shadow-amber-950/30 hover:brightness-110'
                   : 'bg-amber-100/10 text-amber-100/35'
@@ -535,6 +547,19 @@ export default function ReachOutView({
             </button>
           </div>
         </form>
+            </>
+          ) : (
+            <div className="hidden h-full min-h-0 w-full flex-1 flex-col items-center justify-center gap-3 px-6 text-center lg:flex">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full border border-amber-200/15 bg-amber-100/8 text-2xl">
+                💬
+              </div>
+              <p className="text-base font-black text-amber-50">Select an agent</p>
+              <p className="max-w-[15rem] text-sm leading-relaxed text-amber-100/55">
+                Choose someone from the list to view your conversation.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     );
   }

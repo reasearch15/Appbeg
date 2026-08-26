@@ -101,7 +101,7 @@ function Lobby(props: Props) {
                     </div>
 
                     <div className="player-dashboard-hero__main flex w-full min-w-0 flex-col items-center gap-2">
-                      <div className="mx-auto grid w-full max-w-lg grid-cols-2 items-stretch gap-2">
+                      <div className="mx-auto grid w-full max-w-lg grid-cols-2 items-stretch gap-2 lg:hidden">
                         <div className="fire-panel fire-orange flex min-h-[6.75rem] flex-col items-center justify-center gap-1 rounded-2xl border border-amber-300/60 bg-black/35 px-3 py-3 text-center backdrop-blur-md shadow-[0_0_20px_-8px_rgba(251,191,36,0.55)] sm:min-h-[7.25rem]">
                           <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-amber-200/40 bg-amber-200/15 text-xl">
                             🪙
@@ -131,7 +131,7 @@ function Lobby(props: Props) {
                           </p>
                         </button>
                       </div>
-                      <div className="fire-panel fire-orange mx-auto flex w-full max-w-lg flex-wrap items-center justify-center gap-2 rounded-2xl border border-cyan-400/30 bg-black/35 px-3 py-2">
+                      <div className="fire-panel fire-orange mx-auto flex w-full max-w-lg flex-wrap items-center justify-center gap-2 rounded-2xl border border-cyan-400/30 bg-black/35 px-3 py-2 lg:mx-0 lg:max-w-none lg:justify-start lg:py-1.5">
                         <p className="text-xs font-black uppercase tracking-wide text-cyan-200/85 sm:text-sm">
                           Your Referral Code:{' '}
                           <span className="text-sm text-white sm:text-base">{referralCode || 'Not available'}</span>
@@ -145,7 +145,7 @@ function Lobby(props: Props) {
                           Copy Referral Code
                         </button>
                       </div>
-                      <div className="mx-auto w-full max-w-lg">
+                      <div className="mx-auto w-full max-w-lg lg:hidden">
                         <button
                           type="button"
                           onClick={() => {
@@ -165,7 +165,7 @@ function Lobby(props: Props) {
                         type="button"
                         onClick={() => setActiveView('play')}
                         disabled={maintenanceBreak.enabled}
-                        className="fire-button fire-orange relative h-12 w-full min-w-0 overflow-hidden rounded-2xl border border-red-200/70 bg-gradient-to-r from-red-500 via-red-400 to-rose-500 px-6 py-2 text-lg font-black text-white shadow-[0_0_30px_6px_rgba(239,68,68,0.45)] shadow-red-900/40 transition-all hover:scale-[1.02] hover:brightness-110 hover:shadow-[0_0_42px_8px_rgba(239,68,68,0.55)] sm:h-12 sm:text-xl"
+                        className="fire-button fire-orange relative h-12 w-full min-w-0 overflow-hidden rounded-2xl border border-red-200/70 bg-gradient-to-r from-red-500 via-red-400 to-rose-500 px-6 py-2 text-lg font-black text-white shadow-[0_0_30px_6px_rgba(239,68,68,0.45)] shadow-red-900/40 transition-all hover:scale-[1.02] hover:brightness-110 hover:shadow-[0_0_42px_8px_rgba(239,68,68,0.55)] sm:h-12 sm:text-xl lg:hidden"
                       >
                         <span className="relative z-10 flex items-center justify-center gap-2">
                           🎰 Play now

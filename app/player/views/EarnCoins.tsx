@@ -42,8 +42,8 @@ function EarnCoins(props: Props) {
 
   return (
 
-              <div className="space-y-5 sm:space-y-6">
-                <div className="fire-panel fire-orange rounded-3xl border border-amber-400/35 bg-gradient-to-br from-amber-500/20 via-orange-900/20 to-black/60 p-5 shadow-[0_0_42px_-16px_rgba(251,191,36,0.65)] sm:p-6">
+              <div className="space-y-5 sm:space-y-6 lg:space-y-4">
+                <div className="fire-panel fire-orange rounded-3xl border border-amber-400/35 bg-gradient-to-br from-amber-500/20 via-orange-900/20 to-black/60 p-5 shadow-[0_0_42px_-16px_rgba(251,191,36,0.65)] sm:p-6 lg:p-4">
                   <p className="text-xs font-black uppercase tracking-[0.3em] text-amber-200/90">
                     Permanent bonus event
                   </p>
@@ -191,7 +191,7 @@ function EarnCoins(props: Props) {
                   ) : null}
                 </AnimatePresence>
 
-                <div className="fire-panel fire-orange fire-hero rounded-3xl border border-amber-400/35 bg-gradient-to-br from-amber-500/15 via-emerald-900/20 to-black/50 p-5 shadow-lg sm:p-6">
+                <div className="fire-panel fire-orange fire-hero rounded-3xl border border-amber-400/35 bg-gradient-to-br from-amber-500/15 via-emerald-900/20 to-black/50 p-5 shadow-lg sm:p-6 lg:p-4">
                   <p className="text-xs font-black uppercase tracking-[0.35em] text-amber-200/90 sm:text-sm">
                     🪙 Earn coins
                   </p>
@@ -224,11 +224,11 @@ function EarnCoins(props: Props) {
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-[repeat(auto-fill,minmax(17rem,1fr))] lg:gap-[0.85rem]">
                     {referralRewardGroups.map((group: ReferralRewardGroup) => (
                       <div
                         key={group.referredPlayerUid}
-                        className="fire-panel fire-orange rounded-2xl border border-amber-400/25 bg-gradient-to-br from-black/60 to-emerald-950/20 p-4"
+                        className="player-referral-card fire-panel fire-orange rounded-2xl border border-amber-400/25 bg-gradient-to-br from-black/60 to-emerald-950/20 p-4 lg:flex lg:h-full lg:flex-col lg:rounded-3xl lg:p-3"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div>
@@ -246,7 +246,7 @@ function EarnCoins(props: Props) {
                           </div>
                         </div>
 
-                        <div className="mt-3 flex items-center justify-end gap-3">
+                        <div className="mt-3 flex items-center justify-end gap-3 lg:mt-auto">
                           {group.hasClaimableReward ? (
                             <button
                               type="button"
@@ -254,7 +254,7 @@ function EarnCoins(props: Props) {
                                 void handleClaimReferralReward(group.referredPlayerUid)
                               }
                               disabled={claimingReferredPlayerUid === group.referredPlayerUid}
-                              className="rounded-xl border border-red-400/60 bg-red-500/20 px-3 py-2 text-sm font-black text-red-100 hover:bg-red-500/30 disabled:opacity-50"
+                              className="rounded-xl border border-red-400/60 bg-red-500/20 px-3 py-2 text-sm font-black text-red-100 hover:bg-red-500/30 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300/60"
                               title="Claim accumulated reward"
                             >
                               {claimingReferredPlayerUid === group.referredPlayerUid

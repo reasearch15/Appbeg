@@ -53,10 +53,10 @@ function Agents(props: Props) {
   return (
 
               <div
-                className={`player-agents-shell flex min-h-0 min-w-0 flex-col overflow-hidden ${
+                className={`player-agents-shell flex min-h-0 min-w-0 flex-col overflow-hidden lg:h-[calc(100dvh_-_7rem)] lg:max-h-[calc(100dvh_-_7rem)] lg:flex-1 ${
                   isChatOpen
-                    ? 'player-agents-shell--chat flex-1 h-[calc(100dvh_-_12.5rem_-_env(safe-area-inset-bottom))] max-h-[calc(100dvh_-_12.5rem_-_env(safe-area-inset-bottom))] lg:h-[calc(100dvh_-_7rem)] lg:max-h-[calc(100dvh_-_7rem)]'
-                    : 'flex-1 max-h-[min(78dvh,calc(100dvh-11rem))] sm:max-h-[min(82dvh,calc(100dvh-10rem))] lg:max-h-none lg:flex-none'
+                    ? 'player-agents-shell--chat flex-1 h-[calc(100dvh_-_12.5rem_-_env(safe-area-inset-bottom))] max-h-[calc(100dvh_-_12.5rem_-_env(safe-area-inset-bottom))]'
+                    : 'flex-1 max-h-[min(78dvh,calc(100dvh-11rem))] sm:max-h-[min(82dvh,calc(100dvh-10rem))]'
                 }`}
               >
                 <ReachOutView

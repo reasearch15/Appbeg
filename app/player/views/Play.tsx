@@ -180,7 +180,7 @@ function Play(props: Props) {
                 </div>
 
                 {loadingList ? (
-                  <div className="grid grid-cols-2 gap-2 sm:items-start xl:grid-cols-3 xl:gap-3" aria-busy="true">
+                  <div className="grid grid-cols-2 gap-2 sm:items-start lg:grid-cols-[repeat(auto-fill,minmax(19rem,1fr))] lg:gap-[0.85rem]" aria-busy="true">
                     {Array.from({ length: 4 }).map((_, index) => (
                       <div
                         key={index}
@@ -204,7 +204,7 @@ function Play(props: Props) {
                   </div>
                 ) : (
                   <>
-                    <div className="grid grid-cols-2 gap-2 sm:items-start xl:grid-cols-3 xl:gap-3">
+                    <div className="grid grid-cols-2 gap-2 sm:items-start lg:grid-cols-[repeat(auto-fill,minmax(19rem,1fr))] lg:gap-[0.85rem]">
                       {visibleGameLogins.map((game: PlayerGameLogin, index: number) => {
                         const resolvedUsername = (game.gameUsername || '').trim();
                         const hasUsername = Boolean(resolvedUsername);
@@ -233,7 +233,7 @@ function Play(props: Props) {
                             role="button"
                             tabIndex={0}
                             aria-pressed={isSelected}
-                            className={`player-play-game-card player-game-card-image fire-panel fire-orange group relative w-full self-start overflow-hidden rounded-2xl border p-2 text-left shadow-xl transition-all active:scale-[0.98] hover:scale-[1.01] hover:shadow-[0_0_26px_-8px_rgba(251,191,36,0.5)] ${
+                            className={`player-play-game-card player-game-card-image fire-panel fire-orange group relative w-full self-start overflow-hidden rounded-2xl border p-2 text-left shadow-xl transition-all active:scale-[0.98] hover:scale-[1.01] hover:shadow-[0_0_26px_-8px_rgba(251,191,36,0.5)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60 lg:flex lg:h-full lg:flex-col lg:rounded-3xl lg:hover:scale-100 lg:hover:-translate-y-1 lg:hover:shadow-[0_10px_24px_-16px_rgba(251,191,36,0.4)] ${
                               isSelected
                                 ? 'border-amber-400/60 bg-gradient-to-br from-amber-500/25 to-purple-900/40 shadow-[0_0_32px_-8px_rgba(234,179,8,0.55)]'
                                 : 'border-white/10 bg-black/45 hover:border-amber-400/35'
@@ -252,7 +252,7 @@ function Play(props: Props) {
                             <div className="player-play-game-card__body">
                               <div className="relative flex items-start justify-center gap-2 rounded-xl border border-white/10 bg-gradient-to-b from-black/65 via-black/50 to-black/35 px-2 py-1 shadow-[0_2px_12px_rgba(0,0,0,0.35)]">
                                 <div className="min-w-0 flex-1 text-center">
-                                  <h3 className="truncate bg-gradient-to-r from-amber-100 via-yellow-200 to-orange-300 bg-clip-text text-lg font-black text-transparent drop-shadow-[0_0_12px_rgba(251,191,36,0.45)]">
+                                  <h3 className="truncate bg-gradient-to-r from-amber-100 via-yellow-200 to-orange-300 bg-clip-text text-lg font-black text-transparent drop-shadow-[0_0_12px_rgba(251,191,36,0.45)] lg:text-base lg:font-bold lg:drop-shadow-none">
                                     {game.gameName}
                                   </h3>
                                 </div>
@@ -270,7 +270,7 @@ function Play(props: Props) {
                                         event.stopPropagation();
                                         void copyCredentialValue(resolvedUsername, 'Username', event);
                                       }}
-                                      className="shrink-0 rounded-lg border border-amber-300/35 bg-amber-400/10 px-2 py-0.5 text-[9px] font-black leading-tight text-amber-50 transition hover:bg-amber-400/20"
+                                      className="shrink-0 rounded-lg border border-amber-300/35 bg-amber-400/10 px-2 py-0.5 text-[9px] font-black leading-tight text-amber-50 transition hover:bg-amber-400/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60"
                                     >
                                       Copy
                                     </button>
@@ -287,7 +287,8 @@ function Play(props: Props) {
                                     : 'border border-orange-200/80 bg-orange-500 text-white shadow-[0_0_18px_-6px_rgba(249,115,22,0.75)] group-hover:bg-orange-600 group-hover:shadow-[0_0_26px_-4px_rgba(249,115,22,0.95)]'
                                 }`}
                               >
-                                {isSelected ? '🔥 Selected' : 'Tap to open'}
+                                <span className="lg:hidden">{isSelected ? '🔥 Selected' : 'Tap to open'}</span>
+                                <span className="hidden lg:inline">{isSelected ? '🔥 Selected' : 'Open table'}</span>
                               </span>
                             </div>
                           </motion.div>
@@ -302,7 +303,7 @@ function Play(props: Props) {
                             Math.min(gameLogins.length, count + cardIncrement)
                           )
                         }
-                        className="mt-3 min-h-[44px] w-full rounded-2xl border border-amber-400/35 bg-black/45 px-4 py-3 text-sm font-black text-amber-100"
+                        className="mt-3 min-h-[44px] w-full rounded-2xl border border-amber-400/35 bg-black/45 px-4 py-3 text-sm font-black text-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60"
                       >
                         Show more tables ({gameLogins.length - visibleCardCount} more)
                       </button>
