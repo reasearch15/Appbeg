@@ -15,12 +15,14 @@ type Props = {
   agents: unknown[];
   bonusStripPaused: boolean;
   bonusVanishedToast: boolean;
+  coinLoading?: boolean;
   formatWalletAmount: (value: number) => string;
   gameLogins: unknown[];
   handleActivateBonusEvent: (bonusEvent: BonusEvent) => void;
   handleCopyReferralCode: (event: MouseEvent) => void;
   handleOpenFirstUnreadAgent: () => void;
   openCashToCoinTransferModal: () => void;
+  openCashoutModal: () => void;
   openCoinToCashTransferModal: () => void;
   isBlockedPlayer: boolean;
   lowPerformanceMode?: boolean;
@@ -45,12 +47,14 @@ function Lobby(props: Props) {
     agents,
     bonusStripPaused,
     bonusVanishedToast,
+    coinLoading = false,
     formatWalletAmount,
     gameLogins,
     handleActivateBonusEvent,
     handleCopyReferralCode,
     handleOpenFirstUnreadAgent,
     openCashToCoinTransferModal,
+    openCashoutModal,
     openCoinToCashTransferModal,
     isBlockedPlayer,
     maintenanceBreak,
@@ -74,9 +78,13 @@ function Lobby(props: Props) {
     totalUnread,
   }));
 
-  return (
+  const gamesAvailable = gameLogins.length;
+  const agentsAvailable = agents.length;
+  const hasUnread = totalUnread > 0;
 
-              <div className="space-y-3 sm:space-y-4">
+  return (
+    <>
+      <div className="lg:hidden space-y-3 sm:space-y-4">
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -160,7 +168,10 @@ function Lobby(props: Props) {
                       </div>
                     </div>
 
-                    <div className="player-dashboard-hero__cta mx-auto flex w-full min-h-0 min-w-0 max-w-lg flex-col items-center justify-center gap-2">
+                    <div
+                      className="player-dashboard-hero__cta mx-auto flex w-full min-h-0 min-w-0 max-w-lg flex-col items-center justify-center gap-2"
+                      data-has-badge={totalUnread > 0 ? 'true' : 'false'}
+                    >
                       <button
                         type="button"
                         onClick={() => setActiveView('play')}
@@ -448,7 +459,280 @@ function Lobby(props: Props) {
                 </div>
                 ) : null}
 
+      </div>
+
+      {/* Desktop-only (lg+) Lobby composition. Mobile/tablet markup above is untouched. */}
+      <div className="hidden lg:flex lg:flex-col lg:gap-6">
+        <div className="fire-panel fire-orange fire-hero relative overflow-hidden rounded-[1.75rem] border border-amber-400/30 bg-gradient-to-br from-amber-500/16 via-rose-600/8 to-purple-900/20 px-8 py-7">
+          <div className="relative z-10 flex items-center justify-between gap-10">
+            <div className="max-w-xl">
+              <p className="player-eyebrow text-amber-200/80">👑 Royal VIP</p>
+              <h2 className="mt-2 text-[2.35rem] font-black leading-[0.98] bg-gradient-to-r from-white via-amber-100 to-amber-300 bg-clip-text text-transparent">
+                Jackpot floor is open
+              </h2>
+              <p className="mt-3 max-w-md text-[0.98rem] leading-relaxed text-amber-100/70">
+                Access your games, manage balances and connect with your agents — all from one
+                place.
+              </p>
+              <button
+                type="button"
+                onClick={() => setActiveView('play')}
+                disabled={maintenanceBreak.enabled}
+                className="fire-button fire-orange mt-6 inline-flex items-center gap-2 rounded-2xl border border-red-200/70 bg-gradient-to-r from-red-500 via-red-400 to-rose-500 px-7 py-3 text-base font-black text-white shadow-[0_0_30px_-8px_rgba(239,68,68,0.55)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                🎰 Play now
+                <i className="fas fa-arrow-right text-sm" aria-hidden />
+              </button>
+            </div>
+
+            <div className="flex shrink-0 gap-4">
+              <div className="player-surface min-w-[9rem] rounded-2xl px-5 py-4 text-center">
+                <p className="player-eyebrow">Coin</p>
+                <p className="mt-1.5 text-[1.9rem] font-black tabular-nums text-white">
+                  {formatWalletAmount(wallet.coin)}
+                </p>
+                <p className="mt-0.5 text-[0.7rem] text-amber-100/45">Playable balance</p>
               </div>
+              <div className="player-surface min-w-[9rem] rounded-2xl px-5 py-4 text-center">
+                <p className="player-eyebrow">Cash</p>
+                <p className="mt-1.5 text-[1.9rem] font-black tabular-nums text-white">
+                  {formatWalletAmount(wallet.cash)}
+                </p>
+                <p className="mt-0.5 text-[0.7rem] text-amber-100/45">Available cash</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="player-surface player-surface--elevated rounded-[1.5rem] p-6">
+          <p className="player-eyebrow">Your wallet</p>
+          <div className="mt-3 grid grid-cols-2 gap-6 border-b border-white/[0.06] pb-5">
+            <div>
+              <p className="text-[2rem] font-black tabular-nums text-white">
+                {formatWalletAmount(wallet.coin)}
+              </p>
+              <p className="mt-0.5 text-sm font-bold text-amber-100/60">Coin balance</p>
+              <p className="text-xs text-amber-100/35">Playable balance across your games</p>
+            </div>
+            <div>
+              <p className="text-[2rem] font-black tabular-nums text-white">
+                {formatWalletAmount(wallet.cash)}
+              </p>
+              <p className="mt-0.5 text-sm font-bold text-emerald-200/70">Cash balance</p>
+              <p className="text-xs text-amber-100/35">Available for cashout or transfer</p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid grid-cols-3 gap-4">
+            <div className="player-surface player-surface--interactive flex flex-col rounded-2xl p-4">
+              <div className="flex items-center gap-2">
+                <span className="text-lg" aria-hidden>⇄</span>
+                <p className="text-sm font-black text-white">Transfer Cash → Coin</p>
+              </div>
+              <p className="mt-1.5 flex-1 text-xs leading-relaxed text-amber-100/50">
+                Convert your available cash balance into playable coins.
+              </p>
+              <button
+                type="button"
+                onClick={openCashToCoinTransferModal}
+                disabled={coinLoading}
+                className="fire-button fire-purple mt-3 rounded-xl border border-fuchsia-300/40 bg-gradient-to-r from-fuchsia-600/80 via-violet-500/80 to-purple-600/80 py-2 text-xs font-black text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {coinLoading ? 'Transferring…' : 'Transfer'}
+              </button>
+            </div>
+
+            <div className="player-surface player-surface--interactive flex flex-col rounded-2xl p-4">
+              <div className="flex items-center gap-2">
+                <span className="text-lg" aria-hidden>⬇</span>
+                <p className="text-sm font-black text-white">Load Coin</p>
+              </div>
+              <p className="mt-1.5 flex-1 text-xs leading-relaxed text-amber-100/50">
+                Add coins to your balance through the Royal VIP Telegram bot.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLoadCoinPanel(true);
+                  setMessage('');
+                }}
+                disabled={isBlockedPlayer || maintenanceBreak.enabled}
+                className="fire-button fire-orange mt-3 rounded-xl border border-amber-400/40 bg-amber-500/20 py-2 text-xs font-black text-amber-50 transition hover:bg-amber-500/30 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Load Coin
+              </button>
+            </div>
+
+            <div className="player-surface player-surface--interactive flex flex-col rounded-2xl p-4">
+              <div className="flex items-center gap-2">
+                <span className="text-lg" aria-hidden>↗</span>
+                <p className="text-sm font-black text-white">Cashout</p>
+              </div>
+              <p className="mt-1.5 flex-1 text-xs leading-relaxed text-amber-100/50">
+                Submit a redeem request using your available cash balance.
+              </p>
+              <button
+                type="button"
+                onClick={openCashoutModal}
+                disabled={wallet.cash <= 0 || isBlockedPlayer || maintenanceBreak.enabled}
+                className="fire-button fire-orange mt-3 rounded-xl border border-amber-400/40 bg-amber-500/20 py-2 text-xs font-black text-amber-50 transition hover:bg-amber-500/30 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cashout
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-6">
+          <div className="player-surface rounded-[1.5rem] p-6">
+            <p className="player-eyebrow">Play your games</p>
+            <h3 className="mt-2 text-xl font-black text-white">Choose a table</h3>
+            <p className="mt-2 text-sm leading-relaxed text-amber-100/55">
+              Your assigned casino platforms and login credentials are ready from the Play page.
+            </p>
+            <p className="mt-3 text-xs font-bold uppercase tracking-wider text-amber-200/50">
+              {gamesAvailable} {gamesAvailable === 1 ? 'game' : 'games'} available
+            </p>
+            <button
+              type="button"
+              onClick={() => setActiveView('play')}
+              className="mt-4 inline-flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-2 text-sm font-bold text-amber-100 transition hover:bg-amber-500/20"
+            >
+              Browse games <span aria-hidden>→</span>
+            </button>
+          </div>
+
+          <div className="player-surface rounded-[1.5rem] p-6">
+            <p className="player-eyebrow">Your referral code</p>
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <p className="text-2xl font-black tracking-wide text-white">
+                {referralCode || 'Not available'}
+              </p>
+              <button
+                type="button"
+                onClick={(e) => void handleCopyReferralCode(e)}
+                disabled={!referralCode}
+                className="fire-button fire-orange shrink-0 rounded-xl bg-cyan-400 px-4 py-2 text-xs font-black text-black transition hover:bg-cyan-300 disabled:opacity-50"
+              >
+                Copy
+              </button>
+            </div>
+            <p className="mt-3 text-sm leading-relaxed text-amber-100/55">
+              Share your code with players you refer. Track and claim rewards from Earn Coins.
+            </p>
+          </div>
+        </div>
+
+        <div className="player-redeem-accuracy fire-panel fire-orange rounded-2xl border border-rose-500/35 bg-gradient-to-br from-rose-950/50 to-black/50 p-4 shadow-lg backdrop-blur-md">
+          <p className="flex items-center gap-2 text-xl font-black uppercase tracking-wide text-rose-200/95">
+            <span className="text-lg" aria-hidden>⚠️</span> Redeem accuracy
+          </p>
+          <p className="mt-2 max-w-[42rem] text-base leading-relaxed text-rose-100/90">
+            If a redeem looks too big or wrong, you risk penalties or account block. Only submit
+            truthful amounts.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-[1.1fr_1fr] gap-6">
+          <div className="player-surface rounded-[1.5rem] p-6">
+            <p className="player-eyebrow">Your Royal account</p>
+            <div className="mt-3 grid grid-cols-3 gap-4">
+              <div>
+                <p className="text-2xl" aria-hidden>🎮</p>
+                <p className="mt-1.5 text-2xl font-black tabular-nums text-white">
+                  {gamesAvailable}
+                </p>
+                <p className="text-xs font-bold text-amber-100/55">
+                  {gamesAvailable === 1 ? 'Game' : 'Games'}
+                </p>
+                <p className="mt-0.5 text-[0.7rem] text-amber-100/35">Available casino platforms</p>
+              </div>
+              <div>
+                <p className="text-2xl" aria-hidden>🎧</p>
+                <p className="mt-1.5 text-2xl font-black tabular-nums text-white">
+                  {agentsAvailable}
+                </p>
+                <p className="text-xs font-bold text-amber-100/55">
+                  {agentsAvailable === 1 ? 'Agent' : 'Agents'}
+                </p>
+                <p className="mt-0.5 text-[0.7rem] text-amber-100/35">Support connection</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (hasUnread) {
+                    handleOpenFirstUnreadAgent();
+                  } else {
+                    setActiveView('agents');
+                  }
+                }}
+                className={`-m-2 rounded-xl p-2 text-left transition ${
+                  hasUnread ? 'border border-rose-400/40 bg-rose-500/10' : 'hover:bg-white/[0.03]'
+                }`}
+              >
+                <p className="text-2xl" aria-hidden>✉️</p>
+                <p
+                  className={`mt-1.5 text-2xl font-black tabular-nums ${
+                    hasUnread ? 'text-rose-200' : 'text-white'
+                  }`}
+                >
+                  {totalUnread}
+                </p>
+                <p
+                  className={`text-xs font-bold ${
+                    hasUnread ? 'text-rose-200/85' : 'text-amber-100/55'
+                  }`}
+                >
+                  Unread
+                </p>
+                <p className="mt-0.5 text-[0.7rem] text-amber-100/35">
+                  {hasUnread ? 'New messages waiting' : 'No unread messages'}
+                </p>
+              </button>
+            </div>
+          </div>
+
+          <div className="player-surface rounded-[1.5rem] p-6">
+            <p className="player-eyebrow">Quick guide</p>
+            <div className="mt-3 space-y-3">
+              <div className="flex gap-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-400/15 text-xs font-black text-amber-200">
+                  1
+                </span>
+                <div>
+                  <p className="text-sm font-bold text-white">Load coins</p>
+                  <p className="text-xs text-amber-100/45">
+                    Add balance through the Royal VIP Telegram bot.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-400/15 text-xs font-black text-amber-200">
+                  2
+                </span>
+                <div>
+                  <p className="text-sm font-bold text-white">Pick a game</p>
+                  <p className="text-xs text-amber-100/45">
+                    Open Play and choose one of your assigned platforms.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-400/15 text-xs font-black text-amber-200">
+                  3
+                </span>
+                <div>
+                  <p className="text-sm font-bold text-white">Need help?</p>
+                  <p className="text-xs text-amber-100/45">
+                    Message one of your assigned agents any time.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
 

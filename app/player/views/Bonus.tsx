@@ -141,6 +141,19 @@ function Bonus(props: Props) {
                   ) : null}
                 </AnimatePresence>
                 </div>
+
+                <div className="hidden items-center justify-between lg:flex">
+                  <div>
+                    <p className="player-eyebrow">Bonus events</p>
+                    <h2 className="mt-1 text-2xl font-black text-white">Limited bonus drops</h2>
+                  </div>
+                  {arbPlayerModeEnabled ? (
+                    <p className="player-surface rounded-xl px-4 py-2 text-xs font-bold uppercase tracking-wider text-amber-200/70">
+                      Automatic Bonus: {arbMode === 'enabled' ? 'On' : 'Off'}
+                    </p>
+                  ) : null}
+                </div>
+
                 {arbPlayerModeEnabled ? (
                   <div className="player-bonus-lock-panel rounded-3xl border border-violet-400/25 bg-gradient-to-br from-violet-950/50 via-[#14091f]/80 to-black/80 p-4 sm:p-5">
                     <p className="text-xs font-black uppercase tracking-[0.28em] text-violet-200/80">
@@ -183,6 +196,7 @@ function Bonus(props: Props) {
                     )}
                   </div>
                 ) : null}
+                <div className="lg:grid lg:grid-cols-[3fr_2fr] lg:items-start lg:gap-6 lg:space-y-0 space-y-5 sm:space-y-6">
                 <div
                   className="player-bonus-drops-panel fire-panel fire-purple group/bonus relative flex min-h-[min(19rem,44svh)] flex-col items-center justify-center rounded-3xl border border-violet-400/35 bg-gradient-to-br from-violet-950/70 via-black/55 to-fuchsia-950/30 px-4 py-8 shadow-[0_0_40px_-12px_rgba(139,92,246,0.35)] backdrop-blur-xl sm:min-h-[min(21rem,40svh)] sm:px-8 sm:py-10"
                   onPointerEnter={() => setBonusStripPaused(true)}
@@ -376,6 +390,7 @@ function Bonus(props: Props) {
                       you turn it off — Bonus Event claims stay locked.
                     </p>
                   </div>
+                </div>
                 </div>
               </div>
   );

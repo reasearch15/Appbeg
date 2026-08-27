@@ -398,7 +398,7 @@ function Vault(props: VaultProps) {
             </div>
           ) : (
             <>
-              <div className="player-vault-grid grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fill,minmax(19rem,1fr))] lg:gap-5">
+              <div className="player-vault-grid grid grid-cols-1 gap-3 sm:grid-cols-2 lg:gap-5">
                 {visibleCredentials.map((login: PlayerGameLogin) => {
                   const fallbackFrontendUrl =
                     coadminFrontendLinkByGameKey[

@@ -1463,6 +1463,97 @@
 /* -------------------------------------------------------------------------- */
 
 @media (min-width: 1024px) {
+  /* Desktop canvas: deep espresso/charcoal instead of mobile's bright fire
+     wash. Fire becomes a controlled accent, not a filter over everything.
+     Mobile keeps its own .player-fire-page background untouched below lg. */
+  .player-fire-page {
+    background:
+      radial-gradient(circle at 12% 0%, rgba(255, 189, 120, 0.09), transparent 32%),
+      radial-gradient(circle at 88% 12%, rgba(255, 96, 40, 0.07), transparent 28%),
+      radial-gradient(circle at 50% 105%, rgba(196, 112, 40, 0.08), transparent 46%),
+      linear-gradient(160deg, #170d0a 0%, #241410 30%, #341c13 60%, #432717 100%);
+  }
+
+  .player-fire-page .ember-overlay {
+    opacity: 0.26;
+  }
+
+  .player-fire-page .ember-overlay::before {
+    opacity: 0.5;
+  }
+
+  .player-fire-page .ember-overlay::after {
+    opacity: 0.4;
+  }
+
+  /* Desktop surface hierarchy: most content sits on calm, low-noise
+     surfaces; only featured/primary elements keep the full fire-panel
+     treatment. Ambient < Standard < Elevated < Featured (fire-panel/purple/
+     green variants) < Primary action (fire-button--primary). */
+  .player-surface {
+    position: relative;
+    border-radius: 1.1rem;
+    border: 1px solid rgba(255, 224, 188, 0.09);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(18, 9, 7, 0.5));
+  }
+
+  .player-surface--elevated {
+    border-color: rgba(255, 205, 140, 0.16);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(28, 14, 10, 0.58));
+    box-shadow: 0 16px 34px -22px rgba(0, 0, 0, 0.65);
+  }
+
+  .player-surface--interactive {
+    transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+  }
+
+  .player-surface--interactive:hover {
+    border-color: rgba(255, 205, 140, 0.28);
+    transform: translateY(-1px);
+  }
+
+  .player-surface--interactive:focus-visible {
+    outline: 2px solid rgba(251, 191, 36, 0.55);
+    outline-offset: 2px;
+  }
+
+  .player-eyebrow {
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255, 214, 168, 0.62);
+  }
+
+  /* Sidebar: structural anchor, not a featured surface -- calm the fire glow
+     so it stops competing with the main content column. */
+  .player-fire-page aside.fire-panel.fire-panel::before,
+  .player-fire-page aside.fire-panel.fire-panel::after {
+    opacity: 0.22;
+  }
+
+  .player-fire-page aside.fire-panel .fire-panel.fire-panel::before,
+  .player-fire-page aside.fire-panel .fire-panel.fire-panel::after {
+    opacity: 0.3;
+  }
+
+  /* Lobby hero: when the unread-messages slot has nothing to show (the
+     common case), the reserved second grid column left a dead empty strip
+     next to the referral chip. Center the referral row instead. */
+  .player-fire-page .player-dashboard-hero .player-dashboard-hero__content:has(.player-dashboard-hero__cta[data-has-badge="false"]) {
+    grid-template-columns: minmax(0, auto) !important;
+    justify-content: center !important;
+  }
+
+  .player-fire-page .player-dashboard-hero .player-dashboard-hero__content:has(.player-dashboard-hero__cta[data-has-badge="false"]) .player-dashboard-hero__main {
+    grid-column: 1 !important;
+    align-items: center !important;
+  }
+
+  .player-fire-page .player-dashboard-hero__cta[data-has-badge="false"] {
+    display: none;
+  }
+
   /* Lobby rhythm: keep 16–24px between sections, compact stats. */
   .player-fire-page .player-lobby-stats > .fire-panel {
     padding: 0.75rem 0.7rem;

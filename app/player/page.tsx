@@ -6739,20 +6739,20 @@ export default function PlayerPage() {
         key={item.view}
         type="button"
         onClick={onNavigate}
-        className={`group flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-[0.98rem] font-bold transition-all duration-200 active:scale-[0.98] md:text-[1.05rem] ${
+        className={`group flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-[0.98rem] font-bold transition-all duration-200 active:scale-[0.98] md:text-[1.05rem] lg:rounded-xl lg:border-l-2 lg:py-2.5 lg:text-[0.92rem] ${
           isActive
-            ? 'bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-500 text-black shadow-[0_0_28px_-4px_rgba(234,179,8,0.65)]'
-            : 'border border-white/10 bg-white/[0.04] text-amber-100/85 hover:border-amber-400/35 hover:bg-amber-500/10 hover:text-white'
+            ? 'bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-500 text-black shadow-[0_0_28px_-4px_rgba(234,179,8,0.65)] lg:border-l-amber-400 lg:bg-gradient-to-r lg:from-amber-500/14 lg:via-amber-500/5 lg:to-transparent lg:text-amber-50 lg:shadow-none'
+            : 'border border-white/10 bg-white/[0.04] text-amber-100/85 hover:border-amber-400/35 hover:bg-amber-500/10 hover:text-white lg:border-y-0 lg:border-r-0 lg:border-l-transparent lg:bg-transparent lg:text-amber-100/55 lg:hover:border-l-white/15 lg:hover:bg-white/[0.03] lg:hover:text-amber-50'
         }`}
       >
         <span className="flex min-w-0 items-center gap-3">
-          <span className="text-lg" aria-hidden>
+          <span className="text-lg lg:text-base" aria-hidden>
             {item.emoji}
           </span>
           <span className="truncate">
             <i
               className={`fas fa-${item.icon} mr-2 w-4 ${
-                isActive ? 'text-black' : 'text-amber-400/80'
+                isActive ? 'text-black lg:text-amber-300' : 'text-amber-400/80 lg:text-amber-400/50'
               }`}
             ></i>
             {item.label}
@@ -6760,7 +6760,7 @@ export default function PlayerPage() {
         </span>
 
         {unread > 0 && (
-          <span className="flex h-6 min-w-[24px] shrink-0 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-black text-white shadow-lg ring-2 ring-black/30">
+          <span className="flex h-6 min-w-[24px] shrink-0 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-black text-white shadow-lg ring-2 ring-black/30 lg:h-5 lg:min-w-[20px]">
             {unread > 9 ? '9+' : unread}
           </span>
         )}
@@ -7019,24 +7019,28 @@ export default function PlayerPage() {
           ) : null}
         </AnimatePresence>
 
-        <aside className="fire-panel fire-orange relative z-20 hidden w-72 shrink-0 overflow-y-auto border-r border-amber-500/25 bg-black/45 p-5 backdrop-blur-2xl md:sticky md:top-0 md:flex md:h-[100dvh] md:flex-col md:overflow-hidden xl:w-80">
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-amber-500/[0.07] via-transparent to-purple-600/10" />
-          <div className="pointer-events-none absolute top-0 left-0 h-40 w-full bg-[radial-gradient(ellipse_at_top,rgba(250,204,21,0.18),transparent_70%)]" />
+        <aside className="fire-panel fire-orange relative z-20 hidden w-72 shrink-0 overflow-y-auto border-r border-amber-500/25 bg-black/45 p-5 backdrop-blur-2xl md:sticky md:top-0 md:flex md:h-[100dvh] md:flex-col md:overflow-hidden xl:w-80 lg:border-r-white/[0.06] lg:bg-[#0c0705]/92 lg:p-4">
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-amber-500/[0.07] via-transparent to-purple-600/10 lg:opacity-40" />
+          <div className="pointer-events-none absolute top-0 left-0 h-40 w-full bg-[radial-gradient(ellipse_at_top,rgba(250,204,21,0.18),transparent_70%)] lg:opacity-40" />
 
           <div className="relative z-10 md:flex md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto md:overscroll-contain">
-            <div className="fire-panel fire-orange fire-warm mb-8 rounded-2xl border border-amber-400/35 bg-gradient-to-br from-amber-500/15 to-purple-900/25 p-5 text-center shadow-[0_0_40px_-12px_rgba(234,179,8,0.4)]">
-              <p className="text-xs font-black uppercase tracking-[0.4em] text-amber-300">
+            <div className="fire-panel fire-orange fire-warm mb-8 rounded-2xl border border-amber-400/35 bg-gradient-to-br from-amber-500/15 to-purple-900/25 p-5 text-center shadow-[0_0_40px_-12px_rgba(234,179,8,0.4)] lg:mb-7 lg:rounded-none lg:border-0 lg:border-b lg:border-white/[0.07] lg:bg-none lg:p-0 lg:pb-5 lg:text-left lg:shadow-none">
+              <p className="text-xs font-black uppercase tracking-[0.4em] text-amber-300 lg:flex lg:items-center lg:gap-2 lg:text-[0.68rem] lg:tracking-[0.32em] lg:text-amber-300/80">
+                <span className="hidden lg:inline-flex lg:h-7 lg:w-7 lg:items-center lg:justify-center lg:rounded-lg lg:border lg:border-amber-400/25 lg:bg-amber-400/10 lg:text-sm lg:not-italic">
+                  👑
+                </span>
                 Royal
               </p>
-              <h1 className="mt-1 text-3xl font-black bg-gradient-to-r from-white via-amber-200 to-amber-400 bg-clip-text text-transparent xl:text-4xl">
+              <h1 className="mt-1 text-3xl font-black bg-gradient-to-r from-white via-amber-200 to-amber-400 bg-clip-text text-transparent xl:text-4xl lg:mt-1.5 lg:text-2xl xl:lg:text-2xl">
                 Casino
               </h1>
-              <p className="mt-2 text-xs text-amber-200/55">💎 VIP Player Lounge</p>
+              <p className="mt-2 text-xs text-amber-200/55 lg:mt-1 lg:text-[0.72rem] lg:text-amber-100/40">💎 VIP Player Lounge</p>
             </div>
 
-            <nav className="space-y-2">
+            <p className="player-eyebrow mb-2 hidden lg:block lg:px-1">Navigation</p>
+            <nav className="space-y-2 lg:space-y-1">
               {NAV_ITEMS.map((item) => (
-                <div key={item.view} className="space-y-2">
+                <div key={item.view} className="space-y-2 lg:space-y-1">
                   {renderNavButton(item, item.view === 'agents' ? totalUnread : 0, () => {
                     if (item.view === 'agents' && totalUnread > 0) {
                       handleOpenFirstUnreadAgent();
@@ -7046,25 +7050,26 @@ export default function PlayerPage() {
                   })}
                   {item.view === 'usernames' ? (
                     <>
-                      <div aria-hidden className="hidden lg:my-1 lg:block lg:border-t lg:border-white/10 lg:pt-3" />
+                      <div aria-hidden className="hidden lg:my-3 lg:block lg:border-t lg:border-white/[0.06]" />
+                      <p className="player-eyebrow mb-2 hidden lg:block lg:px-1">Account</p>
                       <InstallAppButton
                         canShowInstallButton={canShowInstallButton}
                         onInstallClick={() => {
                           void handleInstallClick();
                         }}
-                        className="w-full rounded-2xl border border-amber-400/35 bg-amber-500/10 py-3.5 text-sm font-bold text-amber-100 transition hover:bg-amber-500/20"
+                        className="w-full rounded-2xl border border-amber-400/35 bg-amber-500/10 py-3.5 text-sm font-bold text-amber-100 transition hover:bg-amber-500/20 lg:rounded-xl lg:border-white/[0.08] lg:bg-white/[0.03] lg:py-2.5 lg:text-[0.85rem] lg:font-semibold lg:text-amber-100/75 lg:hover:border-amber-400/25 lg:hover:bg-white/[0.06] lg:hover:text-amber-50"
                       />
                       <button
                         type="button"
                         onClick={(event) => openPlayerPasswordResetModal(event)}
-                        className="w-full rounded-2xl border border-amber-400/35 bg-amber-500/10 py-3.5 text-sm font-bold text-amber-100 transition hover:bg-amber-500/20"
+                        className="w-full rounded-2xl border border-amber-400/35 bg-amber-500/10 py-3.5 text-sm font-bold text-amber-100 transition hover:bg-amber-500/20 lg:rounded-xl lg:border-white/[0.08] lg:bg-white/[0.03] lg:py-2.5 lg:text-[0.85rem] lg:font-semibold lg:text-amber-100/75 lg:hover:border-amber-400/25 lg:hover:bg-white/[0.06] lg:hover:text-amber-50"
                       >
                         Reset Password
                       </button>
                       <button
                         type="button"
                         onClick={() => openLogoutConfirmSplash('player_nav')}
-                        className="w-full rounded-2xl border border-rose-500/40 bg-rose-950/40 py-3.5 text-sm font-bold text-rose-100 transition hover:bg-rose-500/15"
+                        className="w-full rounded-2xl border border-rose-500/40 bg-rose-950/40 py-3.5 text-sm font-bold text-rose-100 transition hover:bg-rose-500/15 lg:rounded-xl lg:border-rose-500/20 lg:bg-transparent lg:py-2.5 lg:text-[0.85rem] lg:font-semibold lg:text-rose-200/70 lg:hover:border-rose-500/40 lg:hover:bg-rose-500/[0.08] lg:hover:text-rose-100"
                       >
                         Log out
                       </button>
@@ -7088,7 +7093,7 @@ export default function PlayerPage() {
             >
               {activeView === 'dashboard' ? (
               <>
-              <div className="player-lobby-action-grid relative z-20 mb-4 hidden shrink-0 gap-2 md:grid md:gap-2.5 lg:gap-3">
+              <div className="player-lobby-action-grid relative z-20 mb-4 hidden shrink-0 gap-2 md:grid md:gap-2.5 lg:hidden">
                 <div className="fire-panel fire-orange rounded-2xl border border-amber-300/60 bg-gradient-to-br from-amber-400/35 to-yellow-500/20 px-4 py-3 text-right shadow-lg shadow-amber-400/25 md:px-4 md:py-3 lg:px-5">
                   <div className="flex items-center justify-between gap-3">
                     <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-amber-200/40 bg-amber-200/15 text-2xl shadow-[0_0_18px_rgba(251,191,36,0.35)]">
@@ -7324,7 +7329,7 @@ export default function PlayerPage() {
             )}
             
             {/* DASHBOARD VIEW */}
-            {activeView === 'dashboard' && <Lobby activatingBonusEventId={activatingBonusEventId} activeBonusCarouselIndex={activeBonusCarouselIndex} agents={agents} bonusStripPaused={bonusStripPaused} bonusVanishedToast={bonusVanishedToast} formatWalletAmount={formatWalletAmount} gameLogins={gameLogins} handleActivateBonusEvent={handleActivateBonusEvent} handleCopyReferralCode={handleCopyReferralCode} handleOpenFirstUnreadAgent={handleOpenFirstUnreadAgent} openCashToCoinTransferModal={openCashToCoinTransferModal} openCoinToCashTransferModal={openCoinToCashTransferModal} isBlockedPlayer={isBlockedPlayer} lowPerformanceMode={lowPerformanceMode} maintenanceBreak={maintenanceBreak} playerBonusEvents={playerBonusEvents} referralCode={referralCode} setActiveView={setActiveViewFromLobby} setBonusCarouselIndex={setBonusCarouselIndex} setBonusStripPaused={setBonusStripPaused} setMessage={setMessage} setShowLoadCoinPanel={setShowLoadCoinPanel} totalUnread={totalUnread} wallet={wallet} arbCanClaimBonusEvent={arbCanClaimBonusEvent} arbMode={arbMode} />}
+            {activeView === 'dashboard' && <Lobby activatingBonusEventId={activatingBonusEventId} activeBonusCarouselIndex={activeBonusCarouselIndex} agents={agents} bonusStripPaused={bonusStripPaused} bonusVanishedToast={bonusVanishedToast} coinLoading={coinLoading} formatWalletAmount={formatWalletAmount} gameLogins={gameLogins} handleActivateBonusEvent={handleActivateBonusEvent} handleCopyReferralCode={handleCopyReferralCode} handleOpenFirstUnreadAgent={handleOpenFirstUnreadAgent} openCashToCoinTransferModal={openCashToCoinTransferModal} openCashoutModal={() => setShowCashoutModal(true)} openCoinToCashTransferModal={openCoinToCashTransferModal} isBlockedPlayer={isBlockedPlayer} lowPerformanceMode={lowPerformanceMode} maintenanceBreak={maintenanceBreak} playerBonusEvents={playerBonusEvents} referralCode={referralCode} setActiveView={setActiveViewFromLobby} setBonusCarouselIndex={setBonusCarouselIndex} setBonusStripPaused={setBonusStripPaused} setMessage={setMessage} setShowLoadCoinPanel={setShowLoadCoinPanel} totalUnread={totalUnread} wallet={wallet} arbCanClaimBonusEvent={arbCanClaimBonusEvent} arbMode={arbMode} />}
 
             {activeView === 'bonus-events' && <Bonus activatingBonusEventId={activatingBonusEventId} activeBonusCarouselIndex={activeBonusCarouselIndex} bonusEventsSessionLoading={bonusEventsSessionLoading} bonusSwipeStartXRef={bonusSwipeStartXRef} bonusVanishedToast={bonusVanishedToast} handleActivateBonusEvent={handleActivateBonusEvent} lowPerformanceMode={lowPerformanceMode} maintenanceBreak={maintenanceBreak} playerBonusEvents={playerBonusEvents} setBonusCarouselIndex={setBonusCarouselIndex} setBonusStripPaused={setBonusStripPaused} showBonusPanelHint={showBonusPanelHint} arbPlayerModeEnabled={arbPlayerModeEnabled} arbMode={arbMode} arbCooldownEndsAt={arbCooldownEndsAt} arbCanClaimBonusEvent={arbCanClaimBonusEvent} />}
 

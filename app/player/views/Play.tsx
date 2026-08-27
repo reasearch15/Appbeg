@@ -179,6 +179,21 @@ function Play(props: Props) {
                   </div>
                 </div>
 
+                {!loadingList ? (
+                  <div className="player-surface hidden items-center justify-between rounded-2xl px-5 py-3 lg:flex">
+                    <p className="text-xs font-bold uppercase tracking-wider text-amber-100/55">
+                      {gameLogins.length === 0
+                        ? 'No tables assigned yet'
+                        : `${gameLogins.length} ${gameLogins.length === 1 ? 'table' : 'tables'} available`}
+                    </p>
+                    {arbPlayerModeEnabled ? (
+                      <p className="text-xs font-bold uppercase tracking-wider text-amber-200/60">
+                        Automatic Bonus: {arbEnabled ? 'On' : 'Off'}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+
                 {loadingList ? (
                   <div className="grid grid-cols-2 gap-2 sm:items-start lg:grid-cols-[repeat(auto-fill,minmax(19rem,1fr))] lg:gap-[0.85rem]" aria-busy="true">
                     {Array.from({ length: 4 }).map((_, index) => (

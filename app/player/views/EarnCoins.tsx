@@ -50,7 +50,7 @@ function EarnCoins(props: Props) {
                   <h3 className="mt-2 text-2xl font-black text-white sm:text-3xl">
                     Earn from your referrals!
                   </h3>
-                  <p className="mt-3 text-sm text-amber-100/85 sm:text-base">
+                  <p className="mt-3 text-sm text-amber-100/85 sm:text-base lg:hidden">
                     🎁 $15 free play when your friend signs up
                     <br />
                     💰 $5 bonus after their first deposit
@@ -63,6 +63,29 @@ function EarnCoins(props: Props) {
                     <br />
                     Bonus terms apply
                   </p>
+                  <p className="mt-3 hidden max-w-2xl text-sm text-amber-100/70 lg:block">
+                    All earnings are added to your Earn section in real-time. Bonus terms apply.
+                  </p>
+
+                  <div className="mt-5 hidden grid-cols-3 gap-4 lg:grid">
+                    <div className="player-surface rounded-2xl p-4">
+                      <p className="text-2xl font-black tabular-nums text-white">$15</p>
+                      <p className="mt-1 text-xs font-bold text-amber-100/60">Free play</p>
+                      <p className="mt-0.5 text-[0.7rem] text-amber-100/40">When your friend signs up</p>
+                    </div>
+                    <div className="player-surface rounded-2xl p-4">
+                      <p className="text-2xl font-black tabular-nums text-white">$5</p>
+                      <p className="mt-1 text-xs font-bold text-amber-100/60">Bonus</p>
+                      <p className="mt-0.5 text-[0.7rem] text-amber-100/40">After their first deposit</p>
+                    </div>
+                    <div className="player-surface rounded-2xl p-4">
+                      <p className="text-2xl font-black tabular-nums text-white">%</p>
+                      <p className="mt-1 text-xs font-bold text-amber-100/60">Ongoing income</p>
+                      <p className="mt-0.5 text-[0.7rem] text-amber-100/40">
+                        Every time they recharge and play
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
                 <AnimatePresence initial={false} mode="wait">
