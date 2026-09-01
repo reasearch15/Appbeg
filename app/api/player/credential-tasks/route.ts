@@ -105,6 +105,8 @@ export async function POST(request: Request) {
       insertedTask: result.insertedTask,
       outboxChannels: result.outboxChannels,
       duplicate: result.duplicate ?? false,
+      reopened: result.reopened ?? false,
+      existingStatus: result.existingStatus ?? null,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to create credential task.';
